@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
+import { toast } from 'sonner';
 import { Mail, ArrowLeft, AlertCircle, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +18,7 @@ import {
 } from '@/components/ui/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/contexts/AuthContext';
+import { extractErrorMessage } from '@/lib/error-utils';
 import Link from 'next/link';
 
 const forgotPasswordSchema = z.object({
@@ -28,7 +30,6 @@ type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
 export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [error, setError] = useState('');
   const { forgotPassword } = useAuth();
 
   const form = useForm<ForgotPasswordFormValues>({
@@ -41,14 +42,13 @@ export default function ForgotPasswordPage() {
   async function onSubmit(values: ForgotPasswordFormValues) {
     try {
       setLoading(true);
-      setError('');
 
       await forgotPassword({ email: values.email });
       setSuccess(true);
-    } catch (err: any) {
-      setError(
-        err.response?.data?.error?.message || 'Failed to send reset email. Please try again.'
-      );
+    } catch (error: unknown) {
+      toast.error('Failed to send reset email', {
+        description: extractErrorMessage(error) || 'Please try again',
+      });
     } finally {
       setLoading(false);
     }
@@ -59,8 +59,8 @@ export default function ForgotPasswordPage() {
       <div className="space-y-8">
         {/* Success State */}
         <div className="space-y-2 text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-4">
-            <Mail className="w-8 h-8 text-green-600" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
+            <Mail className="w-8 h-8 text-primary" />
           </div>
           <h1 className="text-3xl font-heading font-bold text-foreground tracking-tight">
             Check Your Email
@@ -110,14 +110,6 @@ export default function ForgotPasswordPage() {
           Enter your email address and we'll send you a link to reset your password
         </p>
       </div>
-
-      {/* Error Alert */}
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
 
       {/* Forgot Password Form */}
       <Form {...form}>

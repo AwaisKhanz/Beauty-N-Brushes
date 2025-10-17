@@ -1,8 +1,26 @@
 import { Request } from 'express';
 
-// Extend Express Request type to include user
+// Extend Express Request type to include authenticated user
 export interface AuthRequest extends Request {
   user?: {
+    id: string;
+    email: string;
+    role: string;
+  };
+}
+
+/**
+ * Generic authenticated request with typed body and params
+ * @template TBody - Request body type
+ * @template TParams - URL params type
+ * @template TQuery - Query params type
+ */
+export interface AuthenticatedRequest<
+  TBody = unknown,
+  TParams = Record<string, string>,
+  TQuery = Record<string, unknown>
+> extends Request<TParams, unknown, TBody, TQuery> {
+  user: {
     id: string;
     email: string;
     role: string;
@@ -51,3 +69,4 @@ export * from './onboarding.types';
 export * from './service.types';
 export * from './payment.types';
 export * from './integration.types';
+export * from './prisma.types';

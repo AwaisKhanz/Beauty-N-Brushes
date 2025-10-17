@@ -45,6 +45,18 @@ import type {
   // Payment
   InitializePaystackRequest,
   InitializePaystackResponse,
+  VerifyPaystackTransactionResponse,
+  // Dashboard
+  GetDashboardStatsResponse,
+  GetRecentBookingsResponse,
+  // Calendar
+  GetAvailabilityResponse,
+  UpdateAvailabilityRequest,
+  UpdateAvailabilityResponse,
+  CreateBlockedDateRequest,
+  CreateBlockedDateResponse,
+  GetBlockedDatesResponse,
+  DeleteBlockedDateResponse,
 } from '../../../shared-types';
 
 export const api = {
@@ -173,6 +185,40 @@ export const api = {
       apiClient.post<{ data: InitializePaystackResponse }>('/payment/paystack/initialize', data),
 
     verifyPaystack: (reference: string) =>
-      apiClient.get<any>(`/payment/paystack/verify/${reference}`),
+      apiClient.get<{ data: VerifyPaystackTransactionResponse['data'] }>(
+        `/payment/paystack/verify/${reference}`
+      ),
+  },
+
+  // ============================================
+  // Dashboard APIs
+  // ============================================
+  dashboard: {
+    getStats: () => apiClient.get<{ data: GetDashboardStatsResponse }>('/dashboard/stats'),
+
+    getRecentBookings: () =>
+      apiClient.get<{ data: GetRecentBookingsResponse }>('/dashboard/bookings/recent'),
+  },
+
+  // ============================================
+  // Calendar & Availability APIs
+  // ============================================
+  calendar: {
+    getAvailability: () =>
+      apiClient.get<{ data: GetAvailabilityResponse }>('/calendar/availability'),
+
+    updateAvailability: (data: UpdateAvailabilityRequest) =>
+      apiClient.put<{ data: UpdateAvailabilityResponse }>('/calendar/availability', data),
+
+    getBlockedDates: () =>
+      apiClient.get<{ data: GetBlockedDatesResponse }>('/calendar/blocked-dates'),
+
+    createBlockedDate: (data: CreateBlockedDateRequest) =>
+      apiClient.post<{ data: CreateBlockedDateResponse }>('/calendar/blocked-dates', data),
+
+    deleteBlockedDate: (blockedDateId: string) =>
+      apiClient.delete<{ data: DeleteBlockedDateResponse }>(
+        `/calendar/blocked-dates/${blockedDateId}`
+      ),
   },
 };

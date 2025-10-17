@@ -1,14 +1,19 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { sendSuccess } from '../utils/response';
 import { AppError } from '../middleware/errorHandler';
 import { providerService } from '../services/provider.service';
+import type { AuthRequest } from '../types';
 
 /**
  * Pause provider profile
  */
-export async function pauseProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function pauseProfile(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
 
     if (!userId) {
       throw new AppError(401, 'Unauthorized');
@@ -39,12 +44,12 @@ export async function pauseProfile(req: Request, res: Response, next: NextFuncti
  * Resume provider profile
  */
 export async function resumeProfile(
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
 
     if (!userId) {
       throw new AppError(401, 'Unauthorized');
@@ -73,12 +78,12 @@ export async function resumeProfile(
  * Deactivate provider (Admin only)
  */
 export async function deactivateProvider(
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const userRole = (req as any).user?.role;
+    const userRole = req.user?.role;
 
     if (userRole !== 'ADMIN') {
       throw new AppError(403, 'Admin access required');
@@ -110,12 +115,12 @@ export async function deactivateProvider(
  * Reactivate provider (Admin only)
  */
 export async function reactivateProvider(
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const userRole = (req as any).user?.role;
+    const userRole = req.user?.role;
 
     if (userRole !== 'ADMIN') {
       throw new AppError(403, 'Admin access required');

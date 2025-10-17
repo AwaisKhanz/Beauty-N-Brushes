@@ -1,0 +1,259 @@
+---
+alwaysApply: true
+---
+### Step 3: Create Controller (`backend/src/controllers/<feature>.controller.ts`)
+
+```typescript
+import { Response, NextFunction } from 'express';
+import { sendSuccess } from '../utils/response';
+import { AppError } from '../middleware/errorHandler';
+import { featureService } from '../services/<feature>.service';
+import type { AuthRequest } from '../types';
+import type {
+  CreateFeatureResponse,
+  GetFeatureResponse,
+  GetFeaturesResponse,
+} from '../../../shared-types';
+
+export async function create(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    if (!userId) throw new AppError(401, 'Unauthorized');
+
+    const { name, price } = req.body;
+    if (!name || !price) throw new AppError(400, 'Missing required fields');
+
+    const feature = await featureService.create(userId, req.body);
+
+    sendSuccess<CreateFeatureResponse>(
+      res,
+      {
+        message: 'Feature created',
+        feature: feature as CreateFeatureResponse['feature'],
+      },
+      201
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message === 'User not found') {
+      return next(new AppError(404, error.message));
+    }
+    next(error);
+  }
+}
+
+export async function getById(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { featureId } = req.params;
+    if (!featureId) throw new AppError(400, 'ID required');
+
+    const feature = await featureService.getById(featureId);
+
+    sendSuccess<GetFeatureResponse>(res, {
+      message: 'Retrieved',
+      feature: feature as GetFeatureResponse['feature'],
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Feature not found') {
+      return next(new AppError(404, 'Not found'));
+    }
+    next(error);
+  }
+}
+
+export async function list(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    if (!userId) throw new AppError(401, 'Unauthorized');
+
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+
+    const result = await featureService.list(userId, page, limit);
+
+    sendSuccess<GetFeaturesResponse>(res, {
+      message: 'Retrieved',
+      features: result.features as GetFeaturesResponse['features'],
+      pagination: result.pagination,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+```
+
+---
+
+### Step 4: Create Routes (`backend/src/routes/<feature>.routes.ts`)
+
+```typescript
+import { Router } from 'express';
+import { authenticate } from '../middleware/authenticate';
+import * as featureController from '../controllers/<feature>.controller';
+
+const router = Router();
+
+router.use(authenticate);
+
+router.post('/', featureController.create);
+router.get('/', featureController.list);
+router.get('/:featureId', featureController.getById);
+router.put('/:featureId', featureController.update);
+router.delete('/:featureId', featureController.delete);
+
+export default router;
+```
+
+**Register in** `backend/src/server.ts`:
+
+```typescript
+import featureRoutes from './routes/<feature>.routes';
+app.use('/api/v1/features', featureRoutes);
+```
+
+---
+
+### Step 5: Add Frontend API (`frontend/src/lib/api.ts`)
+
+```typescript
+import type {
+  CreateFeatureRequest,
+  CreateFeatureResponse,
+  GetFeatureResponse,
+  GetFeaturesResponse,
+} from '../../../shared-types';
+
+export const api = {
+  // ... existing
+
+  features: {
+    create: (data: CreateFeatureRequest) =>
+      apiClient.post<{ data: CreateFeatureResponse }>('/features', data),
+
+    getAll: (params?: { page?: number; limit?: number }) =>
+      apiClient.get<{ data: GetFeaturesResponse }>('/features', params),
+
+    getById: (id: string) => apiClient.get<{ data: GetFeatureResponse }>(`/features/${id}`),
+
+    update: (id: string, data: UpdateFeatureRequest) =>
+      apiClient.put<{ data: UpdateFeatureResponse }>(`/features/${id}`, data),
+
+    delete: (id: string) => apiClient.delete<{ data: { message: string } }>(`/features/${id}`),
+  },
+};
+```
+
+---
+
+### Step 6: Create Component (`frontend/src/components/<feature>/Form.tsx`)
+
+```typescript
+'use client';
+
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { api } from '@/lib/api';
+import { extractErrorMessage } from '@/lib/error-utils';
+
+const schema = z.object({
+  name: z.string().min(3),
+  price: z.coerce.number().positive(),
+});
+
+type FormValues = z.infer<typeof schema>;
+
+export function FeatureForm() {
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: { name: '', price: 0 },
+  });
+
+  async function onSubmit(values: FormValues) {
+    try {
+      setLoading(true);
+      setError('');
+      await api.features.create(values);
+    } catch (error: unknown) {
+      setError(extractErrorMessage(error) || 'Failed');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)}>
+        <FormField control={form.control} name="name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Name</FormLabel>
+              <FormControl><Input {...field} /></FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <Button type="submit" disabled={loading}>
+          {loading ? 'Saving...' : 'Create'}
+        </Button>
+      </form>
+    </Form>
+  );
+}
+```
+
+---
+
+## Key Rules
+
+### Deposit Fields Location
+
+- ✅ **Service types**: `depositType`, `depositAmount`
+- ❌ **Policy types**: NO deposit fields (only `depositRequired: boolean`)
+
+### Type Safety
+
+- ✅ `req: AuthRequest` → access `req.user?.id`
+- ✅ `catch (error: unknown)` → use type guards
+- ✅ Frontend errors → `extractErrorMessage(error)`
+- ✅ Prisma Decimal → `result as unknown as Type`
+
+### Webhooks
+
+- ✅ Stripe: Use `Stripe.Subscription`, etc.
+- ✅ Paystack: Use `PaystackChargeData` from shared-types
+
+---
+
+## Validation
+
+```bash
+cd backend && npx tsc --noEmit    # Should: 0 errors
+cd frontend && npx tsc --noEmit   # Should: 0 errors
+grep -r ": any" backend/src frontend/src # Should: 0 results
+```
+
+---
+
+## Checklist for New API
+
+- [ ] Types in `shared-types/<feature>.types.ts`
+- [ ] Export from `shared-types/index.ts`
+- [ ] Service in `backend/src/services/<feature>.service.ts`
+- [ ] Controller in `backend/src/controllers/<feature>.controller.ts`
+- [ ] Routes in `backend/src/routes/<feature>.routes.ts`
+- [ ] Register routes in `backend/src/server.ts`
+- [ ] Add to `frontend/src/lib/api.ts`
+- [ ] No `any` types used
+- [ ] All controllers use `AuthRequest`
+- [ ] TypeScript compilation passes
+
+---
+
+**Version**: 1.0

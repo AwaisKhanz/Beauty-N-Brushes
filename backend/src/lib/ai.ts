@@ -78,30 +78,30 @@ export class AIService {
    * Build prompt for policy generation
    */
   private buildPolicyPrompt(params: PolicyGenerationParams): string {
-    const { businessName, businessType, serviceTypes, depositType, depositAmount } = params;
+    const { businessName, businessType, serviceTypes } = params;
 
-    const depositText =
-      depositType === 'percentage' ? `${depositAmount}% of the service price` : `$${depositAmount}`;
+    const serviceList =
+      serviceTypes.length > 0 ? serviceTypes.join(', ') : 'various beauty services';
 
-    return `Generate professional business policies for "${businessName}", a ${businessType || 'beauty services business'} that offers ${serviceTypes.join(', ')}.
-
-The business requires a ${depositText} deposit for all bookings.
+    return `Generate professional business policies for "${businessName}", a ${businessType || 'beauty services business'} that offers ${serviceList}.
 
 Please create three separate policies:
 
 1. CANCELLATION POLICY (2-3 sentences):
 - Include the 24-hour cancellation notice requirement
-- Mention that cancellations with less than 24 hours notice result in a 50% charge
-- Mention that deposits can be applied to rescheduled appointments with proper notice
+- Mention that cancellations with less than 24 hours notice may result in charges
+- Mention that appointments can be rescheduled with proper notice
 
 2. LATE ARRIVAL POLICY (1-2 sentences):
 - State that clients should arrive on time
-- Mention a 15-minute grace period, after which the appointment may need to be rescheduled
+- Mention a 15-minute grace period, after which the appointment may need to be rescheduled or shortened
 
 3. REFUND POLICY (2-3 sentences):
-- Explain that deposits are non-refundable for late cancellations or no-shows
-- Mention that deposits can be transferred to future appointments with proper notice
-- State that full refunds are available only if the provider cancels
+- Explain the refund policy for late cancellations or no-shows
+- Mention conditions under which refunds or credits may be issued
+- State that full refunds are available if the provider cancels
+
+Note: Make these policies general and professional. Specific deposit amounts and types are configured per-service.
 
 Format your response as JSON:
 {

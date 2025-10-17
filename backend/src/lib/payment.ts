@@ -3,9 +3,15 @@ import type {
   PaymentProvider,
   RegionCode,
   SubscriptionTier,
-  RegionalServiceFee,
   SubscriptionResult,
 } from '../types/payment.types';
+import {
+  REGIONS,
+  REGIONAL_SERVICE_FEES,
+  SUBSCRIPTION_TIERS,
+  TRIAL_PERIOD_DAYS,
+  EXCHANGE_RATES,
+} from '../../../shared-constants';
 
 // Re-export for convenience
 export type { PaymentProvider, RegionCode, SubscriptionTier, SubscriptionResult };
@@ -14,24 +20,12 @@ export type { PaymentProvider, RegionCode, SubscriptionTier, SubscriptionResult 
  * Get payment provider based on region
  */
 export function getPaymentProvider(regionCode: RegionCode): PaymentProvider {
-  const stripeRegions: RegionCode[] = ['NA', 'EU'];
-  const paystackRegions: RegionCode[] = ['GH', 'NG'];
-
-  if (stripeRegions.includes(regionCode)) return 'stripe';
-  if (paystackRegions.includes(regionCode)) return 'paystack';
-
-  throw new Error(`Unsupported region: ${regionCode}`);
+  const region = REGIONS[regionCode];
+  if (!region) {
+    throw new Error(`Unsupported region: ${regionCode}`);
+  }
+  return region.paymentProvider;
 }
-
-/**
- * Regional service fee structure
- */
-const REGIONAL_SERVICE_FEES: Record<RegionCode, RegionalServiceFee> = {
-  NA: { base: 1.25, percentage: 3.6, cap: 8.0, currency: 'USD' },
-  EU: { base: 1.25, percentage: 3.6, cap: 8.0, currency: 'USD' },
-  GH: { base: 10, percentage: 2.9, cap: 60, currency: 'GHS' },
-  NG: { base: 1500, percentage: 2.9, cap: 6224, currency: 'NGN' },
-};
 
 /**
  * Calculate service fee charged to client
@@ -78,8 +72,11 @@ export class StripeService {
     tier: SubscriptionTier,
     providerId: string
   ): Promise<SubscriptionResult> {
-    // Determine monthly fee
-    const monthlyFee = tier === 'solo' ? 19.0 : 49.0;
+    // Determine monthly fee from shared constants
+    const monthlyFee =
+      tier === 'solo'
+        ? SUBSCRIPTION_TIERS.SOLO.monthlyPriceUSD
+        : SUBSCRIPTION_TIERS.SALON.monthlyPriceUSD;
 
     // Get price ID from environment
     const priceId =
@@ -103,12 +100,12 @@ export class StripeService {
       },
     });
 
-    // Create subscription with 2-month trial (60 days)
+    // Create subscription with trial period from shared constants
     // TESTING: Trial commented out for payment testing
     const subscription = await this.stripe.subscriptions.create({
       customer: customer.id,
       items: [{ price: priceId }],
-      trial_period_days: 60,
+      trial_period_days: TRIAL_PERIOD_DAYS,
       payment_behavior: 'default_incomplete',
       expand: ['latest_invoice.payment_intent'],
       metadata: {
@@ -120,9 +117,9 @@ export class StripeService {
     // Get payment method details
     const paymentMethod = await this.stripe.paymentMethods.retrieve(paymentMethodId);
 
-    // Calculate trial end date (60 days from now)
+    // Calculate trial end date from shared constants
     const trialEndDate = new Date();
-    trialEndDate.setDate(trialEndDate.getDate() + 60);
+    trialEndDate.setDate(trialEndDate.getDate() + TRIAL_PERIOD_DAYS);
 
     // Next billing date is same as trial end date
     const nextBillingDate = new Date(trialEndDate);
@@ -185,17 +182,17 @@ export class PaystackService {
     regionCode: RegionCode,
     providerId: string
   ): Promise<SubscriptionResult> {
-    // Determine monthly fee in local currency
-    const baseMonthlyFee = tier === 'solo' ? 19.0 : 49.0;
+    // Determine monthly fee in local currency from shared constants
+    const baseMonthlyFee =
+      tier === 'solo'
+        ? SUBSCRIPTION_TIERS.SOLO.monthlyPriceUSD
+        : SUBSCRIPTION_TIERS.SALON.monthlyPriceUSD;
     const currency = getRegionalCurrency(regionCode);
 
-    // Currency conversion (simplified - use actual exchange rates in production)
-    const exchangeRates: Record<string, number> = {
-      GHS: 12.5, // 1 USD = ~12.5 GHS
-      NGN: 1550, // 1 USD = ~1550 NGN
-    };
-
-    const monthlyFee = Math.round(baseMonthlyFee * (exchangeRates[currency] || 1));
+    // Currency conversion using shared exchange rates
+    const monthlyFee = Math.round(
+      baseMonthlyFee * (EXCHANGE_RATES[currency as keyof typeof EXCHANGE_RATES] || 1)
+    );
 
     // Create customer
     const customerResponse = await fetch(`${this.baseUrl}/customer`, {
@@ -245,10 +242,10 @@ export class PaystackService {
       ? ((await planResponse.json()) as { data: { plan_code: string } })
       : { data: { plan_code: planCode } };
 
-    // Calculate trial end date (60 days from now)
+    // Calculate trial end date from shared constants
     // TESTING: Trial commented out for payment testing
     // const trialEndDate = new Date();
-    // trialEndDate.setDate(trialEndDate.getDate() + 60);
+    // trialEndDate.setDate(trialEndDate.getDate() + TRIAL_PERIOD_DAYS);
     const trialEndDate = new Date(); // TESTING: Set to now for immediate billing
 
     // For Paystack trial without payment method, we don't create subscription yet

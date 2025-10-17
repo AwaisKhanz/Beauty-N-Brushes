@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Palette, Type, RefreshCw } from 'lucide-react';
+import { BRAND_COLORS } from '@/constants/colors';
 
 const brandCustomizationSchema = z.object({
   brandColorPrimary: z.string().min(1, 'Primary color required'),
@@ -38,7 +39,7 @@ type BrandCustomizationFormValues = z.infer<typeof brandCustomizationSchema>;
 // Convert HSL to hex for color inputs
 function hslToHex(hsl: string): string {
   const match = hsl.match(/hsl\((\d+)\s+(\d+)%\s+(\d+)%\)/);
-  if (!match) return '#B06F64';
+  if (!match) return BRAND_COLORS.PRIMARY;
 
   const h = parseInt(match[1]);
   const s = parseInt(match[2]);

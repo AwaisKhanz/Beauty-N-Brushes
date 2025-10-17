@@ -43,7 +43,7 @@ export function Step1AccountType({ defaultValues, onNext, isLoading }: Step1Acco
       </div>
 
       {/* Account Type Cards */}
-      <div className="grid md:grid-cols-2 gap-8 mb-12">
+      <div className="grid md:grid-cols-2 gap-8 mb-12 w-full">
         {/* Solo Professional */}
         <Card
           className={`cursor-pointer transition-all duration-300 hover:shadow-xl hover:scale-105 ${

@@ -6,17 +6,8 @@ import Link from 'next/link';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import {
-  Mail,
-  Lock,
-  User,
-  Briefcase,
-  Users,
-  AlertCircle,
-  Sparkles,
-  Check,
-  ArrowRight,
-} from 'lucide-react';
+import { toast } from 'sonner';
+import { Mail, Lock, User, Briefcase, Users, Sparkles, Check, ArrowRight } from 'lucide-react';
 import { Logo } from '@/components/shared/Logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,8 +20,8 @@ import {
   FormMessage,
   FormDescription,
 } from '@/components/ui/form';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/contexts/AuthContext';
+import { extractErrorMessage } from '@/lib/error-utils';
 import { cn } from '@/lib/utils';
 
 const registerSchema = z.object({
@@ -51,7 +42,6 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
 
@@ -71,7 +61,6 @@ export default function RegisterPage() {
   async function onSubmit(values: RegisterFormValues) {
     try {
       setLoading(true);
-      setError('');
 
       const user = await register({
         firstName: values.firstName,
@@ -83,8 +72,10 @@ export default function RegisterPage() {
 
       // Redirect to verify email page (REQUIRED before proceeding)
       router.push(`/verify-email?email=${encodeURIComponent(user.email)}`);
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || 'Registration failed. Please try again.');
+    } catch (error: unknown) {
+      toast.error('Registration failed', {
+        description: extractErrorMessage(error) || 'Please try again',
+      });
     } finally {
       setLoading(false);
     }
@@ -102,14 +93,6 @@ export default function RegisterPage() {
         </h1>
         <p className="text-muted-foreground text-sm">Create your account and get started today</p>
       </div>
-
-      {/* Error Alert */}
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
 
       {/* Registration Form */}
       <Form {...form}>

@@ -1,0 +1,132 @@
+---
+alwaysApply: true
+---
+## Frontend
+
+### Error Handling
+
+```typescript
+import { extractErrorMessage } from '@/lib/error-utils';
+
+try {
+  await api.endpoint();
+} catch (error: unknown) {
+  setError(extractErrorMessage(error) || 'Default');
+}
+```
+
+### Forms - Use Zod
+
+```typescript
+const schema = z.object({
+  email: z.string().email(),
+  price: z.coerce.number().positive(),
+});
+
+type FormValues = z.infer<typeof schema>;
+
+const form = useForm<FormValues>({
+  resolver: zodResolver(schema),
+});
+```
+
+### API Calls
+
+```typescript
+// ✅ Fully typed
+const response = await api.features.create(data);
+
+// ❌ Never untyped fetch
+const data = await fetch().then((r) => r.json()); // data is any!
+```
+
+---
+
+## Shared Types
+
+**Location**: `shared-types/<feature>.types.ts`
+
+```typescript
+// Requests
+export interface CreateFeatureRequest {
+  name: string;
+  price: number;
+}
+
+// Responses
+export interface Feature {
+  id: string;
+  name: string;
+  price: number;
+  createdAt: string;
+}
+
+export interface CreateFeatureResponse {
+  message: string;
+  feature: Feature;
+}
+```
+
+**Export**: Add to `shared-types/index.ts`
+
+---
+
+## Special Rules
+
+### 1. Prisma Decimal Cast
+
+```typescript
+// ✅ Only acceptable double cast
+service: service as unknown as ServiceResponse;
+```
+
+### 2. Deposit Fields Location
+
+```typescript
+// ✅ CORRECT - Service level
+interface CreateServiceRequest {
+  depositType: DepositType;
+  depositAmount: number;
+}
+
+// ❌ WRONG - Policy level
+interface PolicyData {
+  depositType: string; // NO!
+}
+```
+
+---
+
+## Quick Fixes
+
+| Issue                | Fix                                 |
+| -------------------- | ----------------------------------- |
+| `(req as any).user`  | `req: AuthRequest` + `req.user?.id` |
+| `catch (error: any)` | `catch (error: unknown)`            |
+| `error.message`      | `extractErrorMessage(error)`        |
+| `result as any`      | `result as unknown as Type`         |
+
+---
+
+## Validation
+
+```bash
+# Before commit
+cd backend && npx tsc --noEmit
+cd frontend && npx tsc --noEmit
+grep -r ": any" backend/src frontend/src --include="*.ts*"
+```
+
+Expected: 0 errors, 0 `any` types
+
+---
+
+## Utilities
+
+- **Error**: `extractErrorMessage(error: unknown)`
+- **Prisma Types**: `backend/src/types/prisma.types.ts`
+- **Type Guards**: `shared-types/error.types.ts`
+
+---
+
+**Version**: 1.0

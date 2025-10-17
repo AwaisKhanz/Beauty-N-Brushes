@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Mail, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Mail, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { extractErrorMessage } from '@/lib/error-utils';
 
 export default function VerifyEmailPage() {
   const searchParams = useSearchParams();
@@ -15,8 +17,6 @@ export default function VerifyEmailPage() {
   const { resendVerification } = useAuth();
 
   const [isResending, setIsResending] = useState(false);
-  const [resendSuccess, setResendSuccess] = useState(false);
-  const [resendError, setResendError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!email) {
@@ -29,21 +29,16 @@ export default function VerifyEmailPage() {
     if (!email) return;
 
     setIsResending(true);
-    setResendError(null);
-    setResendSuccess(false);
 
     try {
       await resendVerification(email!);
-      setResendSuccess(true);
-
-      // Clear success message after 5 seconds
-      setTimeout(() => {
-        setResendSuccess(false);
-      }, 5000);
-    } catch (error: any) {
-      setResendError(
-        error.response?.data?.message || 'Failed to resend verification email. Please try again.'
-      );
+      toast.success('Verification email sent', {
+        description: 'Please check your inbox and spam folder',
+      });
+    } catch (error: unknown) {
+      toast.error('Failed to resend email', {
+        description: extractErrorMessage(error) || 'Please try again',
+      });
     } finally {
       setIsResending(false);
     }
@@ -104,20 +99,6 @@ export default function VerifyEmailPage() {
                 </p>
               </div>
             </div>
-
-            {resendSuccess && (
-              <div className="flex items-center gap-2 p-3 bg-primary/10 text-primary rounded-lg border border-primary/20">
-                <CheckCircle2 className="h-4 w-4" />
-                <p className="text-sm">Verification email sent successfully!</p>
-              </div>
-            )}
-
-            {resendError && (
-              <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-lg border border-destructive/20">
-                <AlertCircle className="h-4 w-4" />
-                <p className="text-sm">{resendError}</p>
-              </div>
-            )}
 
             <div className="space-y-3">
               <p className="text-sm text-center text-muted-foreground">Didn't receive the email?</p>

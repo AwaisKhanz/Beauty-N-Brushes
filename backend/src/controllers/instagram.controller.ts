@@ -1,19 +1,20 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { sendSuccess } from '../utils/response';
 import { AppError } from '../middleware/errorHandler';
 import { instagramService } from '../lib/instagram';
 import { prisma } from '../config/database';
+import type { AuthRequest } from '../types';
 
 /**
  * Initiate Instagram OAuth flow
  */
 export async function connectInstagram(
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
 
     if (!userId) {
       throw new AppError(401, 'Unauthorized');
@@ -35,7 +36,7 @@ export async function connectInstagram(
  * Handle Instagram OAuth callback
  */
 export async function handleCallback(
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -99,9 +100,13 @@ export async function handleCallback(
 /**
  * Import Instagram media
  */
-export async function importMedia(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function importMedia(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
 
     if (!userId) {
       throw new AppError(401, 'Unauthorized');
@@ -144,12 +149,12 @@ export async function importMedia(req: Request, res: Response, next: NextFunctio
  * Disconnect Instagram
  */
 export async function disconnectInstagram(
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
 
     if (!userId) {
       throw new AppError(401, 'Unauthorized');

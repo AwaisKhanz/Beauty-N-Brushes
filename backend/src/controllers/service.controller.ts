@@ -1,28 +1,27 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { sendSuccess } from '../utils/response';
 import { AppError } from '../middleware/errorHandler';
 import { serviceService } from '../services/service.service';
+import type { AuthRequest } from '../types';
 import type {
-  CreateServiceRequest,
   CreateServiceResponse,
   GetServiceResponse,
   GetServicesResponse,
-  SaveServiceMediaRequest,
   SaveServiceMediaResponse,
-  GenerateServiceDescriptionRequest,
   GenerateServiceDescriptionResponse,
+  Service,
 } from '../../../shared-types';
 
 /**
  * Create a new service
  */
 export async function createService(
-  req: Request<{}, {}, CreateServiceRequest>,
+  req: AuthRequest,
   res: Response<CreateServiceResponse>,
   next: NextFunction
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
 
     if (!userId) {
       throw new AppError(401, 'Unauthorized');
@@ -73,7 +72,7 @@ export async function createService(
       res,
       {
         message: 'Service created successfully',
-        service: service as any, // Type assertion for Prisma result
+        service: service as unknown as CreateServiceResponse['service'],
       },
       201
     );
@@ -89,12 +88,12 @@ export async function createService(
  * Save service media URLs (files uploaded via /upload endpoint)
  */
 export async function saveServiceMedia(
-  req: Request<{ serviceId: string }, {}, SaveServiceMediaRequest>,
+  req: AuthRequest,
   res: Response<SaveServiceMediaResponse>,
   next: NextFunction
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     const { serviceId } = req.params;
 
     if (!userId) {
@@ -130,7 +129,7 @@ export async function saveServiceMedia(
  * Generate AI service description
  */
 export async function generateServiceDescription(
-  req: Request<{}, {}, GenerateServiceDescriptionRequest>,
+  req: AuthRequest,
   res: Response<GenerateServiceDescriptionResponse>,
   next: NextFunction
 ): Promise<void> {
@@ -160,12 +159,12 @@ export async function generateServiceDescription(
  * Get all services for a provider
  */
 export async function getProviderServices(
-  req: Request,
+  req: AuthRequest,
   res: Response<GetServicesResponse>,
   next: NextFunction
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
 
     if (!userId) {
       throw new AppError(401, 'Unauthorized');
@@ -175,7 +174,7 @@ export async function getProviderServices(
 
     sendSuccess<GetServicesResponse>(res, {
       message: 'Services retrieved successfully',
-      services: services as any, // Type assertion for Prisma result
+      services: services as unknown as GetServicesResponse['services'],
     });
   } catch (error) {
     if (error instanceof Error && error.message === 'Provider profile not found') {
@@ -189,7 +188,7 @@ export async function getProviderServices(
  * Get service by ID
  */
 export async function getServiceById(
-  req: Request<{ serviceId: string }>,
+  req: AuthRequest,
   res: Response<GetServiceResponse>,
   next: NextFunction
 ): Promise<void> {
@@ -202,9 +201,11 @@ export async function getServiceById(
 
     const service = await serviceService.getServiceById(serviceId);
 
+    // Note: Using double cast because Prisma's Decimal type is incompatible with TypeScript's number
+    // This is safe at runtime as Decimal correctly serializes to number in JSON responses
     sendSuccess<GetServiceResponse>(res, {
       message: 'Service retrieved successfully',
-      service: service as any, // Type assertion for Prisma result
+      service: service as unknown as Service,
     });
   } catch (error) {
     if (error instanceof Error && error.message === 'Service not found') {

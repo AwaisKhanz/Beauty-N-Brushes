@@ -48,19 +48,19 @@ export interface UpdateBrandCustomizationRequest {
 
 export interface GenerateAIPoliciesRequest {
   businessName: string;
-  depositAmount: number;
-  depositType: 'percentage' | 'fixed';
+  // Note: This is used to generate policy text only
+  // Actual deposit config is per-service, not policy-level
 }
 
 export interface SavePoliciesRequest {
   cancellationPolicy: string;
   lateArrivalPolicy: string;
-  depositRequired: boolean;
-  depositType: 'percentage' | 'fixed';
-  depositAmount: number;
+  depositRequired: boolean; // Whether deposits are required (general policy)
   refundPolicy: string;
   advanceBookingDays: number;
   minimumNoticeHours: number;
+  // Note: depositType and depositAmount are NOT here
+  // They are configured per-service in CreateServiceRequest
 }
 
 export interface SetupPaymentRequest {
@@ -142,7 +142,14 @@ export interface OnboardingStatusResponse {
       logoUrl?: string | null;
       coverPhotoUrl?: string | null;
       avatarUrl?: string | null;
-      policies?: any;
+      policies?: {
+        cancellationPolicy?: string | null;
+        lateArrivalPolicy?: string | null;
+        depositRequired?: boolean | null;
+        refundPolicy?: string | null;
+        // Note: depositType and depositAmount are NOT policy-level fields
+        // They are configured per-service in the Service model
+      } | null;
       subscriptionTier?: string | null;
     };
   };

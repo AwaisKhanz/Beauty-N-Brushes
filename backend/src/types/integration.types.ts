@@ -23,8 +23,6 @@ export interface PolicyGenerationParams {
   businessName: string;
   businessType?: string;
   serviceTypes: string[];
-  depositType: 'percentage' | 'fixed';
-  depositAmount: number;
 }
 
 export interface GeneratedPolicies {

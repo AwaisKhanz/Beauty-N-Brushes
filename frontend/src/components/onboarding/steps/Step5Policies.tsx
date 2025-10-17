@@ -9,7 +9,6 @@ import { api } from '@/lib/api';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
 import {
   Form,
   FormControl,
@@ -19,13 +18,6 @@ import {
   FormMessage,
   FormDescription,
 } from '@/components/ui/form';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Sparkles, Clock, CreditCard, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 
@@ -34,23 +26,12 @@ const policiesSchema = z
     cancellationPolicy: z.string().min(20, 'Cancellation policy must be at least 20 characters'),
     lateArrivalPolicy: z.string().min(20, 'Late arrival policy must be at least 20 characters'),
     depositRequired: z.boolean().default(true),
-    depositType: z.enum(['percentage', 'fixed']),
-    depositAmount: z.coerce.number().min(1, 'Deposit amount must be at least 1'),
     refundPolicy: z.string().min(20, 'Refund policy must be at least 20 characters'),
   })
-  .refine(
-    (data) => {
-      // If deposit is required, validate deposit fields
-      if (data.depositRequired) {
-        return data.depositType && data.depositAmount > 0;
-      }
-      return true;
-    },
-    {
-      message: 'Deposit type and amount are required when deposit is enabled',
-      path: ['depositType'],
-    }
-  );
+  .refine((data) => data.depositRequired, {
+    message: 'Deposit required is required when deposit is enabled',
+    path: ['depositRequired'],
+  });
 
 type PoliciesFormValues = z.infer<typeof policiesSchema>;
 
@@ -69,8 +50,6 @@ export function Step5Policies({ defaultValues, onNext, onBack, isLoading }: Step
     resolver: zodResolver(policiesSchema),
     defaultValues: {
       depositRequired: true,
-      depositType: 'percentage',
-      depositAmount: 50,
       ...defaultValues,
     },
   });
@@ -79,8 +58,6 @@ export function Step5Policies({ defaultValues, onNext, onBack, isLoading }: Step
     if (defaultValues) {
       form.reset({
         depositRequired: true,
-        depositType: 'percentage',
-        depositAmount: 50,
         ...defaultValues,
       });
       if (defaultValues.cancellationPolicy) {
@@ -93,13 +70,8 @@ export function Step5Policies({ defaultValues, onNext, onBack, isLoading }: Step
     setIsGenerating(true);
 
     try {
-      const depositType = form.getValues('depositType');
-      const depositAmount = form.getValues('depositAmount');
-
       const response = await api.onboarding.generatePolicies({
         businessName: defaultValues?.businessName || 'Your Business',
-        depositType,
-        depositAmount: depositAmount ? parseFloat(depositAmount.toString()) : 50,
       });
 
       if (response.data?.policies) {
@@ -126,8 +98,6 @@ export function Step5Policies({ defaultValues, onNext, onBack, isLoading }: Step
       cancellationPolicy: values.cancellationPolicy,
       lateArrivalPolicy: values.lateArrivalPolicy,
       depositRequired: values.depositRequired,
-      depositType: values.depositType,
-      depositAmount: parseFloat(values.depositAmount.toString()),
       refundPolicy: values.refundPolicy,
     });
   }
@@ -238,7 +208,6 @@ export function Step5Policies({ defaultValues, onNext, onBack, isLoading }: Step
                   <CreditCard className="h-5 w-5" />
                   Deposit Requirements
                 </h3>
-
                 <FormField
                   control={form.control}
                   name="depositRequired"
@@ -250,59 +219,12 @@ export function Step5Policies({ defaultValues, onNext, onBack, isLoading }: Step
                       <div className="space-y-1 leading-none">
                         <FormLabel>Require deposit for bookings</FormLabel>
                         <FormDescription>
-                          Enable this to require clients to pay a deposit when booking
+                          Enable this to require deposits for bookings.
                         </FormDescription>
                       </div>
                     </FormItem>
                   )}
                 />
-
-                {form.watch('depositRequired') && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="depositType"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Deposit Type</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="percentage">Percentage</SelectItem>
-                              <SelectItem value="fixed">Fixed Amount</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="depositAmount"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>
-                            Deposit Amount{' '}
-                            {form.watch('depositType') === 'percentage' ? '(%)' : '($)'}
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              {...field}
-                              onChange={(e) => field.onChange(Number(e.target.value))}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                )}
               </div>
 
               <FormField

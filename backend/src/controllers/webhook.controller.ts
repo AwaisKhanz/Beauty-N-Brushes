@@ -4,6 +4,7 @@ import { prisma } from '../config/database';
 import logger from '../utils/logger';
 import crypto from 'crypto';
 import { emailService } from '../lib/email';
+import type { PaystackSubscriptionData, PaystackChargeData } from '../../../shared-types';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
   apiVersion: '2023-10-16',
@@ -27,9 +28,10 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
   try {
     // Verify webhook signature
     event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
-  } catch (err: any) {
-    logger.error(`Webhook signature verification failed: ${err.message}`);
-    res.status(400).send(`Webhook Error: ${err.message}`);
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    logger.error(`Webhook signature verification failed: ${errorMessage}`);
+    res.status(400).send(`Webhook Error: ${errorMessage}`);
     return;
   }
 
@@ -377,7 +379,7 @@ export async function handlePaystackWebhook(req: Request, res: Response): Promis
 /**
  * Handle Paystack subscription created
  */
-async function handlePaystackSubscriptionCreated(data: any): Promise<void> {
+async function handlePaystackSubscriptionCreated(data: PaystackSubscriptionData): Promise<void> {
   logger.info(`Paystack subscription created: ${data.subscription_code}`);
 
   const profile = await prisma.providerProfile.findFirst({
@@ -397,7 +399,7 @@ async function handlePaystackSubscriptionCreated(data: any): Promise<void> {
 /**
  * Handle Paystack subscription disabled
  */
-async function handlePaystackSubscriptionDisabled(data: any): Promise<void> {
+async function handlePaystackSubscriptionDisabled(data: PaystackSubscriptionData): Promise<void> {
   logger.info(`Paystack subscription disabled: ${data.subscription_code}`);
 
   const profile = await prisma.providerProfile.findFirst({
@@ -417,7 +419,7 @@ async function handlePaystackSubscriptionDisabled(data: any): Promise<void> {
 /**
  * Handle Paystack subscription not renew
  */
-async function handlePaystackSubscriptionNotRenew(data: any): Promise<void> {
+async function handlePaystackSubscriptionNotRenew(data: PaystackSubscriptionData): Promise<void> {
   logger.info(`Paystack subscription will not renew: ${data.subscription_code}`);
 
   const profile = await prisma.providerProfile.findFirst({
@@ -432,7 +434,7 @@ async function handlePaystackSubscriptionNotRenew(data: any): Promise<void> {
 /**
  * Handle Paystack charge success
  */
-async function handlePaystackChargeSuccess(data: any): Promise<void> {
+async function handlePaystackChargeSuccess(data: PaystackChargeData): Promise<void> {
   logger.info(`Paystack charge succeeded: ${data.reference}`);
 
   // If this is a subscription charge
@@ -455,7 +457,7 @@ async function handlePaystackChargeSuccess(data: any): Promise<void> {
 /**
  * Handle Paystack charge failed
  */
-async function handlePaystackChargeFailed(data: any): Promise<void> {
+async function handlePaystackChargeFailed(data: PaystackChargeData): Promise<void> {
   logger.info(`Paystack charge failed: ${data.reference}`);
 
   if (data.metadata?.providerId) {

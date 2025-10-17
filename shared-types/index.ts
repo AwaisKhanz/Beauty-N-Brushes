@@ -18,14 +18,26 @@ export * from './upload.types';
 // Payment Types
 export * from './payment.types';
 
+// Webhook Types
+export * from './webhook.types';
+
+// Error Types
+export * from './error.types';
+
+// Dashboard Types
+export * from './dashboard.types';
+
+// Calendar Types
+export * from './calendar.types';
+
 // Common Response Type
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   message?: string;
   error?: {
     code: string;
     message: string;
-    details?: any;
+    details?: unknown;
   };
 }

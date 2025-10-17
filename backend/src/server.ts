@@ -26,6 +26,8 @@ import aiRoutes from './routes/ai.routes';
 import webhookRoutes from './routes/webhook.routes';
 import uploadRoutes from './routes/upload.routes';
 import paymentRoutes from './routes/payment.routes';
+import dashboardRoutes from './routes/dashboard.routes';
+import calendarRoutes from './routes/calendar.routes';
 
 const app: Application = express();
 const PORT = process.env.PORT || 8000;
@@ -80,7 +82,7 @@ const uploadsPath = path.join(process.cwd(), 'uploads');
 logger.info(`📁 Serving static files from: ${uploadsPath}`);
 app.use(
   '/uploads',
-  (req, res, next) => {
+  (_req, res, next) => {
     res.header('Access-Control-Allow-Origin', process.env.FRONTEND_URL || 'http://localhost:3000');
     res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type');
@@ -124,6 +126,8 @@ app.use('/api/v1/instagram', instagramRoutes);
 app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/upload', uploadRoutes);
 app.use('/api/v1/payment', paymentRoutes);
+app.use('/api/v1/dashboard', dashboardRoutes);
+app.use('/api/v1/calendar', calendarRoutes);
 
 // 404 handler
 app.use(notFoundHandler);

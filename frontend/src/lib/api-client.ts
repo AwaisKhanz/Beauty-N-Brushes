@@ -44,6 +44,7 @@ class ApiClient {
           '/auth/reset-password',
           '/auth/verify-email',
           '/auth/resend-verification',
+          '/auth/me', // Don't retry /auth/me - let AuthGuard handle the redirect
         ];
         const isPublicEndpoint = publicEndpoints.some((endpoint) =>
           originalRequest?.url?.includes(endpoint)
@@ -84,7 +85,8 @@ class ApiClient {
             // Retry the original request
             return this.client(originalRequest);
           } catch (refreshError) {
-            // Refresh failed, clear cookies and redirect to login
+            // Refresh failed, clear cookies but don't redirect
+            // Let the AuthGuard handle the redirect
             this.failedQueue.forEach((prom) => {
               prom.reject(refreshError);
             });
@@ -92,9 +94,6 @@ class ApiClient {
             this.isRefreshing = false;
 
             clearAuthCookies();
-            if (typeof window !== 'undefined') {
-              window.location.href = '/login';
-            }
             return Promise.reject(refreshError);
           }
         }

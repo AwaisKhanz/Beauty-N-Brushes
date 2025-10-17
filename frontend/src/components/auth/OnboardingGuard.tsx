@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { Skeleton } from '@/components/ui/skeleton';
+import { GuardLoading } from '@/components/auth/GuardLoading';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, Clock } from 'lucide-react';
@@ -58,19 +58,7 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
   };
 
   if (isChecking) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-full max-w-md space-y-4">
-          <Skeleton className="h-8 w-3/4 mx-auto" />
-          <Skeleton className="h-4 w-1/2 mx-auto" />
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-5/6" />
-            <Skeleton className="h-4 w-4/6" />
-          </div>
-        </div>
-      </div>
-    );
+    return <GuardLoading message="Checking onboarding status..." />;
   }
 
   // If onboarding is not complete and user is trying to access protected pages

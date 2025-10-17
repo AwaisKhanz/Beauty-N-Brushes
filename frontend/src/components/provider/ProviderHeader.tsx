@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { Bell, Settings, User } from 'lucide-react';
+import { Bell, Settings, User, Menu } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,17 +12,30 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-export default function ProviderHeader() {
+interface ProviderHeaderProps {
+  onMenuClick: () => void;
+}
+
+export default function ProviderHeader({ onMenuClick }: ProviderHeaderProps) {
   return (
-    <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="flex h-16 items-center justify-between px-6">
+    <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex-shrink-0">
+      <div className="flex h-16 items-center justify-between px-4 md:px-6">
         <div className="flex items-center gap-4">
-          <Link href="/provider/dashboard" className="text-xl font-heading font-bold text-primary">
+          {/* Mobile menu button */}
+          <Button variant="ghost" size="icon" className="md:hidden" onClick={onMenuClick}>
+            <Menu className="h-5 w-5" />
+            <span className="sr-only">Toggle menu</span>
+          </Button>
+
+          <Link
+            href="/provider/dashboard"
+            className="text-lg md:text-xl font-heading font-bold text-primary"
+          >
             Provider Dashboard
           </Link>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4">
           <ThemeToggle />
 
           <Button variant="ghost" size="icon">

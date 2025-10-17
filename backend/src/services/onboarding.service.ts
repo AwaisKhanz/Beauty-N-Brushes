@@ -11,6 +11,7 @@ import type {
   AvailabilityScheduleData,
   OnboardingStatus,
 } from '../types/onboarding.types';
+import { SUBSCRIPTION_TIERS, TRIAL_PERIOD_DAYS } from '../../../shared-constants';
 
 export class OnboardingService {
   /**
@@ -241,9 +242,12 @@ export class OnboardingService {
           paymentMethodId: 'stripe_trial',
           last4: null,
           cardBrand: null,
-          trialEndDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000), // 60 days
-          nextBillingDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000), // 60 days
-          monthlyFee: tier === 'solo' ? 19.0 : 49.0,
+          trialEndDate: new Date(Date.now() + TRIAL_PERIOD_DAYS * 24 * 60 * 60 * 1000),
+          nextBillingDate: new Date(Date.now() + TRIAL_PERIOD_DAYS * 24 * 60 * 60 * 1000),
+          monthlyFee:
+            tier === 'solo'
+              ? SUBSCRIPTION_TIERS.SOLO.monthlyPriceUSD
+              : SUBSCRIPTION_TIERS.SALON.monthlyPriceUSD,
         };
       } else {
         // Normal Stripe subscription (when payment collection is implemented)
@@ -291,9 +295,12 @@ export class OnboardingService {
           paymentMethodId: 'paystack_trial',
           last4: null,
           cardBrand: null,
-          trialEndDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000), // 60 days
-          nextBillingDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000), // 60 days
-          monthlyFee: tier === 'solo' ? 19.0 : 49.0,
+          trialEndDate: new Date(Date.now() + TRIAL_PERIOD_DAYS * 24 * 60 * 60 * 1000),
+          nextBillingDate: new Date(Date.now() + TRIAL_PERIOD_DAYS * 24 * 60 * 60 * 1000),
+          monthlyFee:
+            tier === 'solo'
+              ? SUBSCRIPTION_TIERS.SOLO.monthlyPriceUSD
+              : SUBSCRIPTION_TIERS.SALON.monthlyPriceUSD,
         };
       } else {
         // Normal Paystack subscription (when payment collection is implemented)
@@ -502,7 +509,14 @@ export class OnboardingService {
         logoUrl: profile.logoUrl,
         coverPhotoUrl: profile.coverPhotoUrl,
         avatarUrl: profile.user.avatarUrl,
-        policies: profile.policies,
+        policies: profile.policies
+          ? {
+              cancellationPolicy: profile.policies.cancellationPolicyText || '',
+              lateArrivalPolicy: profile.policies.latePolicyText || '',
+              depositRequired: profile.policies.depositRequired,
+              refundPolicy: profile.policies.refundPolicyText || '',
+            }
+          : null,
         subscriptionTier: profile.subscriptionTier,
       },
     };
@@ -550,7 +564,7 @@ export class OnboardingService {
 
     // Send welcome email
     const appUrl = process.env.APP_URL || 'http://localhost:3000';
-    const trialEndDate = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000);
+    const trialEndDate = new Date(Date.now() + TRIAL_PERIOD_DAYS * 24 * 60 * 60 * 1000);
 
     await emailService.sendWelcomeEmail(profile.user.email, profile.user.firstName, {
       trialEndDate: trialEndDate.toLocaleDateString('en-US', {

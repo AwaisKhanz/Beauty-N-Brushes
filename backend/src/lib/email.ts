@@ -72,8 +72,9 @@ class EmailTemplateService {
       });
 
       console.log(`✅ Email sent to ${to}: ${subject}`);
-    } catch (error: any) {
-      console.error('❌ SendGrid error:', error.response?.body || error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('❌ SendGrid error:', errorMessage);
       throw new Error('Failed to send email');
     }
   }

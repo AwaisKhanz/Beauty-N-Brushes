@@ -16,6 +16,40 @@ interface UseLocationReturn {
   searchLocation: (query: string) => Promise<LocationData[]>;
 }
 
+/**
+ * Nominatim API response types
+ */
+interface NominatimAddress {
+  house_number?: string;
+  road?: string;
+  house_name?: string;
+  suburb?: string;
+  neighbourhood?: string;
+  city?: string;
+  town?: string;
+  village?: string;
+  subdistrict?: string;
+  municipality?: string;
+  district?: string;
+  hamlet?: string;
+  locality?: string;
+  state?: string;
+  province?: string;
+  region?: string;
+  administrative?: string;
+  county?: string;
+  postcode?: string;
+  postal_code?: string;
+  country?: string;
+}
+
+interface NominatimResult {
+  display_name: string;
+  lat: string;
+  lon: string;
+  address: NominatimAddress;
+}
+
 export function useLocation(options: UseLocationOptions = {}): UseLocationReturn {
   const [currentLocation, setCurrentLocation] = useState<LocationData | null>(
     options.defaultLocation
@@ -143,8 +177,8 @@ export function useLocation(options: UseLocationOptions = {}): UseLocationReturn
       );
 
       if (response.ok) {
-        const results = await response.json();
-        return results.map((result: any) => {
+        const results = (await response.json()) as NominatimResult[];
+        return results.map((result) => {
           // Smart address parsing using display_name as fallback
           const displayParts = result.display_name.split(',').map((part: string) => part.trim());
 

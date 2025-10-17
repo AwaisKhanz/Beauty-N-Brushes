@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Skeleton } from '@/components/ui/skeleton';
+import { GuardLoading } from '@/components/auth/GuardLoading';
 import type { UserRole } from '@/types';
 import { ROUTES, getDashboardRoute } from '@/constants';
 
@@ -16,14 +16,14 @@ interface AuthGuardProps {
 export function AuthGuard({ children, requiredRole, redirectTo }: AuthGuardProps) {
   const { user, loading, isAuthenticated } = useAuth();
   const router = useRouter();
-  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
+    // Don't do anything while still loading
     if (loading) return;
 
-    // Not authenticated
+    // Not authenticated - redirect immediately
     if (!isAuthenticated) {
-      router.push(redirectTo || ROUTES.LOGIN);
+      router.replace(redirectTo || ROUTES.LOGIN);
       return;
     }
 
@@ -31,28 +31,25 @@ export function AuthGuard({ children, requiredRole, redirectTo }: AuthGuardProps
     if (requiredRole && user?.role !== requiredRole) {
       // Redirect to appropriate dashboard based on user role
       if (user) {
-        router.push(getDashboardRoute(user.role));
+        router.replace(getDashboardRoute(user.role));
       }
       return;
     }
-
-    setIsChecking(false);
   }, [loading, isAuthenticated, user, requiredRole, router, redirectTo]);
 
-  if (loading || isChecking) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-full max-w-md space-y-4">
-          <Skeleton className="h-8 w-3/4 mx-auto" />
-          <Skeleton className="h-4 w-1/2 mx-auto" />
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-5/6" />
-            <Skeleton className="h-4 w-4/6" />
-          </div>
-        </div>
-      </div>
-    );
+  // Show loading while checking authentication
+  if (loading) {
+    return <GuardLoading message="Checking authentication..." />;
+  }
+
+  // If not authenticated, show nothing (redirect is happening)
+  if (!isAuthenticated) {
+    return null;
+  }
+
+  // If wrong role, show nothing (redirect is happening)
+  if (requiredRole && user?.role !== requiredRole) {
+    return null;
   }
 
   return <>{children}</>;

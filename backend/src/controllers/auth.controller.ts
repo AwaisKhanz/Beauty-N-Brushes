@@ -9,6 +9,7 @@ import {
   resetPasswordSchema,
 } from '../utils/validation';
 import { AppError } from '../middleware/errorHandler';
+import type { AuthRequest } from '../types';
 import type {
   AuthResponse,
   RegisterRequest,
@@ -23,14 +24,22 @@ import { env } from '../config/env';
  * Cookie configuration helper
  */
 function getCookieOptions(maxAge: number): CookieOptions {
+  // Check if using ngrok or production (HTTPS)
+  const isNgrok = env.FRONTEND_URL?.includes('ngrok') || env.BACKEND_URL?.includes('ngrok');
+  const isHttps = env.FRONTEND_URL?.startsWith('https://');
+
+  // For cross-origin requests (frontend on localhost, backend on ngrok), we need:
+  // secure: true (for HTTPS)
+  // sameSite: 'none' (to allow cross-site cookies)
+  const shouldUseSecure = env.NODE_ENV === 'production' || isNgrok || isHttps;
+
   return {
     httpOnly: true,
-    secure: env.NODE_ENV === 'production',
-    sameSite: env.NODE_ENV === 'production' ? 'strict' : 'lax', // Use 'lax' in development for cross-origin requests
+    secure: shouldUseSecure,
+    sameSite: shouldUseSecure ? 'none' : 'lax', // Use 'none' with secure for cross-origin
     maxAge: maxAge,
     path: '/',
-    // Don't set domain in development to allow localhost:3000 to localhost:8000
-    ...(env.NODE_ENV === 'production' && { domain: new URL(env.FRONTEND_URL).hostname }),
+    // Don't set domain - let browser handle it
   };
 }
 
@@ -134,9 +143,9 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
 /**
  * User logout
  */
-export async function logout(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function logout(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
 
     if (userId) {
       // Revoke refresh token in database
@@ -207,12 +216,12 @@ export async function refreshToken(req: Request, res: Response, next: NextFuncti
  * Get current user
  */
 export async function getCurrentUser(
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
 
     if (!userId) {
       throw new AppError(401, 'Unauthorized');

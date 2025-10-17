@@ -6,7 +6,8 @@ import Link from 'next/link';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { Mail, Lock, AlertCircle, ArrowRight } from 'lucide-react';
+import { toast } from 'sonner';
+import { Mail, Lock, ArrowRight } from 'lucide-react';
 import { Logo } from '@/components/shared/Logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,9 +19,9 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDashboardRoute } from '@/constants';
+import { extractErrorMessage } from '@/lib/error-utils';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -31,7 +32,6 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const router = useRouter();
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
 
@@ -46,14 +46,15 @@ export default function LoginPage() {
   async function onSubmit(values: LoginFormValues) {
     try {
       setLoading(true);
-      setError('');
 
       const user = await login({ email: values.email, password: values.password });
 
       // Redirect based on role
       router.push(getDashboardRoute(user.role));
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || 'Invalid email or password');
+    } catch (error: unknown) {
+      toast.error('Login failed', {
+        description: extractErrorMessage(error) || 'Invalid email or password',
+      });
     } finally {
       setLoading(false);
     }
@@ -71,14 +72,6 @@ export default function LoginPage() {
           <Logo size="md" showText />
         </p>
       </div>
-
-      {/* Error Alert */}
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
 
       {/* Login Form */}
       <Form {...form}>

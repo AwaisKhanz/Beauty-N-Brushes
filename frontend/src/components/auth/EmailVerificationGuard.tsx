@@ -7,7 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Mail, CheckCircle, AlertCircle } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
+import { GuardLoading } from '@/components/auth/GuardLoading';
+import { ROUTES } from '@/constants';
+import { extractErrorMessage } from '@/lib/error-utils';
 
 interface EmailVerificationGuardProps {
   children: React.ReactNode;
@@ -25,7 +27,7 @@ export function EmailVerificationGuard({ children }: EmailVerificationGuardProps
 
     // If not authenticated, redirect to login
     if (!isAuthenticated) {
-      router.push('/login');
+      router.push(ROUTES.LOGIN);
       return;
     }
 
@@ -45,27 +47,15 @@ export function EmailVerificationGuard({ children }: EmailVerificationGuardProps
     try {
       await resendVerification(user.email);
       setResendSuccess(true);
-    } catch (error: any) {
-      setResendError(error.response?.data?.message || 'Failed to resend verification email');
+    } catch (error: unknown) {
+      setResendError(extractErrorMessage(error) || 'Failed to resend verification email');
     } finally {
       setIsResending(false);
     }
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-full max-w-md space-y-4">
-          <Skeleton className="h-8 w-3/4 mx-auto" />
-          <Skeleton className="h-4 w-1/2 mx-auto" />
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-5/6" />
-            <Skeleton className="h-4 w-4/6" />
-          </div>
-        </div>
-      </div>
-    );
+    return <GuardLoading message="Verifying account..." />;
   }
 
   // If not authenticated, don't render anything (will redirect)
@@ -103,9 +93,9 @@ export function EmailVerificationGuard({ children }: EmailVerificationGuardProps
             </div>
 
             {resendSuccess && (
-              <Alert className="border-green-200 bg-green-50">
-                <CheckCircle className="h-4 w-4 text-green-600" />
-                <AlertDescription className="text-green-800">
+              <Alert variant="success">
+                <CheckCircle className="h-4 w-4" />
+                <AlertDescription>
                   Verification email sent! Please check your inbox.
                 </AlertDescription>
               </Alert>
@@ -128,7 +118,7 @@ export function EmailVerificationGuard({ children }: EmailVerificationGuardProps
                 {isResending ? 'Sending...' : 'Resend Verification Email'}
               </Button>
 
-              <Button onClick={() => router.push('/login')} variant="ghost" className="w-full">
+              <Button onClick={() => router.push(ROUTES.LOGIN)} variant="ghost" className="w-full">
                 Back to Login
               </Button>
             </div>

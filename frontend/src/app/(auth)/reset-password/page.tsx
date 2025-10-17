@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
+import { toast } from 'sonner';
 import { Lock, ArrowLeft, AlertCircle, Sparkles, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +20,7 @@ import {
 } from '@/components/ui/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/contexts/AuthContext';
+import { extractErrorMessage } from '@/lib/error-utils';
 import Link from 'next/link';
 
 const resetPasswordSchema = z
@@ -94,8 +96,13 @@ export default function ResetPasswordPage() {
       });
 
       setSuccess(true);
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || 'Failed to reset password. Please try again.');
+      toast.success('Password updated successfully', {
+        description: 'You can now sign in with your new password',
+      });
+    } catch (error: unknown) {
+      toast.error('Failed to reset password', {
+        description: extractErrorMessage(error) || 'Please try again',
+      });
     } finally {
       setLoading(false);
     }
@@ -146,8 +153,8 @@ export default function ResetPasswordPage() {
     return (
       <div className="space-y-8">
         <div className="space-y-2 text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-4">
-            <CheckCircle className="w-8 h-8 text-green-600" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
+            <CheckCircle className="w-8 h-8 text-primary" />
           </div>
           <h1 className="text-3xl font-heading font-bold text-foreground tracking-tight">
             Password Reset Successfully
@@ -196,14 +203,6 @@ export default function ResetPasswordPage() {
         </h1>
         <p className="text-muted-foreground text-sm">Enter your new password below</p>
       </div>
-
-      {/* Error Alert */}
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
 
       {/* Reset Password Form */}
       <Form {...form}>

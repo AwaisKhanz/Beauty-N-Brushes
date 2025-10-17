@@ -43,6 +43,16 @@
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
+    /* Semantic Status Colors */
+    --success: 142 71% 45%; /* Green for success states */
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%; /* Orange for warning states */
+    --warning-foreground: 0 0% 100%;
+
+    --info: 221 83% 53%; /* Blue for info states */
+    --info-foreground: 0 0% 100%;
+
     /* Border */
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
@@ -85,6 +95,16 @@
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 100%;
+
+    /* Semantic Status Colors (Dark Mode) */
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --info: 221 83% 53%;
+    --info-foreground: 0 0% 100%;
 
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;

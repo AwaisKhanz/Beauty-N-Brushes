@@ -46,10 +46,10 @@ export interface BrandCustomizationData {
 export interface PolicyData {
   cancellationPolicy: string;
   lateArrivalPolicy: string;
-  depositRequired: boolean;
-  depositType?: 'percentage' | 'fixed';
-  depositAmount?: number;
+  depositRequired: boolean; // General policy: whether deposits are required
   refundPolicy: string;
+  // Note: depositType and depositAmount are NOT policy-level
+  // They are configured per-service in the Service model
 }
 
 export interface AvailabilityScheduleData {
@@ -107,7 +107,7 @@ export interface OnboardingStatus {
     logoUrl?: string | null;
     coverPhotoUrl?: string | null;
     avatarUrl?: string | null;
-    policies?: any;
+    policies?: PolicyData | null;
     subscriptionTier?: string | null;
   };
 }

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
+import { extractErrorMessage } from '@/lib/error-utils';
 
 type VerificationStatus = 'verifying' | 'success' | 'error';
 
@@ -49,10 +50,10 @@ export default function VerifyEmailTokenPage() {
         setStatus('error');
         setErrorMessage('Verification failed. Please try again.');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       setStatus('error');
       setErrorMessage(
-        error.response?.data?.message || 'Verification failed. The link may be invalid or expired.'
+        extractErrorMessage(error) || 'Verification failed. The link may be invalid or expired.'
       );
     }
   };

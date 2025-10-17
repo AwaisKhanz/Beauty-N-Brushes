@@ -1,21 +1,22 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { sendSuccess } from '../utils/response';
 import { onboardingService } from '../services/onboarding.service';
 import { AppError } from '../middleware/errorHandler';
 import { aiService } from '../lib/ai';
 import { prisma } from '../config/database';
-import type { CreateAccountTypeRequest, CreateAccountTypeResponse } from '../../../shared-types';
+import type { AuthRequest } from '../types';
+import type { CreateAccountTypeResponse } from '../../../shared-types';
 
 /**
  * Create provider profile with account type
  */
 export async function createAccountType(
-  req: Request<{}, {}, CreateAccountTypeRequest>,
+  req: AuthRequest,
   res: Response<CreateAccountTypeResponse>,
   next: NextFunction
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
 
     if (!userId) {
       throw new AppError(401, 'Unauthorized');
@@ -57,12 +58,12 @@ export async function createAccountType(
  * Update business details
  */
 export async function updateBusinessDetails(
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
 
     if (!userId) {
       throw new AppError(401, 'Unauthorized');
@@ -136,12 +137,12 @@ export async function updateBusinessDetails(
  * Update brand customization
  */
 export async function updateBrandCustomization(
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
 
     if (!userId) {
       throw new AppError(401, 'Unauthorized');
@@ -178,9 +179,13 @@ export async function updateBrandCustomization(
 /**
  * Setup payment and create subscription
  */
-export async function setupPayment(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function setupPayment(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
 
     if (!userId) {
       throw new AppError(401, 'Unauthorized');
@@ -214,22 +219,19 @@ export async function setupPayment(req: Request, res: Response, next: NextFuncti
 /**
  * Save business policies
  */
-export async function savePolicies(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function savePolicies(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
 
     if (!userId) {
       throw new AppError(401, 'Unauthorized');
     }
 
-    const {
-      cancellationPolicy,
-      lateArrivalPolicy,
-      depositRequired,
-      depositType,
-      depositAmount,
-      refundPolicy,
-    } = req.body;
+    const { cancellationPolicy, lateArrivalPolicy, depositRequired, refundPolicy } = req.body;
 
     // Validate required fields
     if (
@@ -241,17 +243,13 @@ export async function savePolicies(req: Request, res: Response, next: NextFuncti
       throw new AppError(400, 'Missing required policy fields');
     }
 
-    // Validate deposit fields only if deposit is required
-    if (depositRequired && (!depositType || !depositAmount)) {
-      throw new AppError(400, 'Deposit type and amount are required when deposit is enabled');
-    }
+    // Note: depositType and depositAmount are NOT policy-level fields
+    // They are configured per-service when creating services
 
     const policy = await onboardingService.savePolicies(userId, {
       cancellationPolicy,
       lateArrivalPolicy,
       depositRequired,
-      depositType,
-      depositAmount,
       refundPolicy,
     });
 
@@ -271,12 +269,12 @@ export async function savePolicies(req: Request, res: Response, next: NextFuncti
  * Setup availability schedule
  */
 export async function setupAvailability(
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
 
     if (!userId) {
       throw new AppError(401, 'Unauthorized');
@@ -324,12 +322,12 @@ export async function setupAvailability(
  * Get onboarding status
  */
 export async function getOnboardingStatus(
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
 
     if (!userId) {
       throw new AppError(401, 'Unauthorized');
@@ -347,12 +345,12 @@ export async function getOnboardingStatus(
  * Complete onboarding
  */
 export async function completeOnboarding(
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
 
     if (!userId) {
       throw new AppError(401, 'Unauthorized');
@@ -376,21 +374,15 @@ export async function completeOnboarding(
  * Generate AI policies
  */
 export async function generateAIPolicies(
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
 
     if (!userId) {
       throw new AppError(401, 'Unauthorized');
-    }
-
-    const { depositType, depositAmount } = req.body;
-
-    if (!depositType || !depositAmount) {
-      throw new AppError(400, 'Deposit type and amount required');
     }
 
     // Get provider profile to fetch business details
@@ -409,12 +401,12 @@ export async function generateAIPolicies(
     const serviceSpecializations = profile.serviceSpecializations || [];
 
     // Generate policies using AI
+    // Note: depositType and depositAmount are NOT needed here
+    // Policies are generated based on business type and services only
     const policies = await aiService.generatePolicies({
       businessName: profile.businessName,
       businessType: profile.businessType || undefined,
       serviceTypes: serviceSpecializations,
-      depositType,
-      depositAmount: parseFloat(depositAmount.toString()),
     });
 
     sendSuccess(res, {
@@ -430,12 +422,12 @@ export async function generateAIPolicies(
  * Save profile media URLs
  */
 export async function saveProfileMedia(
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
 
     if (!userId) {
       throw new AppError(401, 'Unauthorized');

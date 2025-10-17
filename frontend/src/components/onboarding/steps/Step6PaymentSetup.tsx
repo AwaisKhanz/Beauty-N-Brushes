@@ -32,7 +32,7 @@ export function Step6PaymentSetup({ subscriptionTier, onNext, onBack }: Step6Pay
     (acc, region) => {
       acc[region.code as Region] = {
         name: region.name,
-        provider: region.provider as PaymentProvider,
+        provider: region.paymentProvider as PaymentProvider,
         currency: region.currency,
       };
       return acc;
