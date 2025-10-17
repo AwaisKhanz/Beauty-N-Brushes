@@ -15,58 +15,25 @@ import {
   Plus,
   Package,
 } from 'lucide-react';
+import { NAV_LINKS } from '@/constants';
 
-const navigation = [
-  {
-    name: 'Dashboard',
-    href: '/provider/dashboard',
-    icon: LayoutDashboard,
-  },
-  {
-    name: 'Services',
-    href: '/provider/services',
-    icon: Package,
-    children: [
-      { name: 'All Services', href: '/provider/services' },
-      { name: 'Create Service', href: '/provider/services/create' },
-    ],
-  },
-  {
-    name: 'Bookings',
-    href: '/provider/bookings',
-    icon: Calendar,
-  },
-  {
-    name: 'Calendar',
-    href: '/provider/calendar',
-    icon: Calendar,
-  },
-  {
-    name: 'Clients',
-    href: '/provider/clients',
-    icon: Users,
-  },
-  {
-    name: 'Messages',
-    href: '/provider/messages',
-    icon: MessageSquare,
-  },
-  {
-    name: 'Analytics',
-    href: '/provider/analytics',
-    icon: BarChart3,
-  },
-  {
-    name: 'Earnings',
-    href: '/provider/earnings',
-    icon: CreditCard,
-  },
-  {
-    name: 'Settings',
-    href: '/provider/settings',
-    icon: Settings,
-  },
-];
+// Map icon names to actual icon components
+const iconMap = {
+  LayoutDashboard,
+  Calendar,
+  Users,
+  CreditCard,
+  MessageSquare,
+  BarChart3,
+  Settings,
+  Package,
+};
+
+const navigation = NAV_LINKS.PROVIDER_SIDEBAR.map((item) => ({
+  ...item,
+  icon: iconMap[item.icon as keyof typeof iconMap] || LayoutDashboard,
+  children: item.children,
+}));
 
 export default function ProviderSidebar() {
   const pathname = usePathname();

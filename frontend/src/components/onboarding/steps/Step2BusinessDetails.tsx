@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { MapPin, Phone, Instagram, Navigation } from 'lucide-react';
+import { SERVICE_SPECIALIZATIONS, BUSINESS_TYPES } from '@/constants';
 
 const businessDetailsSchema = z.object({
   businessName: z.string().min(2, 'Business name must be at least 2 characters').max(255),
@@ -57,21 +58,6 @@ const businessDetailsSchema = z.object({
 
 type BusinessDetailsFormValues = z.infer<typeof businessDetailsSchema>;
 
-const serviceSpecializations = [
-  'Hair Styling & Cutting',
-  'Hair Coloring & Highlights',
-  'Braids & Extensions',
-  'Makeup Artistry',
-  'Nail Services',
-  'Lash Services',
-  'Brow Services',
-  'Skincare & Facials',
-  'Waxing Services',
-  'Bridal Services',
-  'Special Event Styling',
-  'Hair Treatments',
-];
-
 interface Step2BusinessDetailsProps {
   defaultValues?: Partial<BusinessDetailsFormValues>;
   accountType?: 'solo' | 'salon';
@@ -95,8 +81,23 @@ export function Step2BusinessDetails({
   const form = useForm<BusinessDetailsFormValues>({
     resolver: zodResolver(businessDetailsSchema),
     defaultValues: {
+      businessName: '',
+      tagline: '',
+      businessType: '',
+      description: '',
+      address: '',
+      city: '',
+      state: '',
+      zipCode: '',
       country: 'US',
+      phone: '',
+      email: '',
+      instagramHandle: '',
+      website: '',
       serviceSpecializations: [],
+      yearsExperience: undefined,
+      latitude: undefined,
+      longitude: undefined,
       ...defaultValues,
     },
   });
@@ -252,12 +253,11 @@ export function Step2BusinessDetails({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="salon">Salon</SelectItem>
-                          <SelectItem value="spa">Spa</SelectItem>
-                          <SelectItem value="home-based">Home-Based</SelectItem>
-                          <SelectItem value="mobile">Mobile Service</SelectItem>
-                          <SelectItem value="studio">Studio</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
+                          {BUSINESS_TYPES.map((type) => (
+                            <SelectItem key={type.value} value={type.value}>
+                              {type.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -466,7 +466,7 @@ export function Step2BusinessDetails({
                 </p>
 
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {serviceSpecializations.map((specialization) => (
+                  {SERVICE_SPECIALIZATIONS.map((specialization) => (
                     <Button
                       key={specialization}
                       type="button"

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { UserRole } from '@/types';
+import { ROUTES, getDashboardRoute } from '@/constants';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -21,20 +22,14 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
 
     // Check authentication
     if (!isAuthenticated) {
-      router.push('/login');
+      router.push(ROUTES.LOGIN);
       return;
     }
 
     // Check role if required
     if (requiredRole && user?.role !== requiredRole) {
       // Redirect to appropriate dashboard
-      if (user?.role === 'PROVIDER') {
-        router.push('/provider/dashboard');
-      } else if (user?.role === 'ADMIN') {
-        router.push('/admin/dashboard');
-      } else {
-        router.push('/client/dashboard');
-      }
+      router.push(getDashboardRoute(user.role));
       return;
     }
 

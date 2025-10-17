@@ -15,24 +15,9 @@ import { Step5Policies } from '@/components/onboarding/steps/Step5Policies';
 import { Step6PaymentSetup } from '@/components/onboarding/steps/Step6PaymentSetup';
 import { Step7Services } from '@/components/onboarding/steps/Step7Services';
 import { Step8Availability } from '@/components/onboarding/steps/Step8Availability';
+import { ONBOARDING_STEPS, ONBOARDING_STORAGE_KEY, ROUTES } from '@/constants';
 
-const STORAGE_KEY = 'onboarding_current_step';
-
-const STEPS: Step[] = [
-  { id: 1, label: 'Account Type', description: 'Choose solo or salon', completed: false },
-  {
-    id: 2,
-    label: 'Business Details',
-    description: 'Tell us about your business',
-    completed: false,
-  },
-  { id: 3, label: 'Profile Media', description: 'Upload photos', completed: false },
-  { id: 4, label: 'Brand Customization', description: 'Customize your colors', completed: false },
-  { id: 5, label: 'Policies', description: 'Set business policies', completed: false },
-  { id: 6, label: 'Payment Setup', description: 'Setup subscription', completed: false },
-  { id: 7, label: 'Services', description: 'Create your first service', completed: false },
-  { id: 8, label: 'Availability', description: 'Set your schedule', completed: false },
-];
+const STEPS: Step[] = ONBOARDING_STEPS.map((step) => ({ ...step }));
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -51,7 +36,7 @@ export default function OnboardingPage() {
 
         if (status.completed) {
           // Already completed, redirect to dashboard
-          router.push('/dashboard');
+          router.push(ROUTES.PROVIDER.DASHBOARD);
           return;
         }
 
@@ -98,11 +83,11 @@ export default function OnboardingPage() {
         if (firstIncompleteStep) {
           setCurrentStep(firstIncompleteStep.id);
           // Update localStorage to match server status
-          localStorage.setItem(STORAGE_KEY, firstIncompleteStep.id.toString());
+          localStorage.setItem(ONBOARDING_STORAGE_KEY, firstIncompleteStep.id.toString());
         } else {
           // All steps completed, stay on step 8 or redirect to dashboard
           setCurrentStep(8);
-          localStorage.setItem(STORAGE_KEY, '8');
+          localStorage.setItem(ONBOARDING_STORAGE_KEY, '8');
         }
 
         // Set default values for prefilling
@@ -153,7 +138,7 @@ export default function OnboardingPage() {
     const targetStep = steps.find((s) => s.id === stepId);
     if (targetStep && (targetStep.completed || stepId <= currentStep)) {
       setCurrentStep(stepId);
-      localStorage.setItem(STORAGE_KEY, stepId.toString());
+      localStorage.setItem(ONBOARDING_STORAGE_KEY, stepId.toString());
     }
   };
 
@@ -192,8 +177,8 @@ export default function OnboardingPage() {
           await api.onboarding.setupAvailability(data);
           // Complete onboarding
           await api.onboarding.complete();
-          localStorage.removeItem(STORAGE_KEY);
-          router.push('/onboarding/complete');
+          localStorage.removeItem(ONBOARDING_STORAGE_KEY);
+          router.push(ROUTES.PROVIDER.ONBOARDING_COMPLETE);
           return;
       }
 
@@ -205,7 +190,7 @@ export default function OnboardingPage() {
       if (stepId < 8) {
         const nextStep = stepId + 1;
         setCurrentStep(nextStep);
-        localStorage.setItem(STORAGE_KEY, nextStep.toString());
+        localStorage.setItem(ONBOARDING_STORAGE_KEY, nextStep.toString());
       }
     } catch (error: any) {
       console.error(`Error saving step ${stepId}:`, error);

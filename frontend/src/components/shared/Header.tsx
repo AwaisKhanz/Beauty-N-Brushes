@@ -2,20 +2,28 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/shared/Logo';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { Menu, Sparkles } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { Menu, Sparkles, LogOut, LayoutDashboard } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { NAV_LINKS, ROUTES, getDashboardRoute } from '@/constants';
 
 export default function Header() {
   const [isOpen, setIsOpen] = useState(false);
+  const { user, isAuthenticated, logout } = useAuth();
+  const router = useRouter();
 
-  const navLinks = [
-    { href: '/search', label: 'Browse Services' },
-    { href: '/about', label: 'About' },
-    { href: '/for-providers', label: 'For Providers' },
-  ];
+  const handleLogout = async () => {
+    await logout();
+    router.push(ROUTES.HOME);
+    setIsOpen(false);
+  };
+
+  const dashboardRoute = user?.role ? getDashboardRoute(user.role) : ROUTES.HOME;
+  const navLinks = NAV_LINKS.PUBLIC;
 
   return (
     <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -40,12 +48,29 @@ export default function Header() {
           {/* Desktop Actions */}
           <div className="hidden md:flex items-center gap-3">
             <ThemeToggle />
-            <Button variant="ghost" asChild>
-              <Link href="/login">Sign In</Link>
-            </Button>
-            <Button variant="default" asChild>
-              <Link href="/register">Get Started</Link>
-            </Button>
+            {isAuthenticated ? (
+              <>
+                <Button variant="ghost" asChild>
+                  <Link href={dashboardRoute} className="gap-2">
+                    <LayoutDashboard className="h-4 w-4" />
+                    Dashboard
+                  </Link>
+                </Button>
+                <Button variant="outline" onClick={handleLogout} className="gap-2">
+                  <LogOut className="h-4 w-4" />
+                  Logout
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" asChild>
+                  <Link href={ROUTES.LOGIN}>Sign In</Link>
+                </Button>
+                <Button variant="default" asChild>
+                  <Link href={ROUTES.REGISTER}>Get Started</Link>
+                </Button>
+              </>
+            )}
           </div>
 
           {/* Mobile Menu */}
@@ -80,22 +105,44 @@ export default function Header() {
                     </Button>
                   ))}
                   <div className="border-t pt-4 space-y-2">
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      asChild
-                      onClick={() => setIsOpen(false)}
-                    >
-                      <Link href="/login">Sign In</Link>
-                    </Button>
-                    <Button
-                      variant="default"
-                      className="w-full"
-                      asChild
-                      onClick={() => setIsOpen(false)}
-                    >
-                      <Link href="/register">Get Started</Link>
-                    </Button>
+                    {isAuthenticated ? (
+                      <>
+                        <Button
+                          variant="default"
+                          className="w-full gap-2"
+                          asChild
+                          onClick={() => setIsOpen(false)}
+                        >
+                          <Link href={dashboardRoute}>
+                            <LayoutDashboard className="h-4 w-4" />
+                            Dashboard
+                          </Link>
+                        </Button>
+                        <Button variant="outline" className="w-full gap-2" onClick={handleLogout}>
+                          <LogOut className="h-4 w-4" />
+                          Logout
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          asChild
+                          onClick={() => setIsOpen(false)}
+                        >
+                          <Link href={ROUTES.LOGIN}>Sign In</Link>
+                        </Button>
+                        <Button
+                          variant="default"
+                          className="w-full"
+                          asChild
+                          onClick={() => setIsOpen(false)}
+                        >
+                          <Link href={ROUTES.REGISTER}>Get Started</Link>
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
               </SheetContent>

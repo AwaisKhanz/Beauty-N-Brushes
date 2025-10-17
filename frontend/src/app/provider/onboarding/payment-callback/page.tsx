@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { api } from '@/lib/api';
+import { ROUTES } from '@/constants';
 
 export default function PaymentCallbackPage() {
   const router = useRouter();
@@ -44,7 +45,7 @@ export default function PaymentCallbackPage() {
 
           // Redirect to next onboarding step after 2 seconds
           setTimeout(() => {
-            router.push('/onboarding');
+            router.push(ROUTES.PROVIDER.ONBOARDING);
           }, 2000);
         }
       } catch (error: any) {
@@ -54,7 +55,7 @@ export default function PaymentCallbackPage() {
 
         // Redirect back to payment setup after 3 seconds
         setTimeout(() => {
-          router.push('/onboarding');
+          router.push(ROUTES.PROVIDER.ONBOARDING);
         }, 3000);
       }
     };

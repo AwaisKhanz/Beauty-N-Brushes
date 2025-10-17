@@ -5,6 +5,7 @@ import compression from 'compression';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
+import path from 'path';
 import { errorHandler } from './middleware/errorHandler';
 import { notFoundHandler } from './middleware/notFoundHandler';
 import { testDatabaseConnection } from './config/database';
@@ -33,8 +34,18 @@ const PORT = process.env.PORT || 8000;
 // Middleware
 // ================================
 
-// Security middleware
-app.use(helmet());
+// Security middleware with relaxed CSP for uploads
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    contentSecurityPolicy: {
+      directives: {
+        ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+        'img-src': ["'self'", 'data:', 'http://localhost:8000', 'http://localhost:3000'],
+      },
+    },
+  })
+);
 
 // CORS configuration
 const corsOptions = {
@@ -64,7 +75,19 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Serve uploaded files
-app.use('/uploads', express.static('uploads'));
+// process.cwd() = backend/, so uploads is at backend/uploads
+const uploadsPath = path.join(process.cwd(), 'uploads');
+logger.info(`📁 Serving static files from: ${uploadsPath}`);
+app.use(
+  '/uploads',
+  (req, res, next) => {
+    res.header('Access-Control-Allow-Origin', process.env.FRONTEND_URL || 'http://localhost:3000');
+    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type');
+    next();
+  },
+  express.static(uploadsPath)
+);
 
 // Compression middleware
 app.use(compression());

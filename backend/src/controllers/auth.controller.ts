@@ -230,12 +230,6 @@ export async function getCurrentUser(
       emailVerified: user.emailVerified || false,
     };
 
-    console.log('✅ Sending user data to frontend:', {
-      id: userResponse.id,
-      email: userResponse.email,
-      emailVerified: userResponse.emailVerified,
-    });
-
     sendSuccess(res, { user: userResponse });
   } catch (error) {
     next(error);

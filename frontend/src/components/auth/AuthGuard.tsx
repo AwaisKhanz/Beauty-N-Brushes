@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { UserRole } from '@/types';
+import { ROUTES, getDashboardRoute } from '@/constants';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -22,19 +23,15 @@ export function AuthGuard({ children, requiredRole, redirectTo }: AuthGuardProps
 
     // Not authenticated
     if (!isAuthenticated) {
-      router.push(redirectTo || '/login');
+      router.push(redirectTo || ROUTES.LOGIN);
       return;
     }
 
     // Check role if required
     if (requiredRole && user?.role !== requiredRole) {
       // Redirect to appropriate dashboard based on user role
-      if (user?.role === 'PROVIDER') {
-        router.push('/provider/dashboard');
-      } else if (user?.role === 'ADMIN') {
-        router.push('/admin/dashboard');
-      } else {
-        router.push('/client/dashboard');
+      if (user) {
+        router.push(getDashboardRoute(user.role));
       }
       return;
     }

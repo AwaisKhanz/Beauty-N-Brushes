@@ -3,48 +3,31 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { api } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, Clock } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import type { OnboardingStatusResponse } from '@/../../shared-types/onboarding.types';
+import { STEP_LABELS, getDashboardRoute, getOnboardingRoute } from '@/constants';
 
 interface OnboardingGuardProps {
   children: React.ReactNode;
 }
 
-const STEP_LABELS: Record<string, string> = {
-  accountType: 'Account Type',
-  businessDetails: 'Business Details',
-  profileMedia: 'Profile Media',
-  brandCustomization: 'Brand Customization',
-  policies: 'Business Policies',
-  paymentSetup: 'Payment Setup',
-  serviceCreated: 'Create Service',
-  availabilitySet: 'Set Availability',
-};
-
 export function OnboardingGuard({ children }: OnboardingGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const { user } = useAuth();
   const [isChecking, setIsChecking] = useState(true);
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatusResponse | null>(null);
 
-  // Routes that are allowed even if onboarding is not complete
-  const allowedRoutes = [
-    '/onboarding',
-    '/onboarding/business-details',
-    '/onboarding/profile-media',
-    '/onboarding/brand-customization',
-    '/onboarding/policies',
-    '/onboarding/services',
-    '/onboarding/availability',
-    '/onboarding/payment-setup',
-    '/onboarding/complete',
-  ];
+  // Determine role-specific routes using centralized functions
+  const onboardingRoute = user?.role ? getOnboardingRoute(user.role) : '/';
+  const dashboardRoute = user?.role ? getDashboardRoute(user.role) : '/';
 
-  const isOnboardingRoute = allowedRoutes.some((route) => pathname?.includes(route));
+  const isOnboardingRoute = pathname?.startsWith(onboardingRoute);
 
   useEffect(() => {
     checkOnboardingStatus();
@@ -57,17 +40,13 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
 
       // If onboarding not complete and not on onboarding route, redirect
       if (!response.data.status.completed && !isOnboardingRoute) {
-        router.push('/onboarding');
+        router.push(onboardingRoute);
         return;
       }
 
       // If onboarding complete but user is on onboarding route (except complete page), redirect to dashboard
-      if (
-        response.data.status.completed &&
-        isOnboardingRoute &&
-        !pathname?.includes('/onboarding/complete')
-      ) {
-        router.push('/dashboard');
+      if (response.data.status.completed && isOnboardingRoute && !pathname?.includes('/complete')) {
+        router.push(dashboardRoute);
         return;
       }
 
@@ -134,13 +113,13 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
                 {incompleteSteps.map(([stepKey]) => (
                   <div key={stepKey} className="flex items-center gap-2 text-sm">
                     <AlertCircle className="h-4 w-4 text-amber-500" />
-                    <span>{STEP_LABELS[stepKey] || stepKey}</span>
+                    <span>{STEP_LABELS[stepKey as keyof typeof STEP_LABELS] || stepKey}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <Button onClick={() => router.push('/onboarding')} className="w-full" size="lg">
+            <Button onClick={() => router.push(onboardingRoute)} className="w-full" size="lg">
               Continue Onboarding
             </Button>
           </CardContent>

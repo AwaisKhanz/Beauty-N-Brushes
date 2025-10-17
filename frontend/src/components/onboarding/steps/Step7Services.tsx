@@ -28,6 +28,7 @@ import {
 import { Sparkles, Plus, X, Package, Upload } from 'lucide-react';
 import { api } from '@/lib/api';
 import { uploadService } from '@/lib/upload';
+import { SERVICE_CATEGORIES } from '@/constants';
 
 const serviceSchema = z.object({
   title: z.string().min(3, 'Service title must be at least 3 characters').max(255),
@@ -53,16 +54,6 @@ const serviceSchema = z.object({
 });
 
 type ServiceFormValues = z.infer<typeof serviceSchema>;
-
-const serviceCategories = [
-  { id: 'hair', name: 'Hair Services' },
-  { id: 'makeup', name: 'Makeup Services' },
-  { id: 'nails', name: 'Nail Services' },
-  { id: 'lashes', name: 'Lash Services' },
-  { id: 'brows', name: 'Brow Services' },
-  { id: 'skincare', name: 'Skincare & Facials' },
-  { id: 'waxing', name: 'Waxing Services' },
-];
 
 interface Step7ServicesProps {
   onNext: () => Promise<void>;
@@ -224,7 +215,7 @@ export function Step7Services({ onNext, onBack, isLoading }: Step7ServicesProps)
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {serviceCategories.map((category) => (
+                            {SERVICE_CATEGORIES.map((category) => (
                               <SelectItem key={category.id} value={category.id}>
                                 {category.name}
                               </SelectItem>

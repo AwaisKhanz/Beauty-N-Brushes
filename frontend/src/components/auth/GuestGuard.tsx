@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { UserRole } from '@/types';
+import { getDashboardRoute } from '@/constants';
 
 interface GuestGuardProps {
   children: React.ReactNode;
@@ -21,7 +21,7 @@ export function GuestGuard({ children, redirectTo }: GuestGuardProps) {
 
     // If authenticated, redirect to appropriate dashboard
     if (isAuthenticated && user) {
-      const defaultRedirect = redirectTo || getDefaultRedirect(user.role);
+      const defaultRedirect = redirectTo || getDashboardRoute(user.role);
       router.push(defaultRedirect);
       return;
     }
@@ -46,15 +46,4 @@ export function GuestGuard({ children, redirectTo }: GuestGuardProps) {
   }
 
   return <>{children}</>;
-}
-
-function getDefaultRedirect(role: UserRole): string {
-  switch (role) {
-    case 'PROVIDER':
-      return '/provider/dashboard';
-    case 'ADMIN':
-      return '/admin/dashboard';
-    default:
-      return '/client/dashboard';
-  }
 }

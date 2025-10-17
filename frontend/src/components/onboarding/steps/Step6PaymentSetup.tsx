@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { CreditCard, Shield, CheckCircle2, Globe } from 'lucide-react';
 import StripeCardForm from '@/components/provider/StripeCardForm';
 import PaystackCardForm from '@/components/provider/PaystackCardForm';
+import { REGIONS } from '@/constants';
 
 type PaymentProvider = 'stripe' | 'paystack';
 type Region = 'NA' | 'EU' | 'GH' | 'NG';
@@ -27,12 +28,17 @@ export function Step6PaymentSetup({ subscriptionTier, onNext, onBack }: Step6Pay
   const [paymentProvider, setPaymentProvider] = useState<PaymentProvider | null>(null);
   const [showCardForm, setShowCardForm] = useState(false);
 
-  const regions = {
-    NA: { name: 'North America', provider: 'stripe' as PaymentProvider, currency: 'USD' },
-    EU: { name: 'Europe', provider: 'stripe' as PaymentProvider, currency: 'USD' },
-    GH: { name: 'Ghana', provider: 'paystack' as PaymentProvider, currency: 'GHS' },
-    NG: { name: 'Nigeria', provider: 'paystack' as PaymentProvider, currency: 'NGN' },
-  };
+  const regions = REGIONS.reduce(
+    (acc, region) => {
+      acc[region.code as Region] = {
+        name: region.name,
+        provider: region.provider as PaymentProvider,
+        currency: region.currency,
+      };
+      return acc;
+    },
+    {} as Record<Region, { name: string; provider: PaymentProvider; currency: string }>
+  );
 
   const handleRegionSelect = (region: Region) => {
     setSelectedRegion(region);

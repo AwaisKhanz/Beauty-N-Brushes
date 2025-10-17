@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/contexts/AuthContext';
+import { getDashboardRoute } from '@/constants';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -50,13 +51,7 @@ export default function LoginPage() {
       const user = await login({ email: values.email, password: values.password });
 
       // Redirect based on role
-      if (user.role === 'PROVIDER') {
-        router.push('/provider/dashboard');
-      } else if (user.role === 'ADMIN') {
-        router.push('/admin/dashboard');
-      } else {
-        router.push('/client/dashboard');
-      }
+      router.push(getDashboardRoute(user.role));
     } catch (err: any) {
       setError(err.response?.data?.error?.message || 'Invalid email or password');
     } finally {

@@ -2,10 +2,20 @@
 const nextConfig = {
   reactStrictMode: true,
   images: {
-    domains: [
-      'localhost',
-      'd1234567890.cloudfront.net', // AWS CloudFront domain
+    remotePatterns: [
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+        port: '8000',
+        pathname: '/uploads/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'd1234567890.cloudfront.net',
+        pathname: '/**',
+      },
     ],
+    domains: ['localhost'],
     formats: ['image/webp', 'image/avif'],
   },
   env: {
@@ -48,4 +58,3 @@ const nextConfig = {
 };
 
 module.exports = nextConfig;
-

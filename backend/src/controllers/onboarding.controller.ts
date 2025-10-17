@@ -229,8 +229,6 @@ export async function savePolicies(req: Request, res: Response, next: NextFuncti
       depositType,
       depositAmount,
       refundPolicy,
-      advanceBookingDays,
-      minimumNoticeHours,
     } = req.body;
 
     // Validate required fields
@@ -238,13 +236,14 @@ export async function savePolicies(req: Request, res: Response, next: NextFuncti
       !cancellationPolicy ||
       !lateArrivalPolicy ||
       !refundPolicy ||
-      depositRequired === undefined ||
-      !depositType ||
-      !depositAmount ||
-      !advanceBookingDays ||
-      !minimumNoticeHours
+      depositRequired === undefined
     ) {
       throw new AppError(400, 'Missing required policy fields');
+    }
+
+    // Validate deposit fields only if deposit is required
+    if (depositRequired && (!depositType || !depositAmount)) {
+      throw new AppError(400, 'Deposit type and amount are required when deposit is enabled');
     }
 
     const policy = await onboardingService.savePolicies(userId, {
@@ -254,8 +253,6 @@ export async function savePolicies(req: Request, res: Response, next: NextFuncti
       depositType,
       depositAmount,
       refundPolicy,
-      advanceBookingDays,
-      minimumNoticeHours,
     });
 
     sendSuccess(res, {

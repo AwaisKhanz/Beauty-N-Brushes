@@ -342,15 +342,6 @@ export class OnboardingService {
       throw new Error('Provider profile not found');
     }
 
-    // Update provider profile with booking settings
-    await prisma.providerProfile.update({
-      where: { id: profile.id },
-      data: {
-        advanceBookingDays: data.advanceBookingDays,
-        minAdvanceHours: data.minimumNoticeHours,
-      },
-    });
-
     // Create or update provider policy
     const existingPolicy = await prisma.providerPolicy.findUnique({
       where: { providerId: profile.id },

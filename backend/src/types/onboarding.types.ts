@@ -47,11 +47,9 @@ export interface PolicyData {
   cancellationPolicy: string;
   lateArrivalPolicy: string;
   depositRequired: boolean;
-  depositType: 'percentage' | 'fixed';
-  depositAmount: number;
+  depositType?: 'percentage' | 'fixed';
+  depositAmount?: number;
   refundPolicy: string;
-  advanceBookingDays: number;
-  minimumNoticeHours: number;
 }
 
 export interface AvailabilityScheduleData {
