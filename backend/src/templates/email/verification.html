@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Your Email</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      background-color: #f5f5f5;
+    }
+    .container {
+      max-width: 600px;
+      margin: 40px auto;
+      background-color: #ffffff;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .header {
+      background-color: #B06F64;
+      padding: 40px 20px;
+      text-align: center;
+    }
+    .header h1 {
+      color: #ffffff;
+      margin: 0;
+      font-size: 28px;
+      font-weight: 600;
+    }
+    .content {
+      padding: 40px 30px;
+      color: #333333;
+      line-height: 1.6;
+    }
+    .content h2 {
+      color: #B06F64;
+      font-size: 24px;
+      margin-bottom: 20px;
+    }
+    .button {
+      display: inline-block;
+      padding: 14px 32px;
+      background-color: #2A3F4D;
+      color: #ffffff;
+      text-decoration: none;
+      border-radius: 6px;
+      font-weight: 600;
+      margin: 20px 0;
+    }
+    .button:hover {
+      background-color: #1f2f3d;
+    }
+    .footer {
+      background-color: #f9f9f9;
+      padding: 30px;
+      text-align: center;
+      font-size: 14px;
+      color: #666666;
+      border-top: 1px solid #eeeeee;
+    }
+    .expiry {
+      background-color: #FFB09E1A;
+      border-left: 4px solid #FFB09E;
+      padding: 15px;
+      margin: 20px 0;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Beauty N Brushes</h1>
+    </div>
+    <div class="content">
+      <h2>Hi {{firstName}},</h2>
+      <p>Welcome to Beauty N Brushes! We're excited to have you join our community.</p>
+      <p>To get started, please verify your email address by clicking the button below:</p>
+      
+      <div style="text-align: center;">
+        <a href="{{verificationUrl}}" class="button">Verify Email Address</a>
+      </div>
+      
+      <div class="expiry">
+        <strong>⏱ This link expires in 24 hours</strong>
+      </div>
+      
+      <p>If the button doesn't work, copy and paste this link into your browser:</p>
+      <p style="word-break: break-all; color: #B06F64;">{{verificationUrl}}</p>
+      
+      <p>If you didn't create an account with Beauty N Brushes, you can safely ignore this email.</p>
+    </div>
+    <div class="footer">
+      <p>&copy; 2025 Beauty N Brushes. All rights reserved.</p>
+      <p>Professional beauty services marketplace</p>
+    </div>
+  </div>
+</body>
+</html>
+

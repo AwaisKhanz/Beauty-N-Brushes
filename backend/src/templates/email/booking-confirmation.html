@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Booking Confirmation</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      background-color: #f5f5f5;
+    }
+    .container {
+      max-width: 600px;
+      margin: 40px auto;
+      background-color: #ffffff;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .header {
+      background-color: #B06F64;
+      padding: 40px 20px;
+      text-align: center;
+    }
+    .header h1 {
+      color: #ffffff;
+      margin: 0;
+      font-size: 28px;
+      font-weight: 600;
+    }
+    .content {
+      padding: 40px 30px;
+      color: #333333;
+      line-height: 1.6;
+    }
+    .booking-details {
+      background-color: #f9f9f9;
+      border: 1px solid #eeeeee;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #eeeeee;
+    }
+    .detail-row:last-child {
+      border-bottom: none;
+    }
+    .detail-label {
+      font-weight: 600;
+      color: #666666;
+    }
+    .detail-value {
+      color: #333333;
+      text-align: right;
+    }
+    .total {
+      background-color: #B06F641A;
+      padding: 15px;
+      margin: 20px 0;
+      border-radius: 6px;
+      font-size: 18px;
+      font-weight: 700;
+      color: #B06F64;
+      text-align: center;
+    }
+    .button {
+      display: inline-block;
+      padding: 14px 32px;
+      background-color: #2A3F4D;
+      color: #ffffff;
+      text-decoration: none;
+      border-radius: 6px;
+      font-weight: 600;
+      margin: 20px 0;
+    }
+    .footer {
+      background-color: #f9f9f9;
+      padding: 30px;
+      text-align: center;
+      font-size: 14px;
+      color: #666666;
+      border-top: 1px solid #eeeeee;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>✓ Booking Confirmed!</h1>
+    </div>
+    <div class="content">
+      <h2 style="color: #B06F64;">Hi {{clientName}},</h2>
+      <p>Your booking has been confirmed! We can't wait to see you.</p>
+      
+      <div class="booking-details">
+        <div class="detail-row">
+          <span class="detail-label">Service:</span>
+          <span class="detail-value">{{serviceName}}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Provider:</span>
+          <span class="detail-value">{{providerName}}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Date & Time:</span>
+          <span class="detail-value">{{appointmentDateTime}}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Duration:</span>
+          <span class="detail-value">{{duration}}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Location:</span>
+          <span class="detail-value">{{location}}</span>
+        </div>
+      </div>
+
+      <div class="total">
+        Total Paid: {{totalAmount}}
+      </div>
+
+      <div style="background-color: #FFB09E1A; padding: 15px; border-radius: 6px; margin: 20px 0;">
+        <p style="margin: 0;"><strong>📋 Cancellation Policy:</strong></p>
+        <p style="margin: 5px 0 0; font-size: 14px;">{{cancellationPolicy}}</p>
+      </div>
+      
+      <div style="text-align: center;">
+        <a href="{{bookingDetailsUrl}}" class="button">View Booking Details</a>
+      </div>
+
+      <p style="margin-top: 30px;">See you soon!</p>
+    </div>
+    <div class="footer">
+      <p>&copy; 2025 Beauty N Brushes. All rights reserved.</p>
+      <p>Professional beauty services marketplace</p>
+    </div>
+  </div>
+</body>
+</html>
+

@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Base colors */
+    --background: 0 0% 100%;
+    --foreground: 210 40% 8%;
+
+    /* Card */
+    --card: 0 0% 100%;
+    --card-foreground: 210 40% 8%;
+
+    /* Popover */
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 40% 8%;
+
+    /* Beauty N Brushes Official Colors */
+    --primary: 11 36% 55%; /* #B06F64 - Dusty Rose */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 12 36% 66%; /* #CA8D80 - Warm Taupe */
+    --secondary-foreground: 0 0% 100%;
+
+    --tertiary: 13 48% 72%; /* #DF9C8C - Blush Clay */
+    --tertiary-foreground: 0 0% 100%;
+
+    --accent: 18 100% 80%; /* #FFB09E - Peach Blush */
+    --accent-foreground: 207 31% 23%; /* #2A3F4D */
+
+    --button-dark: 207 31% 23%; /* #2A3F4D - Dark Slate Blue-Grey */
+    --button-dark-foreground: 0 0% 100%;
+
+    --button-light: 18 100% 80%; /* #FFB09E - Peach Blush */
+    --button-light-foreground: 207 31% 23%;
+
+    /* Muted */
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    /* Destructive */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Border */
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 11 36% 55%; /* Primary color */
+
+    /* Radius */
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 210 40% 8%;
+    --foreground: 0 0% 100%;
+
+    --card: 210 40% 10%;
+    --card-foreground: 0 0% 100%;
+
+    --popover: 210 40% 10%;
+    --popover-foreground: 0 0% 100%;
+
+    --primary: 11 36% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 12 36% 66%;
+    --secondary-foreground: 0 0% 100%;
+
+    --tertiary: 13 48% 72%;
+    --tertiary-foreground: 0 0% 100%;
+
+    --accent: 18 100% 80%;
+    --accent-foreground: 207 31% 23%;
+
+    --button-dark: 207 31% 23%;
+    --button-dark-foreground: 0 0% 100%;
+
+    --button-light: 18 100% 80%;
+    --button-light-foreground: 207 31% 23%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 11 36% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
+  }
+}

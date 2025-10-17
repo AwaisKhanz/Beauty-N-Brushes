@@ -1,0 +1,1184 @@
+---
+alwaysApply: true
+---
+
+# Beauty N Brushes - Cursor Rules & Development Standards
+
+## Project Overview
+
+Beauty N Brushes (BNB) is an AI-powered, visual-first beauty services marketplace built with Next.js, TypeScript, PostgreSQL, and Prisma. Uses dual payment providers: **Stripe** (North America & Europe) and **Paystack** (Ghana & Nigeria) with simple card-based subscription billing.
+
+---
+
+## Core Development Principles
+
+### 1. TypeScript First
+
+- **Strict mode enabled**: `"strict": true` in tsconfig.json
+- **No `any` types**: Use `unknown` if type is truly unknown, then narrow
+- **Explicit return types**: Always define return types for functions
+- **Type imports**: Use `import type { }` for type-only imports
+- **Zod for runtime validation**: Define schema first, infer types from Zod schemas
+
+```typescript
+// ❌ Bad
+function getUser(id) {
+  return fetchUser(id);
+}
+
+// ✅ Good
+async function getUser(id: string): Promise<User> {
+  const user = await fetchUser(id);
+  return user;
+}
+
+// ✅ Best - with Zod
+const UserSchema = z.object({
+  id: z.string().uuid(),
+  email: z.string().email(),
+  name: z.string(),
+  regionCode: z.enum(["NA", "GH", "NG"]),
+});
+
+type User = z.infer<typeof UserSchema>;
+
+async function getUser(id: string): Promise<User> {
+  const user = await fetchUser(id);
+  return UserSchema.parse(user);
+}
+```
+
+### 2. Multi-Region Payment & Service Fee Calculation (CRITICAL)
+
+**Regional payment provider routing**:
+
+```typescript
+type PaymentProvider = "stripe" | "paystack";
+type RegionCode = "NA" | "EU" | "GH" | "NG";
+
+function getPaymentProvider(regionCode: RegionCode): PaymentProvider {
+  const stripeRegions: RegionCode[] = ["NA", "EU"];
+  const paystackRegions: RegionCode[] = ["GH", "NG"];
+
+  if (stripeRegions.includes(regionCode)) return "stripe";
+  if (paystackRegions.includes(regionCode)) return "paystack";
+
+  throw new Error(`Unsupported region: ${regionCode}`);
+}
+```
+
+**Regional service fee structure**:
+
+```typescript
+interface RegionalServiceFee {
+  base: number;
+  percentage: number;
+  cap: number;
+  currency: string;
+}
+
+const REGIONAL_SERVICE_FEES: Record<RegionCode, RegionalServiceFee> = {
+  NA: { base: 1.25, percentage: 3.6, cap: 8.0, currency: "USD" },
+  EU: { base: 1.25, percentage: 3.6, cap: 8.0, currency: "USD" },
+  GH: { base: 10, percentage: 2.9, cap: 60, currency: "GHS" },
+  NG: { base: 1500, percentage: 2.9, cap: 6224, currency: "NGN" },
+};
+
+function calculateServiceFee(
+  bookingAmount: number,
+  regionCode: RegionCode
+): number {
+  const feeStructure = REGIONAL_SERVICE_FEES[regionCode];
+  if (!feeStructure) throw new Error(`Unknown region: ${regionCode}`);
+
+  const calculated =
+    feeStructure.base + (bookingAmount * feeStructure.percentage) / 100;
+  return Math.min(calculated, feeStructure.cap);
+}
+```
+
+**Example usage**:
+
+```typescript
+// ✅ Correct - Regional payment processing
+async function processBookingPayment(booking: Booking, provider: Provider) {
+  const depositAmount = booking.depositAmount;
+  const regionCode = provider.regionCode;
+  const paymentProvider = getPaymentProvider(regionCode);
+
+  // Calculate service fee (charged to CLIENT)
+  const serviceFee = calculateServiceFee(depositAmount, regionCode);
+  const totalChargeToClient = depositAmount + serviceFee;
+  const currency = REGIONAL_SERVICE_FEES[regionCode].currency.toLowerCase();
+
+  if (paymentProvider === "stripe") {
+    // Stripe payment (North America/Europe)
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(totalChargeToClient * 100), // Convert to cents
+      currency: currency,
+      customer: booking.clientStripeCustomerId,
+      metadata: {
+        bookingId: booking.id,
+        depositAmount: depositAmount,
+        serviceFee: serviceFee,
+        providerId: provider.id,
+      },
+    });
+    return paymentIntent;
+  } else {
+    // Paystack payment (Ghana/Nigeria)
+    const paystack = new PaystackService();
+    const transaction = await paystack.transaction.initialize({
+      amount: Math.round(totalChargeToClient * 100), // Convert to kobo/pesewas
+      email: booking.client.email,
+      currency: currency.toUpperCase(),
+      metadata: {
+        bookingId: booking.id,
+        depositAmount: depositAmount,
+        serviceFee: serviceFee,
+        providerId: provider.id,
+      },
+      callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/bookings/${booking.id}/confirm`,
+    });
+    return transaction;
+  }
+}
+
+// ❌ WRONG - Missing regional logic
+async function processBookingPayment(booking: Booking) {
+  // Missing region-based payment provider selection!
+  return stripe.charge(booking.depositAmount);
+}
+```
+
+### 3. Provider Subscription Management (CRITICAL)
+
+**Provider subscription flow (regional)**:
+
+```typescript
+// ✅ Correct - Regional subscription creation
+async function createProviderSubscription(
+  providerId: string,
+  tier: "solo" | "salon",
+  paymentMethodId: string,
+  regionCode: RegionCode
+): Promise<void> {
+  const provider = await db.providerProfile.findUnique({
+    where: { id: providerId },
+    include: { user: true },
+  });
+
+  const paymentProvider = getPaymentProvider(regionCode);
+  const monthlyFee = tier === "solo" ? 19.0 : 49.0;
+
+  if (paymentProvider === "stripe") {
+    // STRIPE SUBSCRIPTION (North America/Europe)
+    let stripeCustomerId = provider.stripeCustomerId;
+    if (!stripeCustomerId) {
+      const customer = await stripe.customers.create({
+        email: provider.user.email,
+        name: `${provider.user.firstName} ${provider.user.lastName}`,
+        metadata: {
+          providerId: providerId,
+          businessName: provider.businessName,
+        },
+      });
+      stripeCustomerId = customer.id;
+    }
+
+    // Attach payment method
+    await stripe.paymentMethods.attach(paymentMethodId, {
+      customer: stripeCustomerId,
+    });
+
+    // Set as default
+    await stripe.customers.update(stripeCustomerId, {
+      invoice_settings: {
+        default_payment_method: paymentMethodId,
+      },
+    });
+
+    // Determine price based on tier
+    const priceId =
+      tier === "solo"
+        ? process.env.STRIPE_SOLO_PRICE_ID
+        : process.env.STRIPE_SALON_PRICE_ID;
+
+    // Create subscription with 2-month trial
+    const subscription = await stripe.subscriptions.create({
+      customer: stripeCustomerId,
+      items: [{ price: priceId }],
+      trial_period_days: 60,
+      payment_behavior: "default_incomplete",
+      expand: ["latest_invoice.payment_intent"],
+    });
+
+    // Update provider profile
+    await db.providerProfile.update({
+      where: { id: providerId },
+      data: {
+        paymentProvider: "stripe",
+        regionCode: regionCode,
+        currency: "USD",
+        stripeCustomerId: stripeCustomerId,
+        stripeSubscriptionId: subscription.id,
+        paymentMethodId: paymentMethodId,
+        subscriptionTier: tier,
+        subscriptionStatus: "trial",
+        trialEndDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+        monthlyFee: monthlyFee,
+      },
+    });
+  } else {
+    // PAYSTACK SUBSCRIPTION (Ghana/Nigeria)
+    const paystack = new PaystackService();
+    const currency = REGIONAL_SERVICE_FEES[regionCode].currency;
+
+    // Convert monthly fee to local currency (simplified - use proper exchange rate in production)
+    const exchangeRates: Record<string, number> = {
+      GHS: 12.5, // 1 USD = ~12.5 GHS
+      NGN: 1550, // 1 USD = ~1550 NGN
+    };
+    const localMonthlyFee = Math.round(monthlyFee * exchangeRates[currency]);
+
+    // Create or fetch customer
+    let paystackCustomerCode = provider.paystackCustomerCode;
+    if (!paystackCustomerCode) {
+      const customer = await paystack.customer.create({
+        email: provider.user.email,
+        first_name: provider.user.firstName,
+        last_name: provider.user.lastName,
+        metadata: {
+          providerId: providerId,
+          businessName: provider.businessName,
+        },
+      });
+      paystackCustomerCode = customer.data.customer_code;
+    }
+
+    // Create subscription plan if it doesn't exist
+    const planCode = `${tier}_${currency.toLowerCase()}`;
+    let plan = await paystack.plan.fetch(planCode).catch(() => null);
+
+    if (!plan) {
+      plan = await paystack.plan.create({
+        name: `${
+          tier === "solo" ? "Solo Professional" : "Salon"
+        } - ${currency}`,
+        amount: localMonthlyFee * 100, // Convert to kobo/pesewas
+        interval: "monthly",
+        currency: currency,
+      });
+    }
+
+    // Create subscription
+    const subscription = await paystack.subscription.create({
+      customer: paystackCustomerCode,
+      plan: plan.data.plan_code,
+      start_date: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(), // Start after 2 months (trial)
+    });
+
+    // Update provider profile
+    await db.providerProfile.update({
+      where: { id: providerId },
+      data: {
+        paymentProvider: "paystack",
+        regionCode: regionCode,
+        currency: currency,
+        paystackCustomerCode: paystackCustomerCode,
+        paystackSubscriptionCode: subscription.data.subscription_code,
+        subscriptionTier: tier,
+        subscriptionStatus: "trial",
+        trialEndDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+        monthlyFee: localMonthlyFee,
+      },
+    });
+  }
+}
+
+// ❌ WRONG - Missing regional logic
+async function createProviderSubscription(providerId: string, tier: string) {
+  // Missing region-based provider selection!
+  return stripe.createSubscription();
+}
+```
+
+**Key points**:
+
+- Regional payment provider selection based on location
+- Stripe for North America/Europe (USD)
+- Paystack for Ghana (GHS) and Nigeria (NGN)
+- Simple card/mobile money entry during onboarding
+- No Connect/Subaccount setup required
+- Platform manages all transactions
+
+### 4. Salon vs Solo Provider Logic
+
+**Always check account type**:
+
+```typescript
+interface Provider {
+  id: string;
+  isSalon: boolean;
+  // ... other fields
+}
+
+// ✅ Correct - Handle both types
+async function handleBooking(bookingData: BookingInput) {
+  const provider = await db.providerProfile.findUnique({
+    where: { id: bookingData.providerId },
+    include: { salonProfile: true },
+  });
+
+  if (provider.isSalon) {
+    // Check if client selected specific stylist or "any available"
+    if (bookingData.anyAvailableStylist) {
+      const assignedStylist = await findAvailableStylist(
+        provider.id,
+        bookingData.date,
+        bookingData.time
+      );
+      bookingData.assignedStylistId = assignedStylist.id;
+    }
+  }
+
+  return createBooking(bookingData);
+}
+
+// ❌ Wrong - Assumes solo provider only
+async function handleBooking(bookingData: BookingInput) {
+  return createBooking(bookingData); // Missing salon logic!
+}
+```
+
+### 5. AI Feature Integration
+
+**Always track AI usage for cost monitoring**:
+
+```typescript
+interface AIUsageLog {
+  userId: string;
+  feature: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  estimatedCost: number;
+  timestamp: Date;
+}
+
+async function generateServiceDescription(
+  title: string,
+  category: string,
+  providerId: string
+): Promise<string> {
+  // Check cache first
+  const cacheKey = `desc:${title}:${category}`;
+  const cached = await redis.get(cacheKey);
+  if (cached) return cached;
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4-turbo", // Use cheaper model for simple tasks
+    messages: [{ role: "user", content: generatePrompt(title, category) }],
+    temperature: 0.7,
+  });
+
+  const description = response.choices[0].message.content;
+
+  // Cache result
+  await redis.setex(cacheKey, 3600, description);
+
+  // Log usage for cost tracking
+  await db.aiUsageLog.create({
+    data: {
+      userId: providerId,
+      feature: "service_description",
+      model: "gpt-4-turbo",
+      inputTokens: response.usage.prompt_tokens,
+      outputTokens: response.usage.completion_tokens,
+      estimatedCost: calculateAICost(response.usage),
+      timestamp: new Date(),
+    },
+  });
+
+  return description;
+}
+```
+
+**AI model selection**:
+
+```typescript
+function selectAIModel(task: string): string {
+  const simpleTasks = ["description", "policy", "message_draft"];
+  const complexTasks = ["image_match", "style_detection", "inspiration_match"];
+
+  if (simpleTasks.includes(task)) {
+    return "gpt-4-turbo"; // Cheaper for text
+  }
+
+  if (complexTasks.includes(task)) {
+    return "gpt-4-vision-preview"; // Required for images
+  }
+
+  return "gpt-4-turbo";
+}
+```
+
+### 6. Component Architecture
+
+#### React Server Components (RSC) by Default
+
+- Use Server Components unless you need:
+  - State (`useState`, `useReducer`)
+  - Effects (`useEffect`)
+  - Event handlers (`onClick`, etc.)
+  - Browser APIs
+  - Custom hooks
+
+```typescript
+// ✅ Server Component (default)
+async function ServicePage({ params }: { params: { serviceId: string } }) {
+  const service = await db.service.findUnique({
+    where: { id: params.serviceId },
+    include: {
+      provider: true,
+      addons: true, // Include add-ons
+      media: true,
+    },
+  });
+
+  return (
+    <div>
+      <ServiceDetail service={service} />
+      <ServiceAddons addons={service.addons} />
+      <BookingButton serviceId={service.id} />
+    </div>
+  );
+}
+
+// ✅ Client Component (when needed)
+("use client");
+
+import { useState } from "react";
+
+function BookingForm({ service, addons }: Props) {
+  const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
+  const [totalPrice, setTotalPrice] = useState(service.priceMin);
+
+  // Calculate total including add-ons
+  useEffect(() => {
+    const addonTotal = selectedAddons.reduce((sum, addonId) => {
+      const addon = addons.find((a) => a.id === addonId);
+      return sum + (addon?.addonPrice || 0);
+    }, 0);
+    setTotalPrice(service.priceMin + addonTotal);
+  }, [selectedAddons, addons, service.priceMin]);
+
+  return (
+    <form>
+      <ServiceAddonsSelector
+        addons={addons}
+        selected={selectedAddons}
+        onChange={setSelectedAddons}
+      />
+      <PriceDisplay amount={totalPrice} currency={service.currency} />
+      <BookButton />
+    </form>
+  );
+}
+```
+
+### 7. Instagram Integration
+
+**OAuth and media import**:
+
+```typescript
+// Step 1: Initialize OAuth
+async function connectInstagram(providerId: string): Promise<string> {
+  const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/instagram/callback`;
+  const clientId = process.env.INSTAGRAM_CLIENT_ID;
+
+  return `https://api.instagram.com/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=user_profile,user_media&response_type=code&state=${providerId}`;
+}
+
+// Step 2: Handle callback
+async function handleInstagramCallback(code: string, providerId: string) {
+  const tokenData = await exchangeCodeForToken(code);
+
+  await db.instagramConnection.create({
+    data: {
+      providerId,
+      instagramUserId: tokenData.user_id,
+      instagramUsername: tokenData.username,
+      accessToken: tokenData.access_token,
+      tokenExpiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+    },
+  });
+}
+
+// Step 3: Import media
+async function importInstagramMedia(providerId: string) {
+  const connection = await db.instagramConnection.findUnique({
+    where: { providerId },
+  });
+
+  const media = await fetchInstagramMedia(connection.accessToken);
+
+  for (const item of media) {
+    await db.instagramMediaImport.create({
+      data: {
+        providerId,
+        instagramMediaId: item.id,
+        mediaUrl: item.media_url,
+        mediaType: item.media_type.toLowerCase(),
+        caption: item.caption,
+        importDate: new Date(),
+      },
+    });
+  }
+}
+```
+
+### 8. Google Calendar Integration (MUST HAVE)
+
+**Two-way sync**:
+
+```typescript
+import { google } from "googleapis";
+
+async function syncBookingToGoogleCalendar(booking: Booking) {
+  const provider = await db.providerProfile.findUnique({
+    where: { id: booking.providerId },
+  });
+
+  if (!provider.googleCalendarConnected) return;
+
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET
+  );
+
+  oauth2Client.setCredentials({
+    access_token: provider.googleAccessToken,
+    refresh_token: provider.googleRefreshToken,
+  });
+
+  const calendar = google.calendar({ version: "v3", auth: oauth2Client });
+
+  const event = {
+    summary: `${booking.service.title} - ${booking.client.name}`,
+    description: generateEventDescription(booking),
+    start: {
+      dateTime: combineDateTime(
+        booking.appointmentDate,
+        booking.appointmentTime
+      ),
+      timeZone: provider.timezone,
+    },
+    end: {
+      dateTime: calculateEndTime(booking),
+      timeZone: provider.timezone,
+    },
+    attendees: [{ email: booking.client.email }],
+  };
+
+  const result = await calendar.events.insert({
+    calendarId: "primary",
+    requestBody: event,
+  });
+
+  // Store event ID for updates/deletions
+  await db.booking.update({
+    where: { id: booking.id },
+    data: { googleCalendarEventId: result.data.id },
+  });
+}
+```
+
+### 9. Service Add-ons Handling
+
+**Always include add-ons in calculations**:
+
+```typescript
+interface BookingCalculation {
+  servicePrice: number;
+  addonsTotal: number;
+  homeServiceFee: number;
+  subtotal: number;
+  serviceFee: number;
+  total: number;
+}
+
+function calculateBookingTotal(
+  service: Service,
+  selectedAddons: ServiceAddon[],
+  homeServiceRequested: boolean,
+  regionCode: string
+): BookingCalculation {
+  const servicePrice = service.priceMin;
+
+  const addonsTotal = selectedAddons.reduce((sum, addon) => {
+    return sum + addon.addonPrice;
+  }, 0);
+
+  const homeServiceFee = homeServiceRequested ? service.homeServiceFee || 0 : 0;
+
+  const subtotal = servicePrice + addonsTotal + homeServiceFee;
+
+  // Service fee charged to client
+  const serviceFee = calculateServiceFee(subtotal, regionCode);
+
+  const total = subtotal + serviceFee;
+
+  return {
+    servicePrice,
+    addonsTotal,
+    homeServiceFee,
+    subtotal,
+    serviceFee,
+    total,
+  };
+}
+```
+
+### 10. Subscription Management
+
+**Trial period handling**:
+
+```typescript
+interface SubscriptionStatus {
+  isActive: boolean;
+  isTrial: boolean;
+  daysRemainingInTrial: number;
+  nextBillingDate: Date | null;
+  planName: string;
+}
+
+async function getSubscriptionStatus(
+  providerId: string
+): Promise<SubscriptionStatus> {
+  const subscription = await db.providerSubscription.findFirst({
+    where: { providerId },
+    include: { plan: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!subscription) {
+    return {
+      isActive: false,
+      isTrial: false,
+      daysRemainingInTrial: 0,
+      nextBillingDate: null,
+      planName: "none",
+    };
+  }
+
+  const now = new Date();
+  const isTrial =
+    subscription.status === "trial" && subscription.trialEndDate > now;
+
+  const daysRemaining = isTrial
+    ? Math.ceil(
+        (subscription.trialEndDate.getTime() - now.getTime()) /
+          (1000 * 60 * 60 * 24)
+      )
+    : 0;
+
+  return {
+    isActive: ["trial", "active"].includes(subscription.status),
+    isTrial,
+    daysRemainingInTrial: daysRemaining,
+    nextBillingDate: subscription.nextBillingDate,
+    planName: subscription.plan.planName,
+  };
+}
+```
+
+### 11. Database Best Practices
+
+#### Prisma Query Patterns
+
+```typescript
+// ✅ Good - Include necessary relations
+async function getServiceForBooking(serviceId: string) {
+  return db.service.findUnique({
+    where: { id: serviceId },
+    select: {
+      id: true,
+      title: true,
+      priceMin: true,
+      durationMinutes: true,
+      depositType: true,
+      depositAmount: true,
+      provider: {
+        select: {
+          id: true,
+          businessName: true,
+          regionCode: true,
+          paymentProvider: true,
+          isSalon: true,
+          salonProfile: {
+            select: {
+              teamMemberLimit: true,
+            },
+          },
+        },
+      },
+      addons: {
+        where: { isActive: true },
+        orderBy: { displayOrder: "asc" },
+      },
+    },
+  });
+}
+
+// ❌ Bad - N+1 query problem
+async function getServicesWithProviders() {
+  const services = await db.service.findMany();
+
+  for (const service of services) {
+    service.provider = await db.provider.findUnique({
+      where: { id: service.providerId },
+    });
+  }
+
+  return services;
+}
+```
+
+#### Transaction Handling for Bookings
+
+```typescript
+async function createBookingWithPayment(bookingData: CreateBookingInput) {
+  return db.$transaction(async (tx) => {
+    // 1. Create booking
+    const booking = await tx.booking.create({
+      data: {
+        ...bookingData,
+        status: "pending",
+        paymentStatus: "pending",
+      },
+    });
+
+    // 2. Create booking add-ons
+    if (bookingData.selectedAddons?.length > 0) {
+      await tx.bookingAddon.createMany({
+        data: bookingData.selectedAddons.map((addon) => ({
+          bookingId: booking.id,
+          addonId: addon.id,
+          addonName: addon.name,
+          addonPrice: addon.price,
+        })),
+      });
+    }
+
+    // 3. Update provider stats
+    await tx.providerProfile.update({
+      where: { id: bookingData.providerId },
+      data: {
+        totalBookings: { increment: 1 },
+      },
+    });
+
+    // 4. If salon, update stylist stats
+    if (bookingData.assignedStylistId) {
+      await tx.providerProfile.update({
+        where: { id: bookingData.assignedStylistId },
+        data: {
+          totalBookings: { increment: 1 },
+        },
+      });
+    }
+
+    return booking;
+  });
+}
+```
+
+### 12. Error Handling
+
+```typescript
+// lib/errors.ts
+export class AppError extends Error {
+  constructor(
+    public code: string,
+    public message: string,
+    public statusCode: number = 500,
+    public details?: any
+  ) {
+    super(message);
+    this.name = "AppError";
+  }
+}
+
+export class PaymentError extends AppError {
+  constructor(message: string, details?: any) {
+    super("PAYMENT_ERROR", message, 400, details);
+  }
+}
+
+export class RegionNotSupportedError extends AppError {
+  constructor(regionCode: string) {
+    super("REGION_NOT_SUPPORTED", `Region ${regionCode} is not supported`, 400);
+  }
+}
+
+// Usage in API routes
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const validated = BookingSchema.parse(body);
+
+    const provider = await getProvider(validated.providerId);
+
+    if (!["NA", "GH", "NG"].includes(provider.regionCode)) {
+      throw new RegionNotSupportedError(provider.regionCode);
+    }
+
+    const booking = await createBooking(validated);
+
+    return NextResponse.json({ success: true, data: booking }, { status: 201 });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "Invalid input",
+            details: error.errors,
+          },
+        },
+        { status: 400 }
+      );
+    }
+
+    if (error instanceof AppError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: error.code,
+            message: error.message,
+            details: error.details,
+          },
+        },
+        { status: error.statusCode }
+      );
+    }
+
+    console.error("Unexpected error:", error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: { code: "INTERNAL_ERROR", message: "Internal server error" },
+      },
+      { status: 500 }
+    );
+  }
+}
+```
+
+### 13. Form Handling with React Hook Form + Zod
+
+```typescript
+// Service creation form with add-ons
+const serviceFormSchema = z.object({
+  title: z.string().min(3).max(255),
+  description: z.string().min(20),
+  priceMin: z.coerce.number().positive(),
+  priceMax: z.coerce.number().positive().optional(),
+  durationMinutes: z.coerce.number().min(15),
+  categoryId: z.string().uuid(),
+  depositType: z.enum(["percentage", "flat"]),
+  depositAmount: z.coerce.number().positive(),
+  addons: z
+    .array(
+      z.object({
+        name: z.string().min(2),
+        price: z.coerce.number().positive(),
+        duration: z.coerce.number().min(0),
+      })
+    )
+    .optional(),
+});
+
+type ServiceFormValues = z.infer<typeof serviceFormSchema>;
+
+function ServiceForm({
+  onSubmit,
+}: {
+  onSubmit: (data: ServiceFormValues) => void;
+}) {
+  const form = useForm<ServiceFormValues>({
+    resolver: zodResolver(serviceFormSchema),
+    defaultValues: {
+      depositType: "percentage",
+      depositAmount: 50,
+      addons: [],
+    },
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "addons",
+  });
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        {/* Standard fields */}
+        <FormField
+          control={form.control}
+          name="title"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Service Title</FormLabel>
+              <FormControl>
+                <Input {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Deposit configuration */}
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="depositType"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Deposit Type</FormLabel>
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="percentage">Percentage</SelectItem>
+                    <SelectItem value="flat">Flat Amount</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="depositAmount"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>
+                  {form.watch("depositType") === "percentage"
+                    ? "Percentage (%)"
+                    : "Amount"}
+                </FormLabel>
+                <FormControl>
+                  <Input type="number" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        {/* Add-ons section */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-medium">Add-ons</h3>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => append({ name: "", price: 0, duration: 0 })}
+            >
+              Add Add-on
+            </Button>
+          </div>
+
+          {fields.map((field, index) => (
+            <div
+              key={field.id}
+              className="grid grid-cols-4 gap-4 p-4 border rounded"
+            >
+              <FormField
+                control={form.control}
+                name={`addons.${index}.name`}
+                render={({ field }) => (
+                  <FormItem className="col-span-2">
+                    <FormLabel>Add-on Name</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="e.g., Home Service" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name={`addons.${index}.price`}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Price</FormLabel>
+                    <FormControl>
+                      <Input type="number" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="flex items-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => remove(index)}
+                >
+                  Remove
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <Button type="submit">Create Service</Button>
+      </form>
+    </Form>
+  );
+}
+```
+
+### 14. Styling with Tailwind & Shadcn
+
+**OFFICIAL COLOR PALETTE** (From Requirements):
+
+```typescript
+// tailwind.config.ts
+export default {
+  theme: {
+    extend: {
+      colors: {
+        // Official BNB Color Palette
+        primary: {
+          DEFAULT: "#B06F64", // Dusty Rose
+          foreground: "#FFFFFF",
+        },
+        accent: {
+          DEFAULT: "#FFB09E", // Peach Blush
+          foreground: "#2A3F4D",
+        },
+        secondary: {
+          DEFAULT: "#CA8D80", // Warm Taupe
+          foreground: "#FFFFFF",
+        },
+        tertiary: {
+          DEFAULT: "#DF9C8C", // Blush Clay
+          foreground: "#FFFFFF",
+        },
+        "button-dark": {
+          DEFAULT: "#2A3F4D", // Dark Slate Blue-Grey
+          foreground: "#FFFFFF",
+        },
+        "button-light": {
+          DEFAULT: "#FFB09E", // Peach Blush
+          foreground: "#2A3F4D",
+        },
+      },
+    },
+  },
+};
+```
+
+**Component styling examples**:
+
+```tsx
+// ✅ CORRECT - Use official color palette
+<Button className="bg-button-dark text-white hover:bg-button-dark/90">
+  Book Now
+</Button>
+
+<Button className="bg-button-light text-button-dark hover:bg-button-light/90">
+  Learn More
+</Button>
+
+<Card className="border-secondary/20">
+  <CardHeader className="bg-primary/5">
+    <CardTitle className="text-primary">Service Details</CardTitle>
+  </CardHeader>
+</Card>
+
+<div className="bg-accent/10 border-accent">
+  <p className="text-accent-foreground">Special Offer</p>
+</div>
+
+// ❌ WRONG - Never use arbitrary colors
+<Button className="bg-pink-500">Book Now</Button> // WRONG
+<Button className="bg-rose-600">Book Now</Button> // WRONG
+<div className="bg-gold-500">Featured</div> // WRONG
+```
+
+**Color Usage Guidelines**:
+
+- **Primary (#B06F64)**: Main brand elements, headings, CTAs
+- **Accent (#FFB09E)**: Highlights, secondary CTAs, hover states
+- **Secondary (#CA8D80)**: Borders, dividers, subtle backgrounds
+- **Tertiary (#DF9C8C)**: Accents, badges, tags
+- **Button Dark (#2A3F4D)**: Primary buttons, navigation
+- **Button Light (#FFB09E)**: Secondary buttons, light backgrounds
+
+---
+
+## Code Review Checklist
+
+Before submitting code:
+
+### Payment & Subscription
+
+- [ ] Dual payment provider support (Stripe + Paystack)
+- [ ] Regional payment provider routing working (NA/EU → Stripe, GH/NG → Paystack)
+- [ ] Service fees charged to client, not provider
+- [ ] Regional service fee calculation correct:
+  - [ ] North America/Europe: $1.25 + 3.6% (max $8.00)
+  - [ ] Ghana: ₵10 + 2.9% (max ₵60)
+  - [ ] Nigeria: ₦1,500 + 2.9% (max ₦6,224)
+- [ ] Provider subscription flow using simple card/mobile money entry
+- [ ] No Connect/Subaccount setup required
+- [ ] Subscription billing ($19 solo / $49 salon) with currency conversion
+- [ ] 2-month free trial implemented for all regions
+- [ ] Multi-currency support (USD, GHS, NGN)
+
+### Features
+
+- [ ] Salon vs solo provider logic handled
+- [ ] Service add-ons included in calculations
+- [ ] Instagram integration working (if feature)
+- [ ] Google Calendar sync working (if feature)
+- [ ] AI usage tracked and cached
+
+### Code Quality
+
+- [ ] TypeScript strict mode passing
+- [ ] No `any` types used
+- [ ] Proper error handling
+- [ ] Database transactions where needed
+- [ ] Tests written and passing
+
+### Design
+
+- [ ] Official color palette used (#B06F64, #FFB09E, #CA8D80, #DF9C8C, #2A3F4D)
+- [ ] Images/videos displayed prominently
+- [ ] Responsive design
+- [ ] Accessibility considered
+
+---
+
+**Document Version**: 4.0
+**Last Updated**: Dual Payment System - Stripe + Paystack (Regional)
+**Status**: Production Standards

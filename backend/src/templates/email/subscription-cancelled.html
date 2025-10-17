@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Subscription Cancelled</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        background-color: #f5f5f5;
+      }
+      .container {
+        max-width: 600px;
+        margin: 40px auto;
+        background-color: #ffffff;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+      .header {
+        background-color: #6c757d;
+        padding: 40px 20px;
+        text-align: center;
+      }
+      .header h1 {
+        color: #ffffff;
+        margin: 0;
+        font-size: 28px;
+        font-weight: 600;
+      }
+      .content {
+        padding: 40px 30px;
+        color: #333333;
+        line-height: 1.6;
+      }
+      .info-box {
+        background-color: #f9f9f9;
+        border: 1px solid #eeeeee;
+        padding: 20px;
+        margin: 20px 0;
+        border-radius: 6px;
+      }
+      .button {
+        display: inline-block;
+        padding: 14px 32px;
+        background-color: #b06f64;
+        color: #ffffff;
+        text-decoration: none;
+        border-radius: 6px;
+        font-weight: 600;
+        margin: 20px 0;
+      }
+      .footer {
+        background-color: #f9f9f9;
+        padding: 30px;
+        text-align: center;
+        font-size: 14px;
+        color: #666666;
+        border-top: 1px solid #eeeeee;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>Subscription Cancelled</h1>
+      </div>
+      <div class="content">
+        <h2 style="color: #6c757d">Hi {{firstName}},</h2>
+        <p>Your Beauty N Brushes subscription has been cancelled as requested.</p>
+
+        <div class="info-box">
+          <p style="margin: 0"><strong>Access Until:</strong> {{accessEndDate}}</p>
+          <p style="margin: 10px 0 0; font-size: 14px; color: #666">
+            You'll continue to have full access to your account until this date.
+          </p>
+        </div>
+
+        <p>
+          We're sorry to see you go! If you change your mind, you can reactivate your subscription
+          anytime.
+        </p>
+
+        <div style="text-align: center">
+          <a href="{{reactivateUrl}}" class="button">Reactivate Subscription</a>
+        </div>
+
+        <p style="margin-top: 30px">
+          Is there anything we could have done better? We'd love to hear your feedback.
+        </p>
+      </div>
+      <div class="footer">
+        <p>&copy; 2025 Beauty N Brushes. All rights reserved.</p>
+        <p>Professional beauty services marketplace</p>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trial Ending Soon</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      background-color: #f5f5f5;
+    }
+    .container {
+      max-width: 600px;
+      margin: 40px auto;
+      background-color: #ffffff;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .header {
+      background-color: #FFB09E;
+      padding: 40px 20px;
+      text-align: center;
+    }
+    .header h1 {
+      color: #2A3F4D;
+      margin: 0;
+      font-size: 28px;
+      font-weight: 600;
+    }
+    .content {
+      padding: 40px 30px;
+      color: #333333;
+      line-height: 1.6;
+    }
+    .highlight-box {
+      background: linear-gradient(135deg, #FFB09E1A 0%, #DF9C8C1A 100%);
+      border-left: 4px solid #B06F64;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 6px;
+    }
+    .button {
+      display: inline-block;
+      padding: 14px 32px;
+      background-color: #B06F64;
+      color: #ffffff;
+      text-decoration: none;
+      border-radius: 6px;
+      font-weight: 600;
+      margin: 20px 0;
+    }
+    .footer {
+      background-color: #f9f9f9;
+      padding: 30px;
+      text-align: center;
+      font-size: 14px;
+      color: #666666;
+      border-top: 1px solid #eeeeee;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>⏰ Your Trial Ends Soon</h1>
+    </div>
+    <div class="content">
+      <h2 style="color: #B06F64;">Hi {{firstName}},</h2>
+      <p>Your 2-month free trial of Beauty N Brushes will end on <strong>{{trialEndDate}}</strong>.</p>
+      
+      <div class="highlight-box">
+        <h3 style="margin-top: 0; color: #B06F64;">What happens next?</h3>
+        <p style="margin: 10px 0;">Starting {{billingStartDate}}, your subscription will automatically renew at <strong>{{monthlyFee}}/month</strong>.</p>
+      </div>
+
+      <p>Your payment method on file: <strong>{{paymentMethod}}</strong></p>
+
+      <div style="text-align: center;">
+        <a href="{{manageSubscriptionUrl}}" class="button">Manage Subscription</a>
+      </div>
+
+      <p style="margin-top: 30px; font-size: 14px; color: #666;">
+        Want to cancel? No problem! You can cancel anytime from your dashboard before {{trialEndDate}}.
+      </p>
+    </div>
+    <div class="footer">
+      <p>&copy; 2025 Beauty N Brushes. All rights reserved.</p>
+      <p>Professional beauty services marketplace</p>
+    </div>
+  </div>
+</body>
+</html>
+

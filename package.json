@@ -1,0 +1,51 @@
+{
+  "name": "beauty-n-brushes",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI-powered, visual-first beauty services marketplace",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "build": "npm run build --workspace=backend && npm run build --workspace=frontend",
+    "build:backend": "npm run build --workspace=backend",
+    "build:frontend": "npm run build --workspace=frontend",
+    "start": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
+    "start:backend": "npm run start --workspace=backend",
+    "start:frontend": "npm run start --workspace=frontend",
+    "db:generate": "npm run db:generate --workspace=backend",
+    "db:migrate": "npm run db:migrate --workspace=backend",
+    "db:migrate:deploy": "npm run db:migrate:deploy --workspace=backend",
+    "db:seed": "npm run db:seed --workspace=backend",
+    "db:studio": "npm run db:studio --workspace=backend",
+    "db:reset": "npm run db:reset --workspace=backend",
+    "lint": "npm run lint --workspace=backend && npm run lint --workspace=frontend",
+    "type-check": "npm run type-check --workspace=backend && npm run type-check --workspace=frontend",
+    "test": "npm run test --workspace=backend && npm run test --workspace=frontend",
+    "clean": "rm -rf node_modules backend/node_modules frontend/node_modules backend/dist frontend/.next",
+    "postinstall": "npm run db:generate"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/beauty-n-brushes.git"
+  },
+  "keywords": [
+    "beauty",
+    "marketplace",
+    "booking",
+    "ai-powered"
+  ],
+  "author": "",
+  "license": "UNLICENSED"
+}
