@@ -2,6 +2,7 @@ import { prisma } from '../config/database';
 import type { PaymentProvider, SubscriptionTier } from '@prisma/client';
 import { stripeService, paystackService, getPaymentProvider } from '../lib/payment';
 import { emailService } from '../lib/email';
+import { env } from '../config/env';
 import type { RegionCode } from '../types/payment.types';
 import type {
   AccountTypeData,
@@ -439,7 +440,6 @@ export class OnboardingService {
       include: {
         user: true,
         policies: true,
-        services: true,
         availability: true,
       },
     });
@@ -455,7 +455,6 @@ export class OnboardingService {
           brandCustomization: false,
           policies: false,
           paymentSetup: false,
-          serviceCreated: false,
           availabilitySet: false,
         },
       };
@@ -477,7 +476,6 @@ export class OnboardingService {
         brandCustomization: !!profile.brandColorPrimary,
         policies: !!profile.policies,
         paymentSetup: hasPaymentSetup, // Check subscription exists (Stripe OR Paystack)
-        serviceCreated: profile.services.length > 0,
         availabilitySet: profile.availability.length > 0,
       },
       // Include the actual profile data for form pre-filling
@@ -540,7 +538,6 @@ export class OnboardingService {
       'brandCustomization',
       'policies',
       'paymentSetup',
-      'serviceCreated',
       'availabilitySet',
     ];
 
@@ -563,7 +560,6 @@ export class OnboardingService {
     });
 
     // Send welcome email
-    const appUrl = process.env.APP_URL || 'http://localhost:3000';
     const trialEndDate = new Date(Date.now() + TRIAL_PERIOD_DAYS * 24 * 60 * 60 * 1000);
 
     await emailService.sendWelcomeEmail(profile.user.email, profile.user.firstName, {
@@ -572,8 +568,8 @@ export class OnboardingService {
         month: 'long',
         day: 'numeric',
       }),
-      bookingPageUrl: `${appUrl}/@${profile.slug}`,
-      dashboardUrl: `${appUrl}/dashboard`,
+      bookingPageUrl: `${env.FRONTEND_URL}/@${profile.slug}`,
+      dashboardUrl: `${env.FRONTEND_URL}/dashboard`,
     });
 
     return profile;

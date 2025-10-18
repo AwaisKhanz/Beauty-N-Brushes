@@ -4,6 +4,7 @@ import { prisma } from '../config/database';
 import logger from '../utils/logger';
 import crypto from 'crypto';
 import { emailService } from '../lib/email';
+import { env } from '../config/env';
 import type { PaystackSubscriptionData, PaystackChargeData } from '../../../shared-types';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
@@ -146,7 +147,6 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription): Pro
 
   // Send cancellation confirmation email
   if (profile) {
-    const appUrl = process.env.APP_URL || 'http://localhost:3000';
     await emailService.sendSubscriptionCancelledEmail(profile.user.email, {
       firstName: profile.user.firstName,
       accessEndDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', {
@@ -154,7 +154,7 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription): Pro
         month: 'long',
         day: 'numeric',
       }),
-      reactivateUrl: `${appUrl}/dashboard/subscription`,
+      reactivateUrl: `${env.FRONTEND_URL}/dashboard/subscription`,
     });
   }
 }
@@ -174,7 +174,6 @@ async function handleTrialWillEnd(subscription: Stripe.Subscription): Promise<vo
 
   // Send trial ending reminder email
   if (profile) {
-    const appUrl = process.env.APP_URL || 'http://localhost:3000';
     const trialEndDate = new Date(profile.trialEndDate || Date.now());
     const billingStartDate = new Date(trialEndDate.getTime() + 24 * 60 * 60 * 1000);
 
@@ -192,7 +191,7 @@ async function handleTrialWillEnd(subscription: Stripe.Subscription): Promise<vo
       }),
       monthlyFee: `$${profile.monthlyFee || (profile.isSalon ? 49 : 19)}`,
       paymentMethod: '•••• •••• •••• ' + (profile.stripeCustomerId ? '****' : '****'),
-      manageSubscriptionUrl: `${appUrl}/dashboard/subscription`,
+      manageSubscriptionUrl: `${env.FRONTEND_URL}/dashboard/subscription`,
     });
   }
 }
@@ -223,7 +222,6 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice): Promise<void> {
 
   // Send payment receipt email
   if (profile) {
-    const appUrl = process.env.APP_URL || 'http://localhost:3000';
     const planName = profile.isSalon ? 'Salon Plan' : 'Solo Professional Plan';
     const amount = invoice.amount_paid ? `$${(invoice.amount_paid / 100).toFixed(2)}` : '$0.00';
 
@@ -242,7 +240,7 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice): Promise<void> {
         day: 'numeric',
       }),
       paymentMethod: '•••• •••• •••• ****',
-      dashboardUrl: `${appUrl}/dashboard`,
+      dashboardUrl: `${env.FRONTEND_URL}/dashboard`,
     });
   }
 }
@@ -272,7 +270,6 @@ async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
 
   // Send payment failed notification email
   if (profile) {
-    const appUrl = process.env.APP_URL || 'http://localhost:3000';
     const amount = `$${profile.monthlyFee || (profile.isSalon ? 49 : 19)}`;
 
     await emailService.sendPaymentFailedEmail(profile.user.email, {
@@ -283,7 +280,7 @@ async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
         month: 'long',
         day: 'numeric',
       }),
-      updatePaymentUrl: `${appUrl}/dashboard/subscription/payment-method`,
+      updatePaymentUrl: `${env.FRONTEND_URL}/dashboard/subscription/payment-method`,
     });
   }
 }
@@ -475,7 +472,6 @@ async function handlePaystackChargeFailed(data: PaystackChargeData): Promise<voi
       });
 
       // Send payment failed notification
-      const appUrl = process.env.APP_URL || 'http://localhost:3000';
       const amount = data.amount ? `₦${(data.amount / 100).toFixed(2)}` : '₦0.00';
 
       await emailService.sendPaymentFailedEmail(profile.user.email, {
@@ -486,7 +482,7 @@ async function handlePaystackChargeFailed(data: PaystackChargeData): Promise<voi
           month: 'long',
           day: 'numeric',
         }),
-        updatePaymentUrl: `${appUrl}/dashboard/subscription/payment-method`,
+        updatePaymentUrl: `${env.FRONTEND_URL}/dashboard/subscription/payment-method`,
       });
     }
   }

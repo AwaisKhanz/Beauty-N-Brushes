@@ -404,9 +404,15 @@ export async function generateAIPolicies(
     // Note: depositType and depositAmount are NOT needed here
     // Policies are generated based on business type and services only
     const policies = await aiService.generatePolicies({
-      businessName: profile.businessName,
-      businessType: profile.businessType || undefined,
-      serviceTypes: serviceSpecializations,
+      serviceType: serviceSpecializations.join(', ') || 'beauty services',
+      businessType:
+        (profile.businessType as 'salon' | 'spa' | 'barbershop' | 'nail_salon' | 'other') ||
+        'other',
+      location: {
+        country: 'US', // Default, could be made dynamic
+        state: profile.state,
+        city: profile.city,
+      },
     });
 
     sendSuccess(res, {

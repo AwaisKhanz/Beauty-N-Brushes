@@ -13,8 +13,11 @@ router.get('/validate-reset-token', authController.validateResetToken);
 router.post('/reset-password', authController.resetPassword); // Now accepts token in body
 
 // Email verification routes
-router.post('/verify-email/:token', authController.verifyEmail);
+router.get('/verify-email/:token', authController.verifyEmail);
 router.post('/resend-verification', authController.resendVerificationEmail);
+
+// Test email route (for development)
+router.post('/test-email', authController.sendTestEmail);
 
 // Protected routes
 router.post('/logout', authenticate, authController.logout);

@@ -66,3 +66,8 @@ uploads/
 # Railway
 .railway/
 
+# Secrets and credentials
+backend/service-account-key.json
+backend/cookie.txt
+**/service-account*.json
+

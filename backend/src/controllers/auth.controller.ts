@@ -25,7 +25,7 @@ import { env } from '../config/env';
  */
 function getCookieOptions(maxAge: number): CookieOptions {
   // Check if using ngrok or production (HTTPS)
-  const isNgrok = env.FRONTEND_URL?.includes('ngrok') || env.BACKEND_URL?.includes('ngrok');
+  const isNgrok = env.FRONTEND_URL?.includes('ngrok');
   const isHttps = env.FRONTEND_URL?.startsWith('https://');
 
   // For cross-origin requests (frontend on localhost, backend on ngrok), we need:
@@ -171,44 +171,68 @@ export async function refreshToken(req: Request, res: Response, next: NextFuncti
     const oldRefreshToken = req.cookies.refresh_token;
 
     if (!oldRefreshToken) {
+      res.clearCookie('access_token', { path: '/' });
+      res.clearCookie('refresh_token', { path: '/' });
       throw new AppError(401, 'Refresh token required');
     }
 
-    // Verify refresh token
-    const decoded = authService.verifyRefreshToken(oldRefreshToken);
+    let decoded;
+    try {
+      // Verify refresh token
+      decoded = authService.verifyRefreshToken(oldRefreshToken);
+    } catch (jwtError) {
+      // JWT verification failed
+      res.clearCookie('access_token', { path: '/' });
+      res.clearCookie('refresh_token', { path: '/' });
+      throw new AppError(401, 'Invalid refresh token format');
+    }
 
     // Validate against database
     const isValid = await authService.validateRefreshToken(decoded.userId, oldRefreshToken);
 
     if (!isValid) {
+      // Database validation failed
+      res.clearCookie('access_token', { path: '/' });
+      res.clearCookie('refresh_token', { path: '/' });
       throw new AppError(401, 'Invalid or expired refresh token');
     }
 
-    // Generate new tokens (token rotation)
-    const newAccessToken = authService.generateToken(decoded.userId, decoded.email, decoded.role);
-    const newRefreshToken = authService.generateRefreshToken(
-      decoded.userId,
-      decoded.email,
-      decoded.role,
-      (decoded.tokenVersion || 0) + 1
-    );
+    try {
+      // Generate new tokens (token rotation)
+      const newAccessToken = authService.generateToken(decoded.userId, decoded.email, decoded.role);
+      const newRefreshToken = authService.generateRefreshToken(
+        decoded.userId,
+        decoded.email,
+        decoded.role,
+        (decoded.tokenVersion || 0) + 1
+      );
 
-    // Store new refresh token in database (invalidates old one)
-    await authService.storeRefreshToken(decoded.userId, newRefreshToken);
+      // Store new refresh token in database (invalidates old one)
+      await authService.storeRefreshToken(decoded.userId, newRefreshToken);
 
-    // Set new cookies
-    res.cookie('access_token', newAccessToken, getCookieOptions(15 * 60 * 1000)); // 15 minutes
-    res.cookie('refresh_token', newRefreshToken, getCookieOptions(30 * 24 * 60 * 60 * 1000)); // 30 days
+      // Set new cookies
+      res.cookie('access_token', newAccessToken, getCookieOptions(15 * 60 * 1000)); // 15 minutes
+      res.cookie('refresh_token', newRefreshToken, getCookieOptions(30 * 24 * 60 * 60 * 1000)); // 30 days
 
-    sendSuccess(res, {
-      message: 'Token refreshed successfully',
-    });
+      sendSuccess(res, {
+        message: 'Token refreshed successfully',
+      });
+    } catch (dbError) {
+      // Database error during token generation/storage
+      res.clearCookie('access_token', { path: '/' });
+      res.clearCookie('refresh_token', { path: '/' });
+      throw new AppError(500, 'Failed to refresh token');
+    }
   } catch (error) {
-    // Clear cookies on error
+    // Ensure cookies are cleared for any unhandled errors
     res.clearCookie('access_token', { path: '/' });
     res.clearCookie('refresh_token', { path: '/' });
 
-    next(new AppError(401, 'Invalid or expired refresh token'));
+    if (error instanceof AppError) {
+      next(error);
+    } else {
+      next(new AppError(401, 'Token refresh failed'));
+    }
   }
 }
 
@@ -366,6 +390,37 @@ export async function resendVerificationEmail(
       if (error.message === 'Email already verified') {
         return next(new AppError(400, 'Email is already verified'));
       }
+    }
+    next(error);
+  }
+}
+
+/**
+ * Send test email
+ */
+export async function sendTestEmail(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      throw new AppError(400, 'Email address is required');
+    }
+
+    // Import email service
+    const { emailService } = await import('../lib/email');
+
+    await emailService.sendTestEmail(email);
+
+    sendSuccess(res, {
+      message: `Test email sent successfully to ${email}`,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error('Test email error:', error.message);
     }
     next(error);
   }

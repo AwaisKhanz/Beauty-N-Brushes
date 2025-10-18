@@ -30,6 +30,12 @@ export * from './dashboard.types';
 // Calendar Types
 export * from './calendar.types';
 
+// Inspiration Types
+export * from './inspiration.types';
+
+// Settings Types
+export * from './settings.types';
+
 // Common Response Type
 export interface ApiResponse<T = unknown> {
   success: boolean;

@@ -49,8 +49,16 @@ export default function LoginPage() {
 
       const user = await login({ email: values.email, password: values.password });
 
-      // Redirect based on role
-      router.push(getDashboardRoute(user.role));
+      // Check if there's a redirect URL stored (from failed API calls)
+      const redirectUrl = localStorage.getItem('redirectAfterLogin');
+
+      if (redirectUrl) {
+        localStorage.removeItem('redirectAfterLogin');
+        router.push(redirectUrl);
+      } else {
+        // Default: redirect based on role
+        router.push(getDashboardRoute(user.role));
+      }
     } catch (error: unknown) {
       toast.error('Login failed', {
         description: extractErrorMessage(error) || 'Invalid email or password',

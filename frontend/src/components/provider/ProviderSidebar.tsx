@@ -46,7 +46,9 @@ export default function ProviderSidebar({ isOpen, onClose }: ProviderSidebarProp
   return (
     <>
       {/* Mobile overlay */}
-      {isOpen && <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={onClose} />}
+      {isOpen && (
+        <div className="fixed inset-0 bg-background/50 z-40 md:hidden" onClick={onClose} />
+      )}
 
       {/* Sidebar */}
       <aside

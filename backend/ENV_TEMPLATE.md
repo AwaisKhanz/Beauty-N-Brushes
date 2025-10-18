@@ -55,12 +55,29 @@ FROM_NAME=Beauty N Brushes
 # For Development: Uses local filesystem (no configuration needed)
 
 # ================================
-# AI Service (OpenAI)
+# AI Services
 # ================================
 
 # OpenAI API (REQUIRED for AI features to work)
 # AI features will throw errors if not configured - no fallback responses
 OPENAI_API_KEY=sk-...
+
+# Google Cloud AI (REQUIRED for visual similarity search / "Find Your Look" feature)
+# This is used to create TRUE image-based embeddings (not text-based)
+# Get from: https://console.cloud.google.com/apis/credentials
+USE_GOOGLE_AI=true
+GOOGLE_CLOUD_PROJECT_ID=your-project-id
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
+
+# How Visual Search Works:
+# Google Vision AI analyzes actual pixels to create a 512-dimensional feature vector:
+# - Color histogram (256 dims) - RGB color distribution
+# - Object/label features (128 dims) - Hair-specific attributes
+# - Spatial features (64 dims) - Face/hair position
+# - Texture features (64 dims) - Color variance and complexity
+#
+# This allows matching based on ACTUAL visual similarity (color, texture, style)
+# NOT semantic text similarity (which can match yellow afro with brown fade!)
 
 # ================================
 # Payment Providers

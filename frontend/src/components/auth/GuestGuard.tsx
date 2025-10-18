@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getDashboardRoute } from '@/constants';
@@ -14,10 +14,17 @@ interface GuestGuardProps {
 export function GuestGuard({ children, redirectTo }: GuestGuardProps) {
   const { user, loading, isAuthenticated } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
     if (loading) return;
+
+    // Allow access to email verification even if logged in
+    if (pathname?.startsWith('/verify-email/')) {
+      setIsChecking(false);
+      return;
+    }
 
     // If authenticated, redirect to appropriate dashboard
     if (isAuthenticated && user) {
@@ -27,7 +34,7 @@ export function GuestGuard({ children, redirectTo }: GuestGuardProps) {
     }
 
     setIsChecking(false);
-  }, [loading, isAuthenticated, user, router, redirectTo]);
+  }, [loading, isAuthenticated, user, router, redirectTo, pathname]);
 
   if (loading || isChecking) {
     return (

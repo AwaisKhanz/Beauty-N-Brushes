@@ -24,7 +24,7 @@ export async function getProviderDashboardStats(
       where: { userId },
       include: {
         services: {
-          where: { isActive: true },
+          where: { active: true },
           select: { id: true },
         },
         _count: {
@@ -75,7 +75,6 @@ export async function getProviderDashboardStats(
       profile: {
         businessName: profile.businessName,
         profileCompleted: profile.profileCompleted,
-        isPaused: profile.isPaused,
         subscriptionStatus: profile.subscriptionStatus,
         subscriptionTier: profile.subscriptionTier,
       },

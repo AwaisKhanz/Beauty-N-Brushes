@@ -7,7 +7,6 @@ import {
   isAxiosError,
   isApiErrorResponse,
   getErrorMessage as sharedGetErrorMessage,
-  type ApiErrorResponse,
 } from '../../../shared-types';
 
 /**
@@ -28,7 +27,7 @@ export function extractErrorMessage(error: unknown): string {
  * Check if error is an authentication error (401)
  */
 export function isAuthError(error: unknown): boolean {
-  if (isAxiosError(error) && error.response?.status === 401) {
+  if (isAxiosError(error) && error.response && 'status' in error.response && error.response.status === 401) {
     return true;
   }
   return false;
@@ -38,7 +37,7 @@ export function isAuthError(error: unknown): boolean {
  * Check if error is a validation error (400)
  */
 export function isValidationError(error: unknown): boolean {
-  if (isAxiosError(error) && error.response?.status === 400) {
+  if (isAxiosError(error) && error.response && 'status' in error.response && error.response.status === 400) {
     return true;
   }
   return false;

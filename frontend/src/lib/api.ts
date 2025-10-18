@@ -37,6 +37,10 @@ import type {
   SaveServiceMediaResponse,
   GenerateServiceDescriptionRequest,
   GenerateServiceDescriptionResponse,
+  GenerateHashtagsRequest,
+  GenerateHashtagsResponse,
+  AnalyzeImageRequest,
+  AnalyzeImageResponse,
   // Upload
   UploadFileResponse,
   UploadMultipleFilesResponse,
@@ -57,6 +61,24 @@ import type {
   CreateBlockedDateResponse,
   GetBlockedDatesResponse,
   DeleteBlockedDateResponse,
+  // Inspiration
+  UploadInspirationRequest,
+  UploadInspirationResponse,
+  MatchInspirationRequest,
+  MatchInspirationResponse,
+  GetInspirationsResponse,
+  DeleteInspirationResponse,
+  // Settings
+  UpdateProfileSettingsRequest,
+  UpdateBookingSettingsRequest,
+  UpdatePoliciesRequest,
+  UpdateNotificationSettingsRequest,
+  UpdateAccountRequest,
+  UpdatePaymentMethodRequest,
+  ProviderSettingsResponse,
+  ProviderPoliciesResponse,
+  SubscriptionInfoResponse,
+  NotificationSettingsResponse,
 } from '../../../shared-types';
 
 export const api = {
@@ -143,14 +165,23 @@ export const api = {
     getById: (serviceId: string) =>
       apiClient.get<{ data: GetServiceResponse }>(`/services/${serviceId}`),
 
+    update: (serviceId: string, data: Partial<CreateServiceRequest>) =>
+      apiClient.put<{ data: CreateServiceResponse }>(`/services/${serviceId}`, data),
+
     saveMedia: (serviceId: string, data: SaveServiceMediaRequest) =>
       apiClient.post<{ data: SaveServiceMediaResponse }>(`/services/${serviceId}/media`, data),
 
     generateDescription: (data: GenerateServiceDescriptionRequest) =>
       apiClient.post<{ data: GenerateServiceDescriptionResponse }>(
-        '/ai/generate-service-description',
+        '/services/ai/generate-description',
         data
       ),
+
+    generateHashtags: (data: GenerateHashtagsRequest) =>
+      apiClient.post<{ data: GenerateHashtagsResponse }>('/services/ai/generate-hashtags', data),
+
+    analyzeImage: (data: AnalyzeImageRequest) =>
+      apiClient.post<{ data: AnalyzeImageResponse }>('/services/ai/analyze-image', data),
   },
 
   // ============================================
@@ -220,5 +251,67 @@ export const api = {
       apiClient.delete<{ data: DeleteBlockedDateResponse }>(
         `/calendar/blocked-dates/${blockedDateId}`
       ),
+  },
+
+  // ============================================
+  // Inspiration / Visual Search APIs
+  // ============================================
+  inspiration: {
+    upload: (data: UploadInspirationRequest) =>
+      apiClient.post<{ data: UploadInspirationResponse }>('/inspiration/upload', data),
+
+    match: (inspirationId: string, data: Omit<MatchInspirationRequest, 'inspirationId'>) =>
+      apiClient.post<{ data: MatchInspirationResponse }>(
+        `/inspiration/${inspirationId}/match`,
+        data
+      ),
+
+    getAll: () => apiClient.get<{ data: GetInspirationsResponse }>('/inspiration'),
+
+    delete: (inspirationId: string) =>
+      apiClient.delete<{ data: DeleteInspirationResponse }>(`/inspiration/${inspirationId}`),
+  },
+
+  // ============================================
+  // Settings APIs
+  // ============================================
+  settings: {
+    // Profile Settings
+    getProfile: () => apiClient.get<{ data: ProviderSettingsResponse }>('/settings/profile'),
+
+    updateProfile: (data: UpdateProfileSettingsRequest) =>
+      apiClient.put<{ data: ProviderSettingsResponse }>('/settings/profile', data),
+
+    // Booking Settings
+    getBooking: () => apiClient.get<{ data: ProviderSettingsResponse }>('/settings/booking'),
+
+    updateBooking: (data: UpdateBookingSettingsRequest) =>
+      apiClient.put<{ data: ProviderSettingsResponse }>('/settings/booking', data),
+
+    // Policies
+    getPolicies: () => apiClient.get<{ data: ProviderPoliciesResponse }>('/settings/policies'),
+
+    updatePolicies: (data: UpdatePoliciesRequest) =>
+      apiClient.put<{ data: ProviderPoliciesResponse }>('/settings/policies', data),
+
+    // Subscription
+    getSubscription: () =>
+      apiClient.get<{ data: SubscriptionInfoResponse }>('/settings/subscription'),
+
+    updatePaymentMethod: (data: UpdatePaymentMethodRequest) =>
+      apiClient.post<{ data: { message: string } }>('/settings/payment-method', data),
+
+    // Notifications
+    getNotifications: () =>
+      apiClient.get<{ data: NotificationSettingsResponse }>('/settings/notifications'),
+
+    updateNotifications: (data: UpdateNotificationSettingsRequest) =>
+      apiClient.put<{ data: { message: string } }>('/settings/notifications', data),
+
+    // Account
+    updateAccount: (data: UpdateAccountRequest) =>
+      apiClient.put<{ data: { message: string } }>('/settings/account', data),
+
+    deactivateAccount: () => apiClient.post<{ data: { message: string } }>('/settings/deactivate'),
   },
 };

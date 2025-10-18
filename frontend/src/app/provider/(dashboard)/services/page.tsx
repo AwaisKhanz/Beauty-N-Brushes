@@ -66,7 +66,7 @@ export default function ServicesPage() {
     service.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const activeServices = services.filter((s) => s.isActive);
+  const activeServices = services.filter((s) => s.active);
   const totalBookings = services.reduce((sum, s) => sum + (s._count?.bookings || 0), 0);
   const avgPrice =
     services.length > 0
@@ -233,8 +233,8 @@ export default function ServicesPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={service.isActive ? 'default' : 'secondary'}>
-                        {service.isActive ? 'Active' : 'Inactive'}
+                      <Badge variant={service.active ? 'default' : 'secondary'}>
+                        {service.active ? 'Active' : 'Inactive'}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -262,7 +262,7 @@ export default function ServicesPage() {
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem>
-                            {service.isActive ? 'Deactivate' : 'Activate'}
+                            {service.active ? 'Deactivate' : 'Activate'}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

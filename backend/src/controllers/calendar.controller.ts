@@ -12,7 +12,7 @@ import type {
   GetBlockedDatesResponse,
   DeleteBlockedDateResponse,
   DaySchedule,
-} from '../../../shared-types';
+} from '../../../shared-types/calendar.types';
 
 /**
  * Get provider availability schedule

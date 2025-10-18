@@ -76,42 +76,67 @@ export class AuthService {
    * Store refresh token hash in database
    */
   async storeRefreshToken(userId: string, refreshToken: string): Promise<void> {
-    const refreshTokenHash = await this.hashPassword(refreshToken);
-    const expiryDays = parseInt(env.REFRESH_TOKEN_EXPIRY.replace('d', ''));
-    const refreshTokenExpiry = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000);
+    try {
+      const refreshTokenHash = await this.hashPassword(refreshToken);
+      const expiryDays = parseInt(env.REFRESH_TOKEN_EXPIRY.replace('d', ''));
+      const refreshTokenExpiry = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000);
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        refreshTokenHash,
-        refreshTokenExpiry,
-      },
-    });
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          refreshTokenHash,
+          refreshTokenExpiry,
+        },
+      });
+    } catch (error) {
+      console.error('Failed to store refresh token:', error);
+      throw new Error('Failed to store refresh token');
+    }
   }
 
   /**
    * Verify refresh token against database
    */
   async validateRefreshToken(userId: string, refreshToken: string): Promise<boolean> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        refreshTokenHash: true,
-        refreshTokenExpiry: true,
-      },
-    });
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          refreshTokenHash: true,
+          refreshTokenExpiry: true,
+          status: true,
+        },
+      });
 
-    if (!user || !user.refreshTokenHash || !user.refreshTokenExpiry) {
+      if (!user || !user.refreshTokenHash || !user.refreshTokenExpiry) {
+        return false;
+      }
+
+      // Check if user is active
+      if (user.status !== 'ACTIVE') {
+        return false;
+      }
+
+      // Check if token is expired
+      if (user.refreshTokenExpiry < new Date()) {
+        // Clean up expired token
+        await this.revokeRefreshToken(userId);
+        return false;
+      }
+
+      // Verify token hash
+      const isValid = await this.verifyPassword(refreshToken, user.refreshTokenHash);
+
+      if (!isValid) {
+        // Invalid token - revoke it for security
+        await this.revokeRefreshToken(userId);
+      }
+
+      return isValid;
+    } catch (error) {
+      console.error('Failed to validate refresh token:', error);
       return false;
     }
-
-    // Check if token is expired
-    if (user.refreshTokenExpiry < new Date()) {
-      return false;
-    }
-
-    // Verify token hash
-    return await this.verifyPassword(refreshToken, user.refreshTokenHash);
   }
 
   /**

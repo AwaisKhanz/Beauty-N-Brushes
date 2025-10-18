@@ -9,4 +9,22 @@ export {
   SERVICE_CATEGORIES,
   BUSINESS_TYPES,
   DEPOSIT_TYPES,
+  // Helper functions
+  getEssentialCategories,
+  getOptionalCategories,
+  getCategoryById,
+  getSubcategoryById,
+  getServiceTemplate,
+  getAllTemplatesForCategory,
+} from '../../../shared-constants';
+
+// Re-export types
+export type {
+  ServiceTemplate,
+  ServiceSubcategory,
+  ServiceCategory,
+  ServiceSpecialization,
+  ServiceCategoryId,
+  BusinessType,
+  DepositType,
 } from '../../../shared-constants';

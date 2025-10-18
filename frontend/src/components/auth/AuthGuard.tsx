@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { GuardLoading } from '@/components/auth/GuardLoading';
@@ -14,12 +14,26 @@ interface AuthGuardProps {
 }
 
 export function AuthGuard({ children, requiredRole, redirectTo }: AuthGuardProps) {
-  const { user, loading, isAuthenticated } = useAuth();
+  const { user, loading, isAuthenticated, checkAuth } = useAuth();
   const router = useRouter();
+  const [hasAttemptedAuth, setHasAttemptedAuth] = useState(false);
 
   useEffect(() => {
-    // Don't do anything while still loading
-    if (loading) return;
+    // If we haven't attempted auth yet and we're not loading, try to check auth
+    if (!hasAttemptedAuth && !loading) {
+      setHasAttemptedAuth(true);
+      // Give a small delay to ensure auth context has time to initialize
+      setTimeout(() => {
+        if (!isAuthenticated) {
+          checkAuth();
+        }
+      }, 100);
+    }
+  }, [hasAttemptedAuth, loading, isAuthenticated, checkAuth]);
+
+  useEffect(() => {
+    // Don't do anything while still loading or haven't attempted auth
+    if (loading || !hasAttemptedAuth) return;
 
     // Not authenticated - redirect immediately
     if (!isAuthenticated) {
@@ -35,21 +49,21 @@ export function AuthGuard({ children, requiredRole, redirectTo }: AuthGuardProps
       }
       return;
     }
-  }, [loading, isAuthenticated, user, requiredRole, router, redirectTo]);
+  }, [loading, isAuthenticated, user, requiredRole, router, redirectTo, hasAttemptedAuth]);
 
   // Show loading while checking authentication
-  if (loading) {
+  if (loading || !hasAttemptedAuth) {
     return <GuardLoading message="Checking authentication..." />;
   }
 
-  // If not authenticated, show nothing (redirect is happening)
+  // If not authenticated, show loading while redirect is happening
   if (!isAuthenticated) {
-    return null;
+    return <GuardLoading message="Redirecting to login..." />;
   }
 
-  // If wrong role, show nothing (redirect is happening)
+  // If wrong role, show loading while redirect is happening
   if (requiredRole && user?.role !== requiredRole) {
-    return null;
+    return <GuardLoading message="Redirecting..." />;
   }
 
   return <>{children}</>;

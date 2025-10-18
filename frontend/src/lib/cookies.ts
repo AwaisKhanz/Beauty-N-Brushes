@@ -1,45 +1,72 @@
-import Cookies from 'js-cookie';
+/**
+ * Authentication cookie utilities
+ *
+ * Note: The server sets httpOnly cookies for security, which means
+ * JavaScript cannot access them directly. This is by design for security.
+ * Authentication state is managed through API calls to /auth/me endpoint.
+ */
 
 /**
- * Cookie names used in the application
+ * Clear authentication cookies by calling logout endpoint
+ * This ensures both httpOnly cookies are properly cleared on the server
  */
-const COOKIE_NAMES = {
-  ACCESS_TOKEN: 'access_token',
-  REFRESH_TOKEN: 'refresh_token',
-} as const;
+export async function clearAuthCookies(): Promise<void> {
+  try {
+    // Call logout endpoint to clear httpOnly cookies on server
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
 
-/**
- * Get access token from cookies
- */
-export function getAccessToken(): string | undefined {
-  return Cookies.get(COOKIE_NAMES.ACCESS_TOKEN);
+    // Don't warn on 401 - it just means there were no valid cookies to clear
+    if (!response.ok && response.status !== 401) {
+      console.warn('Logout endpoint failed, but continuing with client cleanup');
+    }
+  } catch (error) {
+    // Silent fail - this is expected if there are no cookies or network issues
+    // The main goal is to clear any client-side state
+  }
 }
 
 /**
- * Get refresh token from cookies
+ * Check if cookies exist by attempting to access a protected endpoint
+ * This is the only reliable way to check auth status with httpOnly cookies
  */
-export function getRefreshToken(): string | undefined {
-  return Cookies.get(COOKIE_NAMES.REFRESH_TOKEN);
+export async function checkAuthStatus(): Promise<boolean> {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    return response.ok;
+  } catch (error) {
+    return false;
+  }
 }
 
 /**
- * Check if user is authenticated (has access token)
+ * Attempt to refresh authentication tokens
+ * Returns true if refresh was successful, false otherwise
  */
-export function isAuthenticated(): boolean {
-  return !!getAccessToken();
-}
+export async function refreshAuthTokens(): Promise<boolean> {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
 
-/**
- * Clear all authentication cookies
- * Note: Server sets httpOnly cookies, so we can't access them directly
- * This function is mainly for clearing any non-httpOnly cookies
- */
-export function clearAuthCookies(): void {
-  Cookies.remove(COOKIE_NAMES.ACCESS_TOKEN);
-  Cookies.remove(COOKIE_NAMES.REFRESH_TOKEN);
+    return response.ok;
+  } catch (error) {
+    return false;
+  }
 }
-
-/**
- * Note: We don't need set methods because the server sets httpOnly cookies
- * which cannot be accessed or modified by JavaScript
- */

@@ -1,7 +1,7 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { api } from '@/lib/api';
 import type {
   User,
@@ -28,21 +28,49 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Public routes that don't require authentication
+const PUBLIC_ROUTES = [
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/reset-password',
+  '/verify-email',
+  '/',
+];
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
+  const hasCheckedAuth = useRef(false);
 
   useEffect(() => {
-    checkAuth();
-  }, []);
+    // Only check auth once on mount, and skip if on public routes
+    if (hasCheckedAuth.current) return;
+
+    const isPublicRoute = PUBLIC_ROUTES.some(
+      (route) => pathname === route || pathname?.startsWith('/reset-password/')
+    );
+
+    if (!isPublicRoute) {
+      checkAuth();
+    } else {
+      // For public routes, just set loading to false without checking auth
+      setLoading(false);
+    }
+
+    hasCheckedAuth.current = true;
+  }, [pathname]);
 
   const checkAuth = async () => {
     try {
+      setLoading(true);
       const response = await api.auth.me();
       setUser(response.data.user as User);
     } catch (error) {
       // Silent fail - user is not authenticated, which is fine
+      // This could be due to expired tokens, no tokens, or network issues
       setUser(null);
     } finally {
       setLoading(false);
@@ -83,6 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await api.auth.logout();
     } catch (error) {
       console.error('Logout error:', error);
+      // Even if logout API fails, continue with client cleanup
     } finally {
       setUser(null);
       router.push('/login');

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ export default function VerifyEmailTokenPage() {
 
   const [status, setStatus] = useState<VerificationStatus>('verifying');
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const hasVerified = useRef(false);
 
   useEffect(() => {
     if (!token) {
@@ -27,8 +28,13 @@ export default function VerifyEmailTokenPage() {
       return;
     }
 
+    // Only verify once
+    if (hasVerified.current) return;
+    hasVerified.current = true;
+
     verifyEmailToken();
-  }, [token]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const verifyEmailToken = async () => {
     try {
@@ -36,13 +42,13 @@ export default function VerifyEmailTokenPage() {
 
       const response = await api.auth.verifyEmail(token);
 
-      if (response.success) {
+      if (response && response.success) {
         setStatus('success');
 
         // Refresh auth state
         await checkAuth();
 
-        // Redirect to appropriate dashboard after 3 seconds
+        // Redirect to login after 3 seconds
         setTimeout(() => {
           router.push('/login?verified=true');
         }, 3000);

@@ -126,7 +126,7 @@ export async function saveServiceMedia(
 }
 
 /**
- * Generate AI service description
+ * Generate AI service description with enhanced features
  */
 export async function generateServiceDescription(
   req: AuthRequest,
@@ -134,21 +134,99 @@ export async function generateServiceDescription(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { title, category, businessName } = req.body;
+    const { title, category, subcategory, businessName, tone, includeHashtags, includeKeywords } =
+      req.body;
 
     if (!title || !category) {
       throw new AppError(400, 'Title and category required');
     }
 
-    const description = await serviceService.generateServiceDescription(
+    const result = await serviceService.generateEnhancedServiceDescription({
       title,
       category,
-      businessName
-    );
+      subcategory,
+      businessName,
+      tone: tone || 'professional',
+      includeHashtags: includeHashtags || false,
+      includeKeywords: includeKeywords || false,
+    });
 
     sendSuccess<GenerateServiceDescriptionResponse>(res, {
       message: 'Description generated successfully',
-      description,
+      description: result.description,
+      hashtags: result.hashtags,
+      keywords: result.keywords,
+      estimatedDuration: result.estimatedDuration,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Generate additional hashtags
+ */
+export async function generateHashtags(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { title, category, subcategory, existingHashtags } = req.body;
+
+    if (!title || !category) {
+      throw new AppError(400, 'Title and category required');
+    }
+
+    const hashtags = await serviceService.generateHashtags({
+      title,
+      category,
+      subcategory,
+      existingHashtags: existingHashtags || [],
+    });
+
+    sendSuccess(res, {
+      message: 'Hashtags generated successfully',
+      hashtags,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Analyze image with AI for tagging
+ */
+export async function analyzeImage(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    console.log('AI analyze-image request body:', req.body);
+    const { imageUrl } = req.body;
+
+    if (!imageUrl) {
+      console.log('Missing imageUrl in request body');
+      throw new AppError(400, 'Image URL required');
+    }
+
+    console.log('Analyzing image URL:', imageUrl);
+
+    // Fetch the image and convert to base64
+    const imageResponse = await fetch(imageUrl);
+    if (!imageResponse.ok) {
+      throw new AppError(400, 'Failed to fetch image');
+    }
+
+    const imageBuffer = await imageResponse.arrayBuffer();
+    const base64Image = Buffer.from(imageBuffer).toString('base64');
+
+    const tags = await serviceService.analyzeImageForTagsFromBase64(base64Image);
+
+    sendSuccess(res, {
+      message: 'Image analyzed successfully',
+      data: tags,
     });
   } catch (error) {
     next(error);
@@ -210,6 +288,40 @@ export async function getServiceById(
   } catch (error) {
     if (error instanceof Error && error.message === 'Service not found') {
       return next(new AppError(404, 'Service not found'));
+    }
+    next(error);
+  }
+}
+
+/**
+ * Update service
+ */
+export async function updateService(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    const { serviceId } = req.params;
+
+    if (!userId) {
+      throw new AppError(401, 'Unauthorized');
+    }
+
+    if (!serviceId) {
+      throw new AppError(400, 'Service ID required');
+    }
+
+    const service = await serviceService.updateService(userId, serviceId, req.body);
+
+    sendSuccess(res, {
+      message: 'Service updated successfully',
+      service: service as unknown as Service,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Service not found or access denied') {
+      return next(new AppError(404, error.message));
     }
     next(error);
   }

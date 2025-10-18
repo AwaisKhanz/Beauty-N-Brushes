@@ -69,7 +69,7 @@ export interface SetupPaymentRequest {
   paymentMethodId: string; // Stripe payment method ID or Paystack authorization code
 }
 
-export interface DaySchedule {
+export interface OnboardingDaySchedule {
   isAvailable: boolean;
   slots: {
     startTime: string; // HH:mm format
@@ -80,13 +80,13 @@ export interface DaySchedule {
 export interface SetupAvailabilityRequest {
   timezone: string;
   schedule: {
-    monday: DaySchedule;
-    tuesday: DaySchedule;
-    wednesday: DaySchedule;
-    thursday: DaySchedule;
-    friday: DaySchedule;
-    saturday: DaySchedule;
-    sunday: DaySchedule;
+    monday: OnboardingDaySchedule;
+    tuesday: OnboardingDaySchedule;
+    wednesday: OnboardingDaySchedule;
+    thursday: OnboardingDaySchedule;
+    friday: OnboardingDaySchedule;
+    saturday: OnboardingDaySchedule;
+    sunday: OnboardingDaySchedule;
   };
 }
 
@@ -111,7 +111,6 @@ export interface OnboardingStatusResponse {
       brandCustomization: boolean;
       policies: boolean;
       paymentSetup: boolean;
-      serviceCreated: boolean;
       availabilitySet: boolean;
     };
     profile?: {

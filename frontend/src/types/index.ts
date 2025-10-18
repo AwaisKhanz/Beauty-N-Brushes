@@ -167,7 +167,6 @@ export interface OnboardingStatus {
     brandCustomization: boolean;
     policies: boolean;
     paymentSetup: boolean;
-    serviceCreated: boolean;
     availabilitySet: boolean;
   };
   profile?: {

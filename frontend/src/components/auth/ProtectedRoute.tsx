@@ -29,7 +29,9 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
     // Check role if required
     if (requiredRole && user?.role !== requiredRole) {
       // Redirect to appropriate dashboard
-      router.push(getDashboardRoute(user.role));
+      if (user?.role) {
+        router.push(getDashboardRoute(user.role));
+      }
       return;
     }
 

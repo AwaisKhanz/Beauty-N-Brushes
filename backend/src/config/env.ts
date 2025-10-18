@@ -9,6 +9,7 @@ const envSchema = z.object({
   // Server
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.string().default('5000'),
+  APP_URL: z.string().default('http://localhost:5000'),
   FRONTEND_URL: z.string().default('http://localhost:3000'),
 
   // Database
@@ -43,6 +44,20 @@ const envSchema = z.object({
 
   // OpenAI
   OPENAI_API_KEY: z.string().optional(),
+
+  // Google AI (REQUIRED for visual similarity search)
+  USE_GOOGLE_AI: z
+    .string()
+    .default('false')
+    .transform((val) => val === 'true'),
+  GOOGLE_AI_API_KEY: z.string().optional(),
+  GOOGLE_CLOUD_PROJECT_ID: z.string().optional(),
+  GOOGLE_APPLICATION_CREDENTIALS: z.string().optional(),
+
+  // Instagram OAuth
+  INSTAGRAM_APP_ID: z.string().optional(),
+  INSTAGRAM_APP_SECRET: z.string().optional(),
+  INSTAGRAM_REDIRECT_URI: z.string().optional(),
 
   // Redis
   REDIS_URL: z.string().optional(),

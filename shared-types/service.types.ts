@@ -39,13 +39,39 @@ export interface SaveServiceMediaRequest {
   mediaUrls: {
     url: string;
     thumbnailUrl?: string;
+    mediumUrl?: string;
+    largeUrl?: string;
+    mediaType?: 'image' | 'video';
+    caption?: string;
+    displayOrder?: number;
+    isFeatured?: boolean;
+    // AI Tagging
+    hairType?: string;
+    styleType?: string;
+    colorInfo?: string;
+    complexityLevel?: string;
   }[];
 }
 
 export interface GenerateServiceDescriptionRequest {
   title: string;
   category: string;
+  subcategory?: string;
   businessName?: string;
+  tone?: 'professional' | 'friendly' | 'luxury' | 'casual' | 'energetic';
+  includeHashtags?: boolean;
+  includeKeywords?: boolean;
+}
+
+export interface GenerateHashtagsRequest {
+  title: string;
+  category: string;
+  subcategory?: string;
+  existingHashtags?: string[];
+}
+
+export interface AnalyzeImageRequest {
+  imageUrl: string;
 }
 
 // ============================================
@@ -70,6 +96,8 @@ export interface ServiceMedia {
   mediaType: string;
   fileUrl: string;
   thumbnailUrl?: string;
+  caption?: string;
+  isFeatured?: boolean;
   displayOrder: number;
   processingStatus: string;
   moderationStatus: string;
@@ -87,6 +115,7 @@ export interface Service {
   id: string;
   providerId: string;
   categoryId: string;
+  subcategoryId?: string | null;
   title: string;
   description: string;
   priceType: PriceType;
@@ -147,4 +176,22 @@ export interface SaveServiceMediaResponse {
 export interface GenerateServiceDescriptionResponse {
   message: string;
   description: string;
+  hashtags?: string[];
+  keywords?: string[];
+  estimatedDuration?: number;
+}
+
+export interface GenerateHashtagsResponse {
+  message: string;
+  hashtags: string[];
+}
+
+export interface AnalyzeImageResponse {
+  message: string;
+  data: {
+    hairType?: string;
+    styleType?: string;
+    colorInfo?: string;
+    complexityLevel?: string;
+  };
 }

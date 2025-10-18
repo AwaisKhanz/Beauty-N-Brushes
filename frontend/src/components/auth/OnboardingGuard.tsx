@@ -100,7 +100,7 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
               <div className="grid gap-2">
                 {incompleteSteps.map(([stepKey]) => (
                   <div key={stepKey} className="flex items-center gap-2 text-sm">
-                    <AlertCircle className="h-4 w-4 text-amber-500" />
+                    <AlertCircle className="h-4 w-4 text-warning" />
                     <span>{STEP_LABELS[stepKey as keyof typeof STEP_LABELS] || stepKey}</span>
                   </div>
                 ))}

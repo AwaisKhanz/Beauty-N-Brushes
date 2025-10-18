@@ -28,6 +28,8 @@ import uploadRoutes from './routes/upload.routes';
 import paymentRoutes from './routes/payment.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import calendarRoutes from './routes/calendar.routes';
+import inspirationRoutes from './routes/inspiration.routes';
+import settingsRoutes from './routes/settings.routes';
 
 const app: Application = express();
 const PORT = process.env.PORT || 8000;
@@ -128,6 +130,8 @@ app.use('/api/v1/upload', uploadRoutes);
 app.use('/api/v1/payment', paymentRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/calendar', calendarRoutes);
+app.use('/api/v1/inspiration', inspirationRoutes);
+app.use('/api/v1/settings', settingsRoutes);
 
 // 404 handler
 app.use(notFoundHandler);

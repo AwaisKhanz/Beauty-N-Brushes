@@ -13,7 +13,6 @@ import { Step3ProfileMedia } from '@/components/onboarding/steps/Step3ProfileMed
 import { Step4BrandCustomization } from '@/components/onboarding/steps/Step4BrandCustomization';
 import { Step5Policies } from '@/components/onboarding/steps/Step5Policies';
 import { Step6PaymentSetup } from '@/components/onboarding/steps/Step6PaymentSetup';
-import { Step7Services } from '@/components/onboarding/steps/Step7Services';
 import { Step8Availability } from '@/components/onboarding/steps/Step8Availability';
 import { ONBOARDING_STEPS, ONBOARDING_STORAGE_KEY, ROUTES } from '@/constants';
 
@@ -64,9 +63,6 @@ export default function OnboardingPage() {
               completed = status.steps.paymentSetup;
               break;
             case 7:
-              completed = status.steps.serviceCreated;
-              break;
-            case 8:
               completed = status.steps.availabilitySet;
               break;
           }
@@ -85,9 +81,9 @@ export default function OnboardingPage() {
           // Update localStorage to match server status
           localStorage.setItem(ONBOARDING_STORAGE_KEY, firstIncompleteStep.id.toString());
         } else {
-          // All steps completed, stay on step 8 or redirect to dashboard
-          setCurrentStep(8);
-          localStorage.setItem(ONBOARDING_STORAGE_KEY, '8');
+          // All steps completed, stay on step 7 or redirect to dashboard
+          setCurrentStep(7);
+          localStorage.setItem(ONBOARDING_STORAGE_KEY, '7');
         }
 
         // Set default values for prefilling
@@ -171,9 +167,6 @@ export default function OnboardingPage() {
           // Payment handled by child component
           break;
         case 7:
-          // Service creation handled by child component
-          break;
-        case 8:
           await api.onboarding.setupAvailability(data);
           // Complete onboarding
           await api.onboarding.complete();
@@ -187,7 +180,7 @@ export default function OnboardingPage() {
       setSteps(updatedSteps);
 
       // Move to next step
-      if (stepId < 8) {
+      if (stepId < 7) {
         const nextStep = stepId + 1;
         setCurrentStep(nextStep);
         localStorage.setItem(ONBOARDING_STORAGE_KEY, nextStep.toString());
@@ -227,7 +220,7 @@ export default function OnboardingPage() {
       {/* Progress Bar */}
       <ProgressBar
         currentStep={currentStep}
-        totalSteps={8}
+        totalSteps={7}
         stepLabel={currentStepData?.label || ''}
       />
 
@@ -315,16 +308,8 @@ export default function OnboardingPage() {
           )}
 
           {currentStep === 7 && (
-            <Step7Services
-              onNext={() => handleNext(7, {})}
-              onBack={handleBack}
-              isLoading={isSaving}
-            />
-          )}
-
-          {currentStep === 8 && (
             <Step8Availability
-              onNext={(data) => handleNext(8, data)}
+              onNext={(data) => handleNext(7, data)}
               onBack={handleBack}
               isLoading={isSaving}
             />

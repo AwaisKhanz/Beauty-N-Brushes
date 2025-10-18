@@ -53,8 +53,18 @@ export async function uploadFile(req: Request, res: Response, next: NextFunction
         result = await storageService.uploadServiceMedia(file.buffer, file.originalname);
         break;
 
+      case 'inspiration':
+        if (!storageService.validateImageFile(file.mimetype)) {
+          throw new AppError(400, 'Invalid file format. Only images allowed for inspiration.');
+        }
+        result = await storageService.uploadServiceMedia(file.buffer, file.originalname);
+        break;
+
       default:
-        throw new AppError(400, 'Invalid upload type. Use: profile, logo, cover, or service');
+        throw new AppError(
+          400,
+          'Invalid upload type. Use: profile, logo, cover, service, or inspiration'
+        );
     }
 
     sendSuccess(res, {

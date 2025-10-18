@@ -1,6 +1,7 @@
 import { writeFile, unlink, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { randomBytes } from 'crypto';
+import { env } from '../config/env';
 import type { UploadResult } from '../types/service.types';
 
 export class StorageService {
@@ -11,7 +12,7 @@ export class StorageService {
     // For development, use local storage
     // In production, this would be replaced with Cloudinary/S3
     this.uploadDir = join(process.cwd(), 'uploads');
-    this.publicUrl = process.env.APP_URL || 'http://localhost:5000';
+    this.publicUrl = env.APP_URL;
 
     // Ensure upload directory exists
     this.ensureUploadDir();

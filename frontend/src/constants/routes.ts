@@ -30,12 +30,19 @@ export const ROUTES = {
     SERVICES_CREATE: '/provider/services/create',
     PROFILE: '/provider/profile',
     SETTINGS: '/provider/settings',
+    SETTINGS_PROFILE: '/provider/settings/profile',
+    SETTINGS_BOOKING: '/provider/settings/booking',
+    SETTINGS_POLICIES: '/provider/settings/policies',
+    SETTINGS_SUBSCRIPTION: '/provider/settings/subscription',
+    SETTINGS_NOTIFICATIONS: '/provider/settings/notifications',
+    SETTINGS_ACCOUNT: '/provider/settings/account',
   },
 
   // Client routes
   CLIENT: {
     DASHBOARD: '/client/dashboard',
     ONBOARDING: '/client/onboarding',
+    SEARCH: '/client/search',
     BOOKINGS: '/client/bookings',
     FAVORITES: '/client/favorites',
     MESSAGES: '/client/messages',

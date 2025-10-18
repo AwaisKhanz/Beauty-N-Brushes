@@ -67,57 +67,58 @@ enum SubscriptionTier {
 // ================================
 
 model User {
-  id                String    @id @default(uuid())
-  email             String    @unique
-  emailVerified     Boolean   @default(false)
-  phone             String?
-  phoneVerified     Boolean   @default(false)
-  passwordHash      String?
-  role              UserRole
-  firstName         String
-  lastName          String
-  avatarUrl         String?
-  bio               String?
-  dateOfBirth       DateTime?
-  
+  id            String    @id @default(uuid())
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  phone         String?
+  phoneVerified Boolean   @default(false)
+  passwordHash  String?
+  role          UserRole
+  firstName     String
+  lastName      String
+  avatarUrl     String?
+  bio           String?
+  dateOfBirth   DateTime?
+
   // OAuth fields
-  oauthProvider     String?
-  oauthId           String?
-  
+  oauthProvider String?
+  oauthId       String?
+
   // Account status
-  status            UserStatus @default(ACTIVE)
-  emailNotifications Boolean @default(true)
-  smsNotifications  Boolean @default(true)
-  
+  status             UserStatus @default(ACTIVE)
+  emailNotifications Boolean    @default(true)
+  smsNotifications   Boolean    @default(true)
+
   // Regional
   regionCode        String?
   preferredCurrency String?
-  
+
   // Timestamps
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  lastLoginAt       DateTime?
-  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLoginAt DateTime?
+
   // Password reset
-  resetToken        String?   @unique
-  resetTokenExpiry  DateTime?
-  
+  resetToken       String?   @unique
+  resetTokenExpiry DateTime?
+
   // Email verification
-  verificationToken String?   @unique
+  verificationToken       String?   @unique
   verificationTokenExpiry DateTime?
-  
+
   // Refresh token
-  refreshTokenHash    String?
-  refreshTokenExpiry  DateTime?
-  
+  refreshTokenHash   String?
+  refreshTokenExpiry DateTime?
+
   // Relations
-  providerProfile   ProviderProfile?
-  bookingsAsClient  Booking[]  @relation("ClientBookings")
-  reviews           Review[]
-  messagesAsSender  Message[]  @relation("SenderMessages")
-  favorites         Favorite[]
-  savedSearches     SavedSearch[]
-  
+  providerProfile     ProviderProfile?
+  bookingsAsClient    Booking[]           @relation("ClientBookings")
+  reviews             Review[]
+  messagesAsSender    Message[]           @relation("SenderMessages")
+  favorites           Favorite[]
+  savedSearches       SavedSearch[]
+  inspirationImages   InspirationImage[]
+
   @@index([email])
   @@index([role])
   @@index([status])
@@ -128,123 +129,123 @@ model User {
 // ================================
 
 model ProviderProfile {
-  id                    String    @id @default(uuid())
-  userId                String    @unique
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   // Business Information
-  businessName          String
-  businessType          String?
-  slug                  String    @unique
-  tagline               String?
-  description           String?
-  
+  businessName String
+  businessType String?
+  slug         String  @unique
+  tagline      String?
+  description  String?
+
   // Location
-  addressLine1          String?
-  addressLine2          String?
-  city                  String
-  state                 String
-  zipCode               String
-  country               String    @default("US")
-  latitude              Decimal?  @db.Decimal(10, 8)
-  longitude             Decimal?  @db.Decimal(11, 8)
-  
+  addressLine1 String?
+  addressLine2 String?
+  city         String
+  state        String
+  zipCode      String
+  country      String   @default("US")
+  latitude     Decimal? @db.Decimal(10, 8)
+  longitude    Decimal? @db.Decimal(11, 8)
+
   // Contact
-  businessEmail         String?
-  businessPhone         String?
-  websiteUrl            String?
-  instagramHandle       String?
-  tiktokHandle          String?
-  facebookUrl           String?
-  
+  businessEmail   String?
+  businessPhone   String?
+  websiteUrl      String?
+  instagramHandle String?
+  tiktokHandle    String?
+  facebookUrl     String?
+
   // Business Details
-  yearsExperience       Int?
-  licenseNumber         String?
-  licenseVerified       Boolean   @default(false)
-  insuranceVerified     Boolean   @default(false)
+  yearsExperience        Int?
+  licenseNumber          String?
+  licenseVerified        Boolean  @default(false)
+  insuranceVerified      Boolean  @default(false)
   serviceSpecializations String[] @default([])
-  
+
   // Branding
-  logoUrl               String?
-  coverPhotoUrl         String?
-  brandColorPrimary     String?
-  brandColorSecondary   String?
-  brandColorAccent      String?
-  brandFontHeading      String?
-  brandFontBody         String?
-  
+  logoUrl             String?
+  coverPhotoUrl       String?
+  brandColorPrimary   String?
+  brandColorSecondary String?
+  brandColorAccent    String?
+  brandFontHeading    String?
+  brandFontBody       String?
+
   // Instagram Integration
-  instagramAccessToken  String?
-  instagramUserId       String?
-  instagramTokenExpiry  DateTime?
-  
+  instagramAccessToken String?
+  instagramUserId      String?
+  instagramTokenExpiry DateTime?
+
   // Settings
-  profilePaused         Boolean   @default(false)
-  pausedAt              DateTime?
-  pauseReason           String?
-  instantBookingEnabled Boolean   @default(false)
-  acceptsNewClients     Boolean   @default(true)
-  mobileServiceAvailable Boolean  @default(false)
-  parkingAvailable      Boolean?
-  wheelchairAccessible  Boolean?
-  advanceBookingDays    Int       @default(30)
-  minAdvanceHours       Int       @default(24)
-  bookingBufferMinutes  Int       @default(0)
-  sameDayBookingEnabled Boolean   @default(false)
-  timezone              String?
-  
+  profilePaused          Boolean   @default(false)
+  pausedAt               DateTime?
+  pauseReason            String?
+  instantBookingEnabled  Boolean   @default(false)
+  acceptsNewClients      Boolean   @default(true)
+  mobileServiceAvailable Boolean   @default(false)
+  parkingAvailable       Boolean?
+  wheelchairAccessible   Boolean?
+  advanceBookingDays     Int       @default(30)
+  minAdvanceHours        Int       @default(24)
+  bookingBufferMinutes   Int       @default(0)
+  sameDayBookingEnabled  Boolean   @default(false)
+  timezone               String?
+
   // Financial & Regional
-  paymentProvider       PaymentProvider
-  regionCode            String
-  currency              String    @default("USD")
-  
+  paymentProvider PaymentProvider
+  regionCode      String
+  currency        String          @default("USD")
+
   // Stripe (NA/EU)
-  stripeCustomerId      String?   @unique
-  stripeSubscriptionId  String?   @unique
-  
+  stripeCustomerId     String? @unique
+  stripeSubscriptionId String? @unique
+
   // Paystack (GH/NG)
-  paystackCustomerCode  String?   @unique
+  paystackCustomerCode     String? @unique
   paystackSubscriptionCode String? @unique
-  
+
   // Payment Method
-  paymentMethodId       String?
-  last4Digits           String?
-  cardBrand             String?
-  
+  paymentMethodId String?
+  last4Digits     String?
+  cardBrand       String?
+
   // Subscription
-  subscriptionTier      SubscriptionTier
-  subscriptionStatus    SubscriptionStatus @default(TRIAL)
-  trialEndDate          DateTime?
-  nextBillingDate       DateTime?
-  monthlyFee            Decimal?  @db.Decimal(10, 2)
-  
+  subscriptionTier   SubscriptionTier
+  subscriptionStatus SubscriptionStatus @default(TRIAL)
+  trialEndDate       DateTime?
+  nextBillingDate    DateTime?
+  monthlyFee         Decimal?           @db.Decimal(10, 2)
+
   // Verification & Status
-  profileCompleted      Boolean   @default(false)
-  verificationStatus    String    @default("pending")
-  featured              Boolean   @default(false)
-  
+  profileCompleted   Boolean @default(false)
+  verificationStatus String  @default("pending")
+  featured           Boolean @default(false)
+
   // Salon specific
-  isSalon               Boolean   @default(false)
-  
+  isSalon Boolean @default(false)
+
   // Analytics
-  totalBookings         Int       @default(0)
-  averageRating         Decimal   @default(0.00) @db.Decimal(3, 2)
-  totalReviews          Int       @default(0)
-  profileViews          Int       @default(0)
-  
+  totalBookings Int     @default(0)
+  averageRating Decimal @default(0.00) @db.Decimal(3, 2)
+  totalReviews  Int     @default(0)
+  profileViews  Int     @default(0)
+
   // Timestamps
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  services              Service[]
-  bookings              Booking[]
-  reviews               Review[]
-  availability          ProviderAvailability[]
-  timeOff               ProviderTimeOff[]
-  policies              ProviderPolicy?
-  favorites             Favorite[]
-  
+  services     Service[]
+  bookings     Booking[]
+  reviews      Review[]
+  availability ProviderAvailability[]
+  timeOff      ProviderTimeOff[]
+  policies     ProviderPolicy?
+  favorites    Favorite[]
+
   @@index([slug])
   @@index([city, state])
   @@index([verificationStatus])
@@ -252,40 +253,42 @@ model ProviderProfile {
 }
 
 model ProviderPolicy {
-  id                        String   @id @default(uuid())
-  providerId                String   @unique
-  provider                  ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  
+  id         String          @id @default(uuid())
+  providerId String          @unique
+  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
   // Cancellation Policy
-  cancellationWindowHours   Int      @default(24)
-  cancellationFeePercentage Decimal  @default(50.00) @db.Decimal(5, 2)
+  cancellationWindowHours   Int     @default(24)
+  cancellationFeePercentage Decimal @default(50.00) @db.Decimal(5, 2)
   cancellationPolicyText    String?
-  
+
   // Late Policy
-  lateGracePeriodMinutes    Int      @default(15)
-  lateCancellationAfterMinutes Int   @default(15)
-  latePolicyText            String?
-  
+  lateGracePeriodMinutes       Int     @default(15)
+  lateCancellationAfterMinutes Int     @default(15)
+  latePolicyText               String?
+
   // No-Show Policy
-  noShowFeePercentage       Decimal  @default(100.00) @db.Decimal(5, 2)
-  noShowPolicyText          String?
-  
+  noShowFeePercentage Decimal @default(100.00) @db.Decimal(5, 2)
+  noShowPolicyText    String?
+
   // Rescheduling Policy
-  rescheduleAllowed         Boolean  @default(true)
-  rescheduleWindowHours     Int      @default(24)
-  maxReschedules            Int      @default(2)
-  reschedulePolicyText      String?
-  
+  rescheduleAllowed     Boolean @default(true)
+  rescheduleWindowHours Int     @default(24)
+  maxReschedules        Int     @default(2)
+  reschedulePolicyText  String?
+
   // Refund Policy
-  refundPolicyText          String?
-  
+  refundPolicyText String?
+
   // General Policies
-  consultationRequired      Boolean  @default(false)
-  depositRequired           Boolean  @default(true)
-  
+  consultationRequired  Boolean @default(false)
+  depositRequired       Boolean @default(true)
+  requiresClientProducts Boolean @default(false)
+  touchUpPolicyText     String?
+
   // Timestamps
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ================================
@@ -293,150 +296,163 @@ model ProviderPolicy {
 // ================================
 
 model ServiceCategory {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  slug        String   @unique
-  description String?
-  iconName    String?
+  id           String  @id @default(uuid())
+  name         String  @unique
+  slug         String  @unique
+  description  String?
+  iconName     String?
   displayOrder Int     @default(0)
-  active      Boolean  @default(true)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  active       Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  services    Service[]
+  services      Service[]
   subcategories ServiceSubcategory[]
-  
+
   @@index([slug])
   @@index([active])
 }
 
 model ServiceSubcategory {
-  id          String   @id @default(uuid())
-  categoryId  String
-  category    ServiceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  name        String
-  slug        String
-  description String?
-  displayOrder Int     @default(0)
-  active      Boolean  @default(true)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  id           String          @id @default(uuid())
+  categoryId   String
+  category     ServiceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name         String
+  slug         String
+  description  String?
+  displayOrder Int             @default(0)
+  active       Boolean         @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  services    Service[]
-  
+  services Service[]
+
   @@unique([categoryId, slug])
   @@index([slug])
 }
 
 model Service {
-  id                  String   @id @default(uuid())
-  providerId          String
-  provider            ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  categoryId          String
-  category            ServiceCategory @relation(fields: [categoryId], references: [id])
-  subcategoryId       String?
-  subcategory         ServiceSubcategory? @relation(fields: [subcategoryId], references: [id])
-  
+  id            String              @id @default(uuid())
+  providerId    String
+  provider      ProviderProfile     @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  categoryId    String
+  category      ServiceCategory     @relation(fields: [categoryId], references: [id])
+  subcategoryId String?
+  subcategory   ServiceSubcategory? @relation(fields: [subcategoryId], references: [id])
+
   // Service Details
-  title               String
-  description         String
-  
+  title       String
+  description String
+
   // Pricing
-  priceType           String   // 'fixed', 'range', 'starting_at'
-  priceMin            Decimal  @db.Decimal(10, 2)
-  priceMax            Decimal? @db.Decimal(10, 2)
-  currency            String   @default("USD")
-  
+  priceType String // 'fixed', 'range', 'starting_at'
+  priceMin  Decimal  @db.Decimal(10, 2)
+  priceMax  Decimal? @db.Decimal(10, 2)
+  currency  String   @default("USD")
+
   // Deposit
-  depositRequired     Boolean  @default(true)
-  depositType         String?  // 'fixed', 'percentage'
-  depositAmount       Decimal? @db.Decimal(10, 2)
-  
+  depositRequired Boolean  @default(true)
+  depositType     String? // 'fixed', 'percentage'
+  depositAmount   Decimal? @db.Decimal(10, 2)
+
   // Duration
-  durationMinutes     Int
-  bufferTimeMinutes   Int      @default(0)
-  
+  durationMinutes   Int
+  bufferTimeMinutes Int @default(0)
+
   // Availability
-  active              Boolean  @default(true)
-  acceptsNewClients   Boolean  @default(true)
-  
+  active            Boolean @default(true)
+  acceptsNewClients Boolean @default(true)
+
   // Analytics
-  bookingCount        Int      @default(0)
-  viewCount           Int      @default(0)
-  favoriteCount       Int      @default(0)
-  
+  bookingCount  Int @default(0)
+  viewCount     Int @default(0)
+  favoriteCount Int @default(0)
+
   // Timestamps
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  media               ServiceMedia[]
-  addons              ServiceAddon[]
-  bookings            Booking[]
-  
+  media    ServiceMedia[]
+  addons   ServiceAddon[]
+  bookings Booking[]
+
   @@index([providerId])
   @@index([categoryId, subcategoryId])
   @@index([active])
 }
 
 model ServiceMedia {
-  id              String   @id @default(uuid())
-  serviceId       String
-  service         Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  
+  id        String  @id @default(uuid())
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
   // File Information
-  mediaType       String   // 'image', 'video'
-  fileUrl         String
-  thumbnailUrl    String?
-  
+  mediaType    String // 'image', 'video'
+  fileUrl      String
+  thumbnailUrl String?
+
   // Multiple Size Variants
-  urlSmall        String?
-  urlMedium       String?
-  urlLarge        String?
-  
+  urlSmall  String?
+  urlMedium String?
+  urlLarge  String?
+
   // Metadata
   fileSizeBytes   BigInt?
   width           Int?
   height          Int?
   durationSeconds Int?
   mimeType        String?
-  
+
   // Organization
-  displayOrder    Int      @default(0)
-  isBeforePhoto   Boolean  @default(false)
-  isAfterPhoto    Boolean  @default(false)
-  
+  caption       String?
+  displayOrder  Int     @default(0)
+  isFeatured    Boolean @default(false)
+  isBeforePhoto Boolean @default(false)
+  isAfterPhoto  Boolean @default(false)
+
+  // AI Tagging for Matching
+  hairType        String?
+  styleType       String?
+  colorInfo       String?
+  complexityLevel String?
+
+  // Vector Search (NEW - for AI-powered image matching with CLIP)
+  aiTags       String[]                    @default([])
+  aiEmbedding  Unsupported("vector(512)")  @default(dbgenerated("'[0]'::vector"))
+  colorPalette Json?
+
   // Status
-  processingStatus String  @default("pending")
-  moderationStatus String  @default("pending")
-  
+  processingStatus String @default("pending")
+  moderationStatus String @default("pending")
+
   // Timestamps
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([serviceId])
   @@index([mediaType])
 }
 
 model ServiceAddon {
-  id              String   @id @default(uuid())
-  serviceId       String
-  service         Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  
-  addonName       String
-  addonDescription String?
-  addonPrice      Decimal  @db.Decimal(10, 2)
-  addonDurationMinutes Int @default(0)
-  isActive        Boolean  @default(true)
-  displayOrder    Int      @default(0)
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
+  id        String  @id @default(uuid())
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  addonName            String
+  addonDescription     String?
+  addonPrice           Decimal @db.Decimal(10, 2)
+  addonDurationMinutes Int     @default(0)
+  isActive             Boolean @default(true)
+  displayOrder         Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([serviceId])
 }
 
@@ -445,36 +461,36 @@ model ServiceAddon {
 // ================================
 
 model ProviderAvailability {
-  id          String   @id @default(uuid())
-  providerId  String
-  provider    ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  
-  dayOfWeek   Int      // 0 = Sunday, 6 = Saturday
-  startTime   String   // Store as "HH:mm" format
-  endTime     String   // Store as "HH:mm" format
-  isAvailable Boolean  @default(true)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  id         String          @id @default(uuid())
+  providerId String
+  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  dayOfWeek   Int // 0 = Sunday, 6 = Saturday
+  startTime   String // Store as "HH:mm" format
+  endTime     String // Store as "HH:mm" format
+  isAvailable Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([providerId, dayOfWeek, startTime])
   @@index([providerId])
 }
 
 model ProviderTimeOff {
-  id          String   @id @default(uuid())
-  providerId  String
-  provider    ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  
-  startDate   DateTime
-  endDate     DateTime
-  reason      String?
-  allDay      Boolean  @default(true)
-  startTime   String?
-  endTime     String?
-  
-  createdAt   DateTime @default(now())
-  
+  id         String          @id @default(uuid())
+  providerId String
+  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  startDate DateTime
+  endDate   DateTime
+  reason    String?
+  allDay    Boolean  @default(true)
+  startTime String?
+  endTime   String?
+
+  createdAt DateTime @default(now())
+
   @@index([providerId])
   @@index([startDate, endDate])
 }
@@ -484,77 +500,77 @@ model ProviderTimeOff {
 // ================================
 
 model Booking {
-  id                  String   @id @default(uuid())
-  
+  id String @id @default(uuid())
+
   // Relationships
-  clientId            String
-  client              User     @relation("ClientBookings", fields: [clientId], references: [id])
-  providerId          String
-  provider            ProviderProfile @relation(fields: [providerId], references: [id])
-  serviceId           String
-  service             Service  @relation(fields: [serviceId], references: [id])
-  
+  clientId   String
+  client     User            @relation("ClientBookings", fields: [clientId], references: [id])
+  providerId String
+  provider   ProviderProfile @relation(fields: [providerId], references: [id])
+  serviceId  String
+  service    Service         @relation(fields: [serviceId], references: [id])
+
   // Appointment Details
-  appointmentDate     DateTime
-  appointmentTime     String   // Store as "HH:mm"
-  appointmentEndTime  String   // Store as "HH:mm"
-  
+  appointmentDate    DateTime
+  appointmentTime    String // Store as "HH:mm"
+  appointmentEndTime String // Store as "HH:mm"
+
   // Pricing
-  servicePrice        Decimal  @db.Decimal(10, 2)
-  depositAmount       Decimal  @default(0) @db.Decimal(10, 2)
-  serviceFee          Decimal  @db.Decimal(10, 2)
-  totalAmount         Decimal  @db.Decimal(10, 2)
-  tipAmount           Decimal  @default(0) @db.Decimal(10, 2)
-  currency            String   @default("USD")
-  
+  servicePrice  Decimal @db.Decimal(10, 2)
+  depositAmount Decimal @default(0) @db.Decimal(10, 2)
+  serviceFee    Decimal @db.Decimal(10, 2)
+  totalAmount   Decimal @db.Decimal(10, 2)
+  tipAmount     Decimal @default(0) @db.Decimal(10, 2)
+  currency      String  @default("USD")
+
   // Payment Provider Info
-  paymentProvider     PaymentProvider
-  
+  paymentProvider PaymentProvider
+
   // Payment Status
-  paymentStatus       PaymentStatus @default(PENDING)
-  
+  paymentStatus PaymentStatus @default(PENDING)
+
   // Stripe Fields (NA/EU)
   stripePaymentIntentId String?
-  stripeChargeId      String?
-  
+  stripeChargeId        String?
+
   // Paystack Fields (GH/NG)
-  paystackReference   String?
-  paystackAccessCode  String?
+  paystackReference     String?
+  paystackAccessCode    String?
   paystackTransactionId String?
-  
+
   // Payment Details
-  paymentMethod       String?
-  paymentChannel      String?
-  paidAt              DateTime?
-  
+  paymentMethod  String?
+  paymentChannel String?
+  paidAt         DateTime?
+
   // Booking Status
-  bookingStatus       BookingStatus @default(PENDING)
-  bookingType         String   @default("instant") // 'instant', 'request'
-  
+  bookingStatus BookingStatus @default(PENDING)
+  bookingType   String        @default("instant") // 'instant', 'request'
+
   // Special Requests
-  specialRequests     String?
-  internalNotes       String?
-  
+  specialRequests String?
+  internalNotes   String?
+
   // Cancellation/Rescheduling
-  cancelledAt         DateTime?
-  cancellationReason  String?
-  cancellationFee     Decimal? @db.Decimal(10, 2)
-  rescheduleCount     Int      @default(0)
-  
+  cancelledAt        DateTime?
+  cancellationReason String?
+  cancellationFee    Decimal?  @db.Decimal(10, 2)
+  rescheduleCount    Int       @default(0)
+
   // Reminders
-  reminder24hSent     Boolean  @default(false)
-  reminder1hSent      Boolean  @default(false)
-  
+  reminder24hSent Boolean @default(false)
+  reminder1hSent  Boolean @default(false)
+
   // Completion
-  completedAt         DateTime?
-  
+  completedAt DateTime?
+
   // Timestamps
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  review              Review?
-  
+  review Review?
+
   @@index([clientId])
   @@index([providerId])
   @@index([serviceId])
@@ -568,39 +584,39 @@ model Booking {
 // ================================
 
 model Review {
-  id                    String   @id @default(uuid())
-  bookingId             String   @unique
-  booking               Booking  @relation(fields: [bookingId], references: [id])
-  clientId              String
-  client                User     @relation(fields: [clientId], references: [id])
-  providerId            String
-  provider              ProviderProfile @relation(fields: [providerId], references: [id])
-  
+  id         String          @id @default(uuid())
+  bookingId  String          @unique
+  booking    Booking         @relation(fields: [bookingId], references: [id])
+  clientId   String
+  client     User            @relation(fields: [clientId], references: [id])
+  providerId String
+  provider   ProviderProfile @relation(fields: [providerId], references: [id])
+
   // Ratings
-  overallRating         Int      // 1-5
-  qualityRating         Int?     // 1-5
-  timelinessRating      Int?     // 1-5
-  professionalismRating Int?     // 1-5
-  
+  overallRating         Int // 1-5
+  qualityRating         Int? // 1-5
+  timelinessRating      Int? // 1-5
+  professionalismRating Int? // 1-5
+
   // Review Content
-  reviewText            String?
-  
+  reviewText String?
+
   // Response
-  providerResponse      String?
-  providerResponseDate  DateTime?
-  
+  providerResponse     String?
+  providerResponseDate DateTime?
+
   // Moderation
-  isVerified            Boolean  @default(true)
-  isVisible             Boolean  @default(true)
-  isFeatured            Boolean  @default(false)
-  
+  isVerified Boolean @default(true)
+  isVisible  Boolean @default(true)
+  isFeatured Boolean @default(false)
+
   // Helpful votes
-  helpfulCount          Int      @default(0)
-  
+  helpfulCount Int @default(0)
+
   // Timestamps
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([providerId])
   @@index([clientId])
   @@index([overallRating])
@@ -612,46 +628,46 @@ model Review {
 // ================================
 
 model Conversation {
-  id                  String   @id @default(uuid())
-  clientId            String
-  providerId          String
-  
-  status              String   @default("active") // 'active', 'archived', 'blocked'
-  
-  lastMessageAt       DateTime?
-  lastMessagePreview  String?
-  
-  clientUnreadCount   Int      @default(0)
-  providerUnreadCount Int      @default(0)
-  
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  
+  id         String @id @default(uuid())
+  clientId   String
+  providerId String
+
+  status String @default("active") // 'active', 'archived', 'blocked'
+
+  lastMessageAt      DateTime?
+  lastMessagePreview String?
+
+  clientUnreadCount   Int @default(0)
+  providerUnreadCount Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  messages            Message[]
-  
+  messages Message[]
+
   @@index([clientId])
   @@index([providerId])
   @@index([lastMessageAt])
 }
 
 model Message {
-  id              String   @id @default(uuid())
-  conversationId  String
-  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  senderId        String
-  sender          User     @relation("SenderMessages", fields: [senderId], references: [id])
-  
-  messageType     String   @default("text") // 'text', 'image', 'system'
-  content         String
-  
-  isRead          Boolean  @default(false)
-  readAt          DateTime?
-  
-  isSystemMessage Boolean  @default(false)
-  
-  createdAt       DateTime @default(now())
-  
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation("SenderMessages", fields: [senderId], references: [id])
+
+  messageType String @default("text") // 'text', 'image', 'system'
+  content     String
+
+  isRead Boolean   @default(false)
+  readAt DateTime?
+
+  isSystemMessage Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
   @@index([conversationId])
   @@index([senderId])
   @@index([createdAt])
@@ -662,36 +678,61 @@ model Message {
 // ================================
 
 model Favorite {
-  id          String   @id @default(uuid())
-  clientId    String
-  client      User     @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  providerId  String
-  provider    ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  
-  createdAt   DateTime @default(now())
-  
+  id         String          @id @default(uuid())
+  clientId   String
+  client     User            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  providerId String
+  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
   @@unique([clientId, providerId])
   @@index([clientId])
   @@index([providerId])
 }
 
 model SavedSearch {
-  id              String   @id @default(uuid())
-  clientId        String
-  client          User     @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  
-  searchName      String?
-  categoryId      String?
-  locationCity    String?
-  locationState   String?
+  id       String @id @default(uuid())
+  clientId String
+  client   User   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  searchName       String?
+  categoryId       String?
+  locationCity     String?
+  locationState    String?
   maxDistanceMiles Int?
-  priceMin        Decimal? @db.Decimal(10, 2)
-  priceMax        Decimal? @db.Decimal(10, 2)
-  
+  priceMin         Decimal? @db.Decimal(10, 2)
+  priceMax         Decimal? @db.Decimal(10, 2)
+
   notifyNewMatches Boolean @default(false)
-  
-  createdAt       DateTime @default(now())
-  
+
+  createdAt DateTime @default(now())
+
+  @@index([clientId])
+}
+
+model InspirationImage {
+  id       String @id @default(uuid())
+  clientId String
+  client   User   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  // Image Data
+  imageUrl     String
+  thumbnailUrl String?
+  sourceUrl    String?
+
+  // AI Analysis (CLIP embeddings for image matching)
+  aiTags              String[]                   @default([])
+  aiEmbedding         Unsupported("vector(512)")  @default(dbgenerated("'[0]'::vector"))
+  styleDescription    String?
+  colorPalette        Json?
+
+  // Organization
+  notes      String?
+  isFavorite Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
   @@index([clientId])
 }
 
@@ -700,23 +741,22 @@ model SavedSearch {
 // ================================
 
 model Notification {
-  id              String   @id @default(uuid())
-  userId          String
-  
+  id     String @id @default(uuid())
+  userId String
+
   notificationType String
-  title           String
-  body            String
-  
-  actionUrl       String?
+  title            String
+  body             String
+
+  actionUrl        String?
   relatedBookingId String?
-  
-  isRead          Boolean  @default(false)
-  readAt          DateTime?
-  
-  createdAt       DateTime @default(now())
-  
+
+  isRead Boolean   @default(false)
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
+
   @@index([userId])
   @@index([isRead])
   @@index([notificationType])
 }
-
