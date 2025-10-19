@@ -33,6 +33,7 @@ import type {
   CreateServiceResponse,
   GetServiceResponse,
   GetServicesResponse,
+  GetDraftServicesResponse,
   SaveServiceMediaRequest,
   SaveServiceMediaResponse,
   GenerateServiceDescriptionRequest,
@@ -41,6 +42,10 @@ import type {
   GenerateHashtagsResponse,
   AnalyzeImageRequest,
   AnalyzeImageResponse,
+  // Service Drafts
+  SaveDraftRequest,
+  SaveDraftResponse,
+  GetDraftResponse,
   // Upload
   UploadFileResponse,
   UploadMultipleFilesResponse,
@@ -62,12 +67,10 @@ import type {
   GetBlockedDatesResponse,
   DeleteBlockedDateResponse,
   // Inspiration
-  UploadInspirationRequest,
-  UploadInspirationResponse,
+  AnalyzeInspirationRequest,
+  AnalyzeInspirationResponse,
   MatchInspirationRequest,
   MatchInspirationResponse,
-  GetInspirationsResponse,
-  DeleteInspirationResponse,
   // Settings
   UpdateProfileSettingsRequest,
   UpdateBookingSettingsRequest,
@@ -182,6 +185,21 @@ export const api = {
 
     analyzeImage: (data: AnalyzeImageRequest) =>
       apiClient.post<{ data: AnalyzeImageResponse }>('/services/ai/analyze-image', data),
+
+    // Draft services
+    getDrafts: () => apiClient.get<{ data: GetDraftServicesResponse }>('/services/drafts'),
+  },
+
+  // ============================================
+  // Service Draft APIs
+  // ============================================
+  serviceDrafts: {
+    save: (data: SaveDraftRequest) =>
+      apiClient.post<{ data: SaveDraftResponse }>('/service-drafts', data),
+
+    get: () => apiClient.get<{ data: GetDraftResponse }>('/service-drafts'),
+
+    delete: () => apiClient.delete<{ data: { message: string } }>('/service-drafts'),
   },
 
   // ============================================
@@ -254,22 +272,16 @@ export const api = {
   },
 
   // ============================================
-  // Inspiration / Visual Search APIs
+  // Inspiration / Visual Search APIs (Ephemeral - No Storage)
   // ============================================
   inspiration: {
-    upload: (data: UploadInspirationRequest) =>
-      apiClient.post<{ data: UploadInspirationResponse }>('/inspiration/upload', data),
+    // Step 1: Analyze image and get embedding
+    analyze: (data: AnalyzeInspirationRequest) =>
+      apiClient.post<{ data: AnalyzeInspirationResponse }>('/inspiration/analyze', data),
 
-    match: (inspirationId: string, data: Omit<MatchInspirationRequest, 'inspirationId'>) =>
-      apiClient.post<{ data: MatchInspirationResponse }>(
-        `/inspiration/${inspirationId}/match`,
-        data
-      ),
-
-    getAll: () => apiClient.get<{ data: GetInspirationsResponse }>('/inspiration'),
-
-    delete: (inspirationId: string) =>
-      apiClient.delete<{ data: DeleteInspirationResponse }>(`/inspiration/${inspirationId}`),
+    // Step 2: Match embedding to provider services
+    match: (data: MatchInspirationRequest) =>
+      apiClient.post<{ data: MatchInspirationResponse }>('/inspiration/match', data),
   },
 
   // ============================================

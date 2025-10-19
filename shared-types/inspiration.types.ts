@@ -1,24 +1,23 @@
 /**
  * Shared Inspiration Types
- * Used for AI-powered visual search and matching
+ * Used for AI-powered ephemeral visual search (no database storage)
  */
 
 // ============================================
 // Request Types
 // ============================================
 
-export interface UploadInspirationRequest {
+export interface AnalyzeInspirationRequest {
   imageUrl: string;
-  sourceUrl?: string;
   notes?: string;
 }
 
 export interface MatchInspirationRequest {
-  inspirationId: string;
+  embedding: number[]; // 1408-dimensional embedding from analyze step
+  tags?: string[]; // AI tags for display purposes
   location?: {
     city: string;
     state?: string;
-    radius?: number; // in miles
   };
   maxResults?: number;
 }
@@ -27,25 +26,9 @@ export interface MatchInspirationRequest {
 // Response Types
 // ============================================
 
-export interface InspirationImage {
-  id: string;
-  clientId: string;
-  imageUrl: string;
-  thumbnailUrl?: string;
-  sourceUrl?: string;
-  aiTags: string[];
-  styleDescription?: string;
-  colorPalette?: {
-    colors: string[];
-  };
-  notes?: string;
-  isFavorite: boolean;
-  createdAt: string;
-}
-
 export interface ImageAnalysisResult {
-  tags: string[];
-  dominantColors?: string[];
+  tags: string[]; // AI-extracted visual features
+  embedding: number[]; // 1408-dimensional enriched embedding (image + tags)
 }
 
 export interface InspirationMatch {
@@ -68,16 +51,17 @@ export interface InspirationMatch {
   providerCity: string;
   providerState: string;
 
-  // Match Info
-  matchScore: number; // 0-100
-  distance: number; // Vector distance (lower is better)
-  matchingTags: string[]; // Tags that matched between inspiration and service
+  // Match Info (Hybrid Scoring)
+  matchScore: number; // 0-100 (hybrid: vector + tags + category)
+  vectorScore: number; // 0-100 (pure vector similarity)
+  tagScore: number; // 0-100 (tag overlap score)
+  distance: number; // Raw vector distance (lower is better)
+  matchingTags: string[]; // Tags that matched (with synonym expansion)
   aiTags?: string[]; // All AI tags from the matched media
 }
 
-export interface UploadInspirationResponse {
+export interface AnalyzeInspirationResponse {
   message: string;
-  inspiration: InspirationImage;
   analysis: ImageAnalysisResult;
 }
 
@@ -85,13 +69,4 @@ export interface MatchInspirationResponse {
   message: string;
   matches: InspirationMatch[];
   totalMatches: number;
-}
-
-export interface GetInspirationsResponse {
-  message: string;
-  inspirations: InspirationImage[];
-}
-
-export interface DeleteInspirationResponse {
-  message: string;
 }

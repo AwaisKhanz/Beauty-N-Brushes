@@ -30,6 +30,7 @@ import dashboardRoutes from './routes/dashboard.routes';
 import calendarRoutes from './routes/calendar.routes';
 import inspirationRoutes from './routes/inspiration.routes';
 import settingsRoutes from './routes/settings.routes';
+import serviceDraftRoutes from './routes/serviceDraft.routes';
 
 const app: Application = express();
 const PORT = process.env.PORT || 8000;
@@ -132,6 +133,7 @@ app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/calendar', calendarRoutes);
 app.use('/api/v1/inspiration', inspirationRoutes);
 app.use('/api/v1/settings', settingsRoutes);
+app.use('/api/v1/service-drafts', serviceDraftRoutes);
 
 // 404 handler
 app.use(notFoundHandler);

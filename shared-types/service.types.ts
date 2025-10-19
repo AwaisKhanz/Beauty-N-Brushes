@@ -29,6 +29,10 @@ export interface CreateServiceRequest {
   depositType: DepositType;
   depositAmount: number;
   addons?: ServiceAddonInput[];
+  // Template tracking
+  createdFromTemplate?: boolean;
+  templateId?: string;
+  templateName?: string;
 }
 
 export interface UpdateServiceRequest extends Partial<CreateServiceRequest> {
@@ -122,9 +126,18 @@ export interface Service {
   depositAmount: number;
   durationMinutes: number;
   active: boolean;
+  // Template tracking
+  createdFromTemplate?: boolean;
+  templateId?: string | null;
+  templateName?: string | null;
+  // Draft status
+  isDraft?: boolean;
+  draftStep?: number;
+  draftUpdatedAt?: string;
   createdAt: string;
   updatedAt: string;
   category: ServiceCategory;
+  subcategory?: ServiceCategory | null;
   addons: ServiceAddon[];
   media: ServiceMedia[];
   _count?: {
@@ -186,4 +199,101 @@ export interface AnalyzeImageResponse {
   data: {
     tags: string[];
   };
+}
+
+// ============================================
+// Service Draft Types
+// ============================================
+
+export interface ServiceWizardData {
+  // Basic Information
+  title: string;
+  category: string;
+  subcategory?: string;
+
+  // Template tracking
+  createdFromTemplate?: boolean;
+  templateId?: string;
+  templateName?: string;
+
+  // AI-Enhanced Description
+  description: string;
+  hashtags?: string[];
+  keywords?: string[];
+
+  // Pricing & Duration
+  priceType: PriceType;
+  priceMin: number;
+  priceMax?: number;
+  durationMinutes: number;
+
+  // Deposit
+  depositType: DepositType;
+  depositAmount: number;
+
+  // Media
+  media: {
+    url: string;
+    thumbnailUrl?: string;
+    mediaType: 'image' | 'video';
+    caption?: string;
+    isFeatured?: boolean;
+    displayOrder: number;
+  }[];
+
+  // Add-ons & Variations
+  addons?: {
+    name: string;
+    description?: string;
+    price: number;
+    duration: number;
+  }[];
+
+  variations?: {
+    name: string;
+    description?: string;
+    priceAdjustment: number;
+    durationAdjustment?: number;
+  }[];
+}
+
+export interface ServiceDraftData {
+  id?: string;
+  draftData: Partial<ServiceWizardData>;
+  currentStep: number;
+  updatedAt: string;
+}
+
+export interface SaveDraftRequest {
+  draftData: Partial<ServiceWizardData>;
+  currentStep: number;
+}
+
+export interface SaveDraftResponse {
+  message: string;
+  draft: ServiceDraftData;
+}
+
+export interface GetDraftResponse {
+  draft: ServiceDraftData | null;
+}
+
+// Draft Service Management
+export interface DraftService {
+  id: string;
+  title: string;
+  category: string;
+  subcategory?: string;
+  currentStep: number;
+  lastSaved: string;
+  isDraft: true;
+}
+
+export interface GetDraftServicesResponse {
+  drafts: DraftService[];
+  total: number;
+}
+
+export interface DeleteDraftServiceResponse {
+  message: string;
 }

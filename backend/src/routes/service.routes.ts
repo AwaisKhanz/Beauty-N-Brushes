@@ -9,6 +9,7 @@ router.use(authenticate);
 
 // Service routes
 router.get('/', serviceController.getProviderServices);
+router.get('/drafts', serviceController.getDraftServices);
 router.get('/:serviceId', serviceController.getServiceById);
 router.post('/', serviceController.createService);
 router.put('/:serviceId', serviceController.updateService);

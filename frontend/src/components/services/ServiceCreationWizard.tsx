@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Form } from '@/components/ui/form';
+import { extractErrorMessage } from '@/lib/error-utils';
 
 // Step Components
 import { BasicInfoStep } from './wizard/BasicInfoStep';
@@ -30,11 +31,21 @@ import { MediaUploadStep } from './wizard/MediaUploadStep';
 import { AddonsStep } from './wizard/AddonsStep';
 import { ReviewStep } from './wizard/ReviewStep';
 
+// Auto-save components
+import { useServiceDraftAutoSave } from '@/hooks/useServiceDraftAutoSave';
+import { DraftRecoveryDialog } from './DraftRecoveryDialog';
+import { AutoSaveStatus } from './AutoSaveStatus';
+
 export const serviceWizardSchema = z.object({
   // Basic Information
   title: z.string().min(3, 'Service title must be at least 3 characters').max(255),
   category: z.string().min(1, 'Please select a category'),
   subcategory: z.string().default(''),
+
+  // Template tracking
+  createdFromTemplate: z.boolean().optional(),
+  templateId: z.string().optional(),
+  templateName: z.string().optional(),
 
   // AI-Enhanced Description
   description: z.string().min(20, 'Description must be at least 20 characters').max(1000),
@@ -96,9 +107,18 @@ interface Step {
   title: string;
   description: string;
   icon: React.ComponentType<{ className?: string }>;
+  // Each step component has slightly different prop requirements
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   component: React.ComponentType<any>;
   isCompleted?: boolean;
   isOptional?: boolean;
+}
+
+// Draft recovery data structure
+interface DraftRecoveryData {
+  draftData: Partial<ServiceWizardData>;
+  currentStep: number;
+  timestamp: string;
 }
 
 interface ServiceCreationWizardProps {
@@ -114,42 +134,89 @@ export function ServiceCreationWizard({
 }: ServiceCreationWizardProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showDraftDialog, setShowDraftDialog] = useState(false);
+  const [pendingDraft, setPendingDraft] = useState<DraftRecoveryData | null>(null);
 
   const form = useForm<ServiceWizardData>({
     resolver: zodResolver(serviceWizardSchema),
     defaultValues: {
       // Basic Information
-      title: '',
-      category: '',
-      subcategory: '',
+      title: initialData?.title || '',
+      category: initialData?.category || '',
+      subcategory: initialData?.subcategory || '',
+
+      // Template tracking
+      createdFromTemplate: initialData?.createdFromTemplate || false,
+      templateId: initialData?.templateId || undefined,
+      templateName: initialData?.templateName || undefined,
 
       // AI-Enhanced Description
-      description: '',
-      hashtags: [],
-      keywords: [],
+      description: initialData?.description || '',
+      hashtags: initialData?.hashtags || [],
+      keywords: initialData?.keywords || [],
 
       // Pricing & Duration
-      priceType: 'fixed',
-      priceMin: 0,
-      priceMax: 0,
-      durationMinutes: 60,
+      priceType: initialData?.priceType || 'fixed',
+      priceMin: initialData?.priceMin || 0,
+      priceMax: initialData?.priceMax || 0,
+      durationMinutes: initialData?.durationMinutes || 60,
 
       // Deposit
-      depositType: 'percentage',
-      depositAmount: 50,
+      depositType: initialData?.depositType || 'percentage',
+      depositAmount: initialData?.depositAmount || 50,
 
       // Media
-      media: [],
+      media: initialData?.media || [],
 
       // Add-ons & Variations
-      addons: [],
-      variations: [],
-
-      // Override with any initial data
-      ...initialData,
+      addons: initialData?.addons || [],
+      variations: initialData?.variations || [],
     },
     mode: 'onChange',
   });
+
+  // Auto-save hook
+  const { autoSave, saveStatus, lastSaved, loadFromLocalStorage, loadFromServer, clearDraft } =
+    useServiceDraftAutoSave(form, currentStep, isEdit);
+
+  // Reset form when initialData changes (for edit mode)
+  useEffect(() => {
+    if (initialData && isEdit) {
+      form.reset({
+        // Basic Information
+        title: initialData.title || '',
+        category: initialData.category || '',
+        subcategory: initialData.subcategory || '',
+
+        // Template tracking
+        createdFromTemplate: initialData.createdFromTemplate || false,
+        templateId: initialData.templateId || undefined,
+        templateName: initialData.templateName || undefined,
+
+        // AI-Enhanced Description
+        description: initialData.description || '',
+        hashtags: initialData.hashtags || [],
+        keywords: initialData.keywords || [],
+
+        // Pricing & Duration
+        priceType: initialData.priceType || 'fixed',
+        priceMin: initialData.priceMin || 0,
+        priceMax: initialData.priceMax || 0,
+        durationMinutes: initialData.durationMinutes || 60,
+
+        // Deposit
+        depositType: initialData.depositType || 'percentage',
+        depositAmount: initialData.depositAmount || 50,
+
+        // Media
+        media: initialData.media || [],
+
+        // Add-ons & Variations
+        addons: initialData.addons || [],
+        variations: initialData.variations || [],
+      });
+    }
+  }, [initialData, isEdit, form]);
 
   const steps: Step[] = [
     {
@@ -200,6 +267,42 @@ export function ServiceCreationWizard({
   const currentStepData = steps[currentStep];
   const progress = ((currentStep + 1) / steps.length) * 100;
 
+  // Load draft on mount
+  useEffect(() => {
+    if (!isEdit && !initialData) {
+      checkForDraft();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function checkForDraft() {
+    // Try server first, fallback to localStorage
+    const serverDraft = await loadFromServer();
+    const localDraft = loadFromLocalStorage();
+
+    const draft = serverDraft || localDraft;
+
+    if (draft) {
+      setPendingDraft(draft);
+      setShowDraftDialog(true);
+    }
+  }
+
+  function handleRestoreDraft() {
+    if (pendingDraft) {
+      form.reset(pendingDraft.draftData);
+      setCurrentStep(pendingDraft.currentStep);
+    }
+    setShowDraftDialog(false);
+    setPendingDraft(null);
+  }
+
+  async function handleDiscardDraft() {
+    await clearDraft();
+    setShowDraftDialog(false);
+    setPendingDraft(null);
+  }
+
   // Validate current step
   const validateCurrentStep = useCallback(async () => {
     const stepId = steps[currentStep].id;
@@ -238,6 +341,8 @@ export function ServiceCreationWizard({
 
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
+      // Auto-save after moving to next step
+      await autoSave();
     }
   };
 
@@ -260,10 +365,14 @@ export function ServiceCreationWizard({
     try {
       const data = form.getValues();
       await onComplete(data);
+      // Clear draft after successful creation
+      await clearDraft();
       toast.success(`Service ${isEdit ? 'updated' : 'created'} successfully!`);
     } catch (error) {
       console.error('Error submitting service:', error);
-      toast.error(`Failed to ${isEdit ? 'update' : 'create'} service`);
+      toast.error(
+        extractErrorMessage(error) || `Failed to ${isEdit ? 'update' : 'create'} service`
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -273,6 +382,14 @@ export function ServiceCreationWizard({
 
   return (
     <Form {...form}>
+      {/* Draft Recovery Dialog */}
+      <DraftRecoveryDialog
+        open={showDraftDialog}
+        draftTimestamp={pendingDraft?.timestamp || new Date().toISOString()}
+        onRestore={handleRestoreDraft}
+        onDiscard={handleDiscardDraft}
+      />
+
       <div className="w-full p-6 space-y-6">
         {/* Header */}
         <div className="text-center space-y-2">
@@ -282,13 +399,16 @@ export function ServiceCreationWizard({
           </p>
         </div>
 
-        {/* Progress Bar */}
+        {/* Progress Bar with Auto-Save Status */}
         <div className="space-y-2">
           <div className="flex justify-between text-sm text-muted-foreground">
             <span>
               Step {currentStep + 1} of {steps.length}
             </span>
-            <span>{Math.round(progress)}% Complete</span>
+            <div className="flex items-center gap-4">
+              <AutoSaveStatus status={saveStatus} lastSaved={lastSaved} />
+              <span>{Math.round(progress)}% Complete</span>
+            </div>
           </div>
           <Progress value={progress} className="h-2" />
         </div>

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,20 +11,20 @@ import { Sparkles, Image as ImageIcon, AlertCircle, Loader2, X } from 'lucide-re
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
+import type { ImageAnalysisResult } from '../../../../../shared-types';
 
 interface InspirationUploadProps {
-  onMatchesFound?: (inspirationId: string, analysis?: any) => void;
+  onMatchesFound?: (analysis: ImageAnalysisResult) => void;
 }
 
 export function InspirationUpload({ onMatchesFound }: InspirationUploadProps) {
-  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
-  const [analysis, setAnalysis] = useState<any>(null);
+  const [analysis, setAnalysis] = useState<ImageAnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -74,7 +73,7 @@ export function InspirationUpload({ onMatchesFound }: InspirationUploadProps) {
     setAnalyzing(false);
 
     try {
-      // Step 1: Upload file
+      // Step 1: Upload file to temporary storage
       const formData = new FormData();
       formData.append('file', file);
 
@@ -97,8 +96,8 @@ export function InspirationUpload({ onMatchesFound }: InspirationUploadProps) {
       setUploading(false);
       setAnalyzing(true);
 
-      // Step 2: Analyze with AI
-      const { data } = await api.inspiration.upload({
+      // Step 2: Analyze with AI (ephemeral - no storage)
+      const { data } = await api.inspiration.analyze({
         imageUrl,
       });
 
@@ -107,11 +106,9 @@ export function InspirationUpload({ onMatchesFound }: InspirationUploadProps) {
 
       toast.success('Image analyzed successfully!');
 
-      // Step 3: Find matches
+      // Step 3: Trigger matches search
       if (onMatchesFound) {
-        onMatchesFound(data.inspiration.id, data.analysis);
-      } else {
-        router.push(`/client/search?inspiration=${data.inspiration.id}`);
+        onMatchesFound(data.analysis);
       }
     } catch (err) {
       console.error('Upload/analysis error:', err);
@@ -242,12 +239,12 @@ export function InspirationUpload({ onMatchesFound }: InspirationUploadProps) {
         )}
 
         {/* Info */}
-        <div className="bg-info/10 border border-info/20 rounded-lg p-4 text-sm">
-          <p className="font-medium text-info-foreground mb-1">How it works:</p>
-          <ol className="text-info-foreground space-y-1 list-decimal list-inside">
+        <div className="bg-muted/50 border border-border rounded-lg p-4 text-sm">
+          <p className="font-medium mb-1">How it works:</p>
+          <ol className="text-muted-foreground space-y-1 list-decimal list-inside">
             <li>Upload a photo of the hairstyle or look you want</li>
             <li>Our AI analyzes the style with advanced visual recognition</li>
-            <li>We match you with local professionals who've done similar work</li>
+            <li>We match you with local professionals who&apos;ve done similar work</li>
             <li>Book your appointment with confidence!</li>
           </ol>
         </div>

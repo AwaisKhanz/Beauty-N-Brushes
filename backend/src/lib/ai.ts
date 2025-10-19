@@ -336,11 +336,11 @@ Do not include pricing or duration information.`;
   }
 
   /**
-   * Analyze image from base64
+   * Analyze image from base64 (with optional category for better, category-specific results)
    */
-  async analyzeImageFromBase64(base64Image: string): Promise<ImageAnalysis> {
+  async analyzeImageFromBase64(base64Image: string, category?: string): Promise<ImageAnalysis> {
     this.ensureInitialized();
-    return await this.analyzeBase64WithGoogleVision(base64Image);
+    return await this.analyzeBase64WithGoogleVision(base64Image, category);
   }
 
   /**
@@ -367,10 +367,13 @@ Do not include pricing or duration information.`;
   /**
    * Google Vision AI for base64 images
    */
-  private async analyzeBase64WithGoogleVision(base64Image: string): Promise<ImageAnalysis> {
+  private async analyzeBase64WithGoogleVision(
+    base64Image: string,
+    category?: string
+  ): Promise<ImageAnalysis> {
     try {
       const buffer = Buffer.from(base64Image, 'base64');
-      return this.analyzeImageBuffer(buffer);
+      return this.analyzeImageBuffer(buffer, category);
     } catch (error) {
       console.error('Google Vision error:', error);
       throw new Error('Failed to analyze image with Google Vision AI.');
@@ -378,10 +381,10 @@ Do not include pricing or duration information.`;
   }
 
   /**
-   * Core Google Vision analysis logic - Enhanced with Gemini Vision
+   * Core Google Vision analysis logic - Enhanced with Gemini Vision (Category-Aware)
    */
-  private async analyzeImageBuffer(buffer: Buffer): Promise<ImageAnalysis> {
-    // Run both Vision AI (for basic features) and Gemini Vision (for detailed hairstyle analysis) in parallel
+  private async analyzeImageBuffer(buffer: Buffer, category?: string): Promise<ImageAnalysis> {
+    // Run both Vision AI (for basic features) and Gemini Vision (for category-specific analysis) in parallel
     const [visionResult, geminiAnalysis] = await Promise.all([
       // Vision AI for basic object detection and colors
       this.visionClient.annotateImage({
@@ -393,8 +396,8 @@ Do not include pricing or duration information.`;
           { type: 'OBJECT_LOCALIZATION', maxResults: 10 },
         ],
       }),
-      // Gemini Vision for detailed hairstyle analysis
-      this.analyzeHairstyleWithGemini(buffer),
+      // Gemini Vision for category-aware detailed analysis
+      this.analyzeHairstyleWithGemini(buffer, category),
     ]);
 
     const result = visionResult[0];
@@ -411,7 +414,7 @@ Do not include pricing or duration information.`;
     );
 
     // Debug: Log Gemini's detailed analysis
-    console.log('\n✨ Gemini Vision Hairstyle Analysis:');
+    console.log(`\n✨ Gemini Vision ${category || 'Beauty'} Analysis:`);
     console.log('   Tags:', geminiAnalysis.tags.slice(0, 8).join(', '));
 
     // Combine Vision AI color detection with Gemini's hairstyle expertise
@@ -436,38 +439,20 @@ Do not include pricing or duration information.`;
   }
 
   /**
-   * Analyze hairstyle using Gemini Vision (multimodal AI)
-   * This provides much better hairstyle-specific analysis than generic Vision AI
+   * Analyze beauty service image using Gemini Vision (category-aware)
+   * Works for ALL beauty services: hair, makeup, nails, lashes, brows, skincare, waxing, spa, etc.
    */
-  private async analyzeHairstyleWithGemini(imageBuffer: Buffer): Promise<{
+  private async analyzeHairstyleWithGemini(
+    imageBuffer: Buffer,
+    serviceCategory?: string
+  ): Promise<{
     tags: string[];
   }> {
     try {
       const base64Image = imageBuffer.toString('base64');
 
-      const prompt = `Analyze this hairstyle/beauty image in detail.
-
-Generate 15-20 specific searchable keywords that describe:
-- Hair texture (e.g., "curly", "textured", "smooth", "voluminous", "coily", "kinky")
-- Hair type (e.g., "straight", "wavy", "curly")
-- Cut/style (e.g., "fade", "undercut", "layers", "blunt-cut", "bob", "pixie", "braids", "locs", "afro")
-- Length (e.g., "short", "medium", "long", "shoulder-length")
-- Styling (e.g., "defined-curls", "slicked-back", "messy", "sleek", "updo", "ponytail")
-- Features (e.g., "volume", "shine", "natural", "styled", "groomed")
-- Colors/tones (e.g., "black", "brown", "blonde", "warm-tones", "cool-tones", "highlights", "balayage", "ombre")
-- Complexity (e.g., "simple", "moderate", "complex")
-- Service type (e.g., "haircut", "color-treatment", "styling", "braiding", "mens-haircut", "womens-haircut")
-
-Format your response EXACTLY as JSON:
-{
-  "tags": ["curly", "fade", "mens-haircut", "textured", "defined-curls", "short-sides", "volume-top", "brown-hair", "warm-tones", "modern-style", "styled", "groomed", "professional", "barbering", "curly-hair-specialist"]
-}
-
-IMPORTANT:
-- Be specific about the hairstyle, not just "person" or "face"
-- Focus on beauty/hair service keywords that clients would search for
-- Include both technical terms and common search terms
-- Respond ONLY with valid JSON, no other text`;
+      // Generate category-specific prompt
+      const prompt = this.generateCategoryAwarePrompt(serviceCategory);
 
       const result = await this.geminiModel.generateContent({
         contents: [
@@ -504,9 +489,149 @@ IMPORTANT:
       console.error('⚠️  Gemini Vision analysis failed, using fallback:', error);
       // Fallback to basic analysis if Gemini fails
       return {
-        tags: ['hairstyle', 'beauty-service'],
+        tags: ['beauty-service', serviceCategory || 'general'].filter(Boolean),
       };
     }
+  }
+
+  /**
+   * Generate category-aware prompts for comprehensive analysis
+   */
+  private generateCategoryAwarePrompt(category?: string): string {
+    const baseInstructions = `Analyze this beauty service image in detail and generate 15-25 specific, searchable keywords.
+
+Focus on what's VISIBLE in the image. Generate keywords that clients would search for.`;
+
+    const categorySpecificGuidelines = this.getCategoryGuidelines(category);
+
+    return `${baseInstructions}
+
+${categorySpecificGuidelines}
+
+Format your response EXACTLY as JSON:
+{
+  "tags": ["keyword1", "keyword2", "keyword3", ...]
+}
+
+CRITICAL RULES:
+- Generate 15-25 specific, visual keywords from what you SEE in the image
+- Focus on features that help clients find this exact style/look
+- Include both technical terms (professionals use) and common terms (clients search)
+- Be specific about style details, not generic terms like "person" or "face"
+- Use descriptive adjectives (e.g., "natural-glam", "dramatic-lashes", "french-tip-nails")
+- Include complexity levels (simple, moderate, intricate, detailed)
+- Respond ONLY with valid JSON, no other text`;
+  }
+
+  /**
+   * Get category-specific analysis guidelines
+   */
+  private getCategoryGuidelines(category?: string): string {
+    const lowerCategory = category?.toLowerCase() || '';
+
+    // HAIR SERVICES
+    if (lowerCategory.includes('hair')) {
+      return `HAIR SERVICE - Analyze and describe:
+- Texture: curly, wavy, straight, coily, kinky, textured, smooth
+- Type & Pattern: 4c, 3b, loose-curls, tight-curls, straight-hair
+- Style: box-braids, locs, silk-press, twist-out, wash-and-go, updo, ponytail, bun
+- Length: short, medium, long, shoulder-length, waist-length
+- Cut: fade, undercut, layers, blunt-cut, tapered, bob, pixie
+- Color: natural-black, brown, blonde, highlights, balayage, ombre, color-treated
+- Features: volume, shine, definition, sleek, natural, styled
+- Specific styles: knotless-braids, passion-twists, faux-locs, cornrows, etc.`;
+    }
+
+    // MAKEUP SERVICES
+    if (lowerCategory.includes('makeup')) {
+      return `MAKEUP SERVICE - Analyze and describe:
+- Style: natural-makeup, glam-makeup, smokey-eye, cut-crease, bridal-makeup
+- Finish: matte, dewy, natural, airbrushed, full-coverage
+- Eye Makeup: dramatic-eyes, natural-eyes, winged-liner, false-lashes, shimmer
+- Lips: nude-lips, bold-lips, matte-lipstick, glossy-lips, lip-liner
+- Face: contour, highlight, blush, bronzer, full-face
+- Occasion: everyday-makeup, special-event, photoshoot, wedding
+- Skin Tone: fair, medium, deep, warm-undertones, cool-undertones
+- Complexity: simple, moderate, intricate, professional`;
+    }
+
+    // NAIL SERVICES
+    if (lowerCategory.includes('nail')) {
+      return `NAIL SERVICE - Analyze and describe:
+- Style: french-tips, ombre-nails, solid-color, nail-art, 3d-nails
+- Length: short-nails, medium-nails, long-nails, extra-long
+- Shape: square, round, oval, stiletto, coffin, almond
+- Design: floral-nails, geometric, abstract, glitter, chrome
+- Type: acrylic, gel, dip-powder, natural, shellac
+- Color: nude, red, pink, black, multi-color, pastel
+- Details: rhinestones, gems, studs, hand-painted
+- Complexity: simple, detailed, intricate, artistic`;
+    }
+
+    // LASH SERVICES
+    if (lowerCategory.includes('lash')) {
+      return `LASH SERVICE - Analyze and describe:
+- Style: classic-lashes, volume-lashes, mega-volume, hybrid-lashes
+- Length: natural-length, medium, long, dramatic
+- Curl: natural-curl, c-curl, d-curl, l-curl
+- Fullness: natural, full, dramatic, wispy
+- Look: natural-lashes, glamorous, doll-eyes, cat-eye
+- Type: individual-lashes, strip-lashes, lash-extensions
+- Features: fluffy, dense, separated, layered`;
+    }
+
+    // BROW SERVICES
+    if (lowerCategory.includes('brow')) {
+      return `BROW SERVICE - Analyze and describe:
+- Shape: arched-brows, straight-brows, rounded, angled
+- Fullness: natural-brows, full-brows, bold-brows, feathered
+- Style: clean-brows, fluffy-brows, laminated, groomed
+- Technique: microblading, threading, waxing, tinting
+- Look: natural, defined, sculpted, dramatic
+- Color: matched, tinted, natural, darker`;
+    }
+
+    // SKINCARE SERVICES
+    if (lowerCategory.includes('skin') || lowerCategory.includes('facial')) {
+      return `SKINCARE/FACIAL SERVICE - Analyze and describe:
+- Treatment Type: facial, chemical-peel, microdermabrasion, extraction
+- Skin Type: oily, dry, combination, sensitive, mature
+- Concern: acne, anti-aging, hydration, brightening, dark-spots
+- Result: glowing-skin, clear-skin, smooth-skin, radiant
+- Technique: deep-cleansing, exfoliation, massage, mask
+- Features: refreshed, rejuvenated, healthy-glow`;
+    }
+
+    // WAXING SERVICES
+    if (lowerCategory.includes('wax')) {
+      return `WAXING SERVICE - Analyze and describe:
+- Area: eyebrow-wax, lip-wax, leg-wax, brazilian, bikini
+- Result: smooth-skin, hair-removal, clean, groomed
+- Type: sugaring, hard-wax, strip-wax
+- Coverage: full, partial, touch-up`;
+    }
+
+    // SPA & WELLNESS
+    if (
+      lowerCategory.includes('spa') ||
+      lowerCategory.includes('massage') ||
+      lowerCategory.includes('wellness')
+    ) {
+      return `SPA/WELLNESS SERVICE - Analyze and describe:
+- Treatment: massage, body-scrub, aromatherapy, hot-stone
+- Environment: relaxing, spa-setting, tranquil, luxurious
+- Result: relaxation, rejuvenation, stress-relief, wellness
+- Type: deep-tissue, swedish, therapeutic, holistic`;
+    }
+
+    // GENERIC/UNKNOWN CATEGORY
+    return `BEAUTY SERVICE - Analyze and describe ALL visible elements:
+- Service Type: hair, makeup, nails, lashes, brows, skincare, waxing, spa
+- Style Details: specific techniques, looks, patterns visible
+- Quality: professional, polished, natural, dramatic, subtle
+- Features: colors, textures, shapes, designs, finishes
+- Complexity: simple, moderate, detailed, intricate, artistic
+- Occasion: everyday, special-event, bridal, photoshoot, professional`;
   }
 
   /**

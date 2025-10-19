@@ -10,6 +10,7 @@ import type {
   SaveServiceMediaResponse,
   GenerateServiceDescriptionResponse,
   Service,
+  GetDraftServicesResponse,
 } from '../../../shared-types';
 
 /**
@@ -325,6 +326,32 @@ export async function updateService(
     });
   } catch (error) {
     if (error instanceof Error && error.message === 'Service not found or access denied') {
+      return next(new AppError(404, error.message));
+    }
+    next(error);
+  }
+}
+
+/**
+ * Get draft services for provider
+ */
+export async function getDraftServices(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    if (!userId) throw new AppError(401, 'Unauthorized');
+
+    const result = await serviceService.getDraftServices(userId);
+
+    sendSuccess<GetDraftServicesResponse>(res, {
+      drafts: result.drafts,
+      total: result.total,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Provider profile not found') {
       return next(new AppError(404, error.message));
     }
     next(error);

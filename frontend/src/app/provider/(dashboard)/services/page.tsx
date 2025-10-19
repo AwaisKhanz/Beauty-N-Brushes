@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
+import { DraftServicesSection } from '@/components/services/DraftServicesSection';
 import type { GetServicesResponse } from '../../../../../../shared-types';
 
 export default function ServicesPage() {
@@ -168,6 +169,9 @@ export default function ServicesPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Draft Services Section */}
+      <DraftServicesSection />
 
       {/* Services Table */}
       <Card>

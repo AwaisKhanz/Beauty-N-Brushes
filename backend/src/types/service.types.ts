@@ -19,6 +19,10 @@ export interface CreateServiceData {
     price: number;
     duration: number;
   }>;
+  // Template tracking
+  createdFromTemplate?: boolean;
+  templateId?: string;
+  templateName?: string;
 }
 
 export interface UploadResult {

@@ -1,6 +1,7 @@
 import { prisma } from '../config/database';
 import { aiService } from '../lib/ai';
 import type { CreateServiceData } from '../types/service.types';
+import type { SaveServiceMediaRequest } from '../../../shared-types';
 
 export class ServiceService {
   /**
@@ -73,6 +74,10 @@ export class ServiceService {
           depositAmount: data.depositAmount,
           durationMinutes: data.durationMinutes,
           active: true,
+          // Template tracking
+          createdFromTemplate: data.createdFromTemplate || false,
+          templateId: data.templateId,
+          templateName: data.templateName,
         },
       });
 
@@ -99,7 +104,11 @@ export class ServiceService {
   /**
    * Upload service media with AI auto-tagging
    */
-  async uploadServiceMedia(userId: string, serviceId: string, mediaData: any[]) {
+  async uploadServiceMedia(
+    userId: string,
+    serviceId: string,
+    mediaData: SaveServiceMediaRequest['mediaUrls']
+  ) {
     // Verify service belongs to user and get service details for multimodal context
     const service = await prisma.service.findFirst({
       where: {
@@ -133,15 +142,16 @@ export class ServiceService {
       where: { serviceId },
     });
 
-    // Analyze images with AI and generate embeddings
+    // TWO-STAGE AI ANALYSIS for better matching
+    // Stage 1: Extract visual features (tags)
+    // Stage 2: Generate embedding with ENRICHED context (service info + AI tags)
     const analyzedMedia = await Promise.all(
       mediaData.map(async (media) => {
         if (media.mediaType === 'image') {
           try {
-            console.log(`Analyzing image: ${media.url}`);
+            console.log(`🤖 Analyzing image: ${media.url}`);
 
             // Fetch the image from local storage and convert to base64
-            // This works for localhost URLs that AI APIs can't access directly
             const imageResponse = await fetch(media.url);
             if (!imageResponse.ok) {
               throw new Error(`Failed to fetch image: ${imageResponse.statusText}`);
@@ -151,34 +161,51 @@ export class ServiceService {
             const imageBuffer = Buffer.from(imageArrayBuffer);
             const base64Image = imageBuffer.toString('base64');
 
-            // Analyze image using base64 (works with localhost URLs)
-            const analysis = await aiService.analyzeImageFromBase64(base64Image);
+            // STAGE 1: AI Vision Analysis - Extract visual features (CATEGORY-AWARE)
+            console.log(
+              `   📊 Stage 1: Extracting visual features for ${service.category.name}...`
+            );
+            const analysis = await aiService.analyzeImageFromBase64(
+              base64Image,
+              service.category.name // Pass category for specialized analysis
+            );
 
-            // Generate MULTIMODAL vector embedding (image + text context)
-            // This combines visual features + semantic meaning for better matching
-            // Uses 1408 dimensions for maximum detail (texture, color, lighting, context)
+            // STAGE 2: Generate ENRICHED MULTIMODAL Embedding
+            // Combine: Service context + AI-extracted visual features
+            // This creates better matching because embedding includes both:
+            // - Semantic meaning (what service is about)
+            // - Visual features (what image shows)
+            console.log(`   🧠 Stage 2: Generating enriched embedding...`);
+
+            const enrichedContext = [
+              serviceContext, // "Knotless Box Braids - Medium length... - Hair"
+              ...analysis.tags.slice(0, 10), // Top 10 visual feature tags
+            ]
+              .filter(Boolean)
+              .join(' ');
+
             const embedding = await aiService.generateMultimodalEmbedding(
               imageBuffer,
-              serviceContext // Service title, description, category
+              enrichedContext // Service info + AI visual tags
             );
 
             // Format embedding for PostgreSQL vector type
             const embeddingStr = `[${embedding.join(',')}]`;
 
-            console.log(`✅ AI analysis complete for ${media.url}`);
-            console.log(`   Tags: ${analysis.tags.join(', ')}`);
-            console.log(`   Embedding: ${embedding.length}-dim MULTIMODAL vector (image + text)`);
+            console.log(`   ✅ Analysis complete!`);
+            console.log(`      Tags: ${analysis.tags.slice(0, 8).join(', ')}`);
+            console.log(`      Context: "${enrichedContext.substring(0, 80)}..."`);
+            console.log(`      Embedding: ${embedding.length}-dim MULTIMODAL vector`);
 
             return {
               ...media,
               aiTags: analysis.tags,
               aiEmbedding: embeddingStr,
-              colorPalette: analysis.dominantColors ? { colors: analysis.dominantColors } : null,
+              colorPalette: null, // Removed - not needed for matching
             };
           } catch (error) {
-            console.error('AI analysis failed for image:', error);
+            console.error('❌ AI analysis failed for image:', error);
             // Continue with default values if analysis fails
-            // Use empty 1408-dimension vector for multimodal embedding (required field)
             const emptyEmbedding = new Array(1408).fill(0);
             const embeddingStr = `[${emptyEmbedding.join(',')}]`;
 
@@ -191,7 +218,6 @@ export class ServiceService {
           }
         }
         // Videos don't get AI analysis yet
-        // Use empty 1408-dimension vector for multimodal embedding (required field)
         const emptyEmbedding = new Array(1408).fill(0);
         const embeddingStr = `[${emptyEmbedding.join(',')}]`;
 
@@ -456,6 +482,7 @@ Return as JSON array: ["hashtag1", "hashtag2", ...]`;
           },
         },
         category: true,
+        subcategory: true,
         addons: {
           where: { isActive: true },
           orderBy: { displayOrder: 'asc' },
@@ -553,6 +580,12 @@ Return as JSON array: ["hashtag1", "hashtag2", ...]`;
         durationMinutes: data.durationMinutes,
         depositType: data.depositType,
         depositAmount: data.depositAmount,
+        // Preserve template tracking (if provided in update)
+        ...(data.createdFromTemplate !== undefined && {
+          createdFromTemplate: data.createdFromTemplate,
+          templateId: data.templateId,
+          templateName: data.templateName,
+        }),
       },
     });
 
@@ -579,6 +612,48 @@ Return as JSON array: ["hashtag1", "hashtag2", ...]`;
     }
 
     return updatedService;
+  }
+
+  /**
+   * Get draft services by provider
+   */
+  async getDraftServices(userId: string) {
+    const provider = await prisma.providerProfile.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!provider) {
+      throw new Error('Provider profile not found');
+    }
+
+    const drafts = await prisma.serviceDraft.findMany({
+      where: {
+        providerId: provider.id,
+      },
+      orderBy: {
+        updatedAt: 'desc',
+      },
+    });
+
+    // Convert drafts to DraftService format
+    const draftServices = drafts.map((draft) => {
+      const draftData = draft.draftData as any;
+      return {
+        id: draft.id,
+        title: draftData.title || 'Untitled Service',
+        category: draftData.category || '',
+        subcategory: draftData.subcategory || '',
+        currentStep: draft.currentStep,
+        lastSaved: draft.updatedAt.toISOString(),
+        isDraft: true as const,
+      };
+    });
+
+    return {
+      drafts: draftServices,
+      total: draftServices.length,
+    };
   }
 }
 

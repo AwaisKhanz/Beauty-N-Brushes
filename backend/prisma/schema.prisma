@@ -111,13 +111,12 @@ model User {
   refreshTokenExpiry DateTime?
 
   // Relations
-  providerProfile     ProviderProfile?
-  bookingsAsClient    Booking[]           @relation("ClientBookings")
-  reviews             Review[]
-  messagesAsSender    Message[]           @relation("SenderMessages")
-  favorites           Favorite[]
-  savedSearches       SavedSearch[]
-  inspirationImages   InspirationImage[]
+  providerProfile  ProviderProfile?
+  bookingsAsClient Booking[]        @relation("ClientBookings")
+  reviews          Review[]
+  messagesAsSender Message[]        @relation("SenderMessages")
+  favorites        Favorite[]
+  savedSearches    SavedSearch[]
 
   @@index([email])
   @@index([role])
@@ -245,6 +244,7 @@ model ProviderProfile {
   timeOff      ProviderTimeOff[]
   policies     ProviderPolicy?
   favorites    Favorite[]
+  serviceDraft ServiceDraft?
 
   @@index([slug])
   @@index([city, state])
@@ -281,10 +281,10 @@ model ProviderPolicy {
   refundPolicyText String?
 
   // General Policies
-  consultationRequired  Boolean @default(false)
-  depositRequired       Boolean @default(true)
+  consultationRequired   Boolean @default(false)
+  depositRequired        Boolean @default(true)
   requiresClientProducts Boolean @default(false)
-  touchUpPolicyText     String?
+  touchUpPolicyText      String?
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -367,6 +367,11 @@ model Service {
   active            Boolean @default(true)
   acceptsNewClients Boolean @default(true)
 
+  // Template Tracking
+  createdFromTemplate Boolean @default(false)
+  templateId          String?
+  templateName        String?
+
   // Analytics
   bookingCount  Int @default(0)
   viewCount     Int @default(0)
@@ -448,6 +453,25 @@ model ServiceAddon {
   updatedAt DateTime @updatedAt
 
   @@index([serviceId])
+}
+
+// ================================
+// SERVICE DRAFTS
+// ================================
+
+model ServiceDraft {
+  id          String   @id @default(uuid())
+  providerId  String   @unique
+  draftData   Json // Store entire wizard form state
+  currentStep Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  expiresAt   DateTime // Auto-delete after 30 days
+
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([providerId])
+  @@index([expiresAt])
 }
 
 // ================================
@@ -699,31 +723,6 @@ model SavedSearch {
   priceMax         Decimal? @db.Decimal(10, 2)
 
   notifyNewMatches Boolean @default(false)
-
-  createdAt DateTime @default(now())
-
-  @@index([clientId])
-}
-
-model InspirationImage {
-  id       String @id @default(uuid())
-  clientId String
-  client   User   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-
-  // Image Data
-  imageUrl     String
-  thumbnailUrl String?
-  sourceUrl    String?
-
-  // AI Analysis (CLIP embeddings for image matching)
-  aiTags              String[]                    @default([])
-  aiEmbedding         Unsupported("vector(1408)") @default(dbgenerated("'[0]'::vector"))
-  styleDescription    String?
-  colorPalette        Json?
-
-  // Organization
-  notes      String?
-  isFavorite Boolean @default(false)
 
   createdAt DateTime @default(now())
 

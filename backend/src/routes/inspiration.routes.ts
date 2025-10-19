@@ -7,16 +7,10 @@ const router = Router();
 // All routes require authentication
 router.use(authenticate);
 
-// Upload inspiration image for analysis
-router.post('/upload', inspirationController.uploadInspiration);
+// Analyze inspiration image (ephemeral - no storage)
+router.post('/analyze', inspirationController.analyzeInspiration);
 
-// Match inspiration to providers
-router.post('/:inspirationId/match', inspirationController.matchInspiration);
-
-// Get all inspirations for current user
-router.get('/', inspirationController.getInspirations);
-
-// Delete inspiration
-router.delete('/:inspirationId', inspirationController.deleteInspiration);
+// Match inspiration to providers (ephemeral search)
+router.post('/match', inspirationController.matchInspiration);
 
 export default router;

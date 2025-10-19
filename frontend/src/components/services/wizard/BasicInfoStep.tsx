@@ -40,12 +40,14 @@ interface BasicInfoStepProps {
   isEdit?: boolean;
 }
 
-export function BasicInfoStep({ form }: BasicInfoStepProps) {
+export function BasicInfoStep({ form, isEdit }: BasicInfoStepProps) {
   const [creationMode, setCreationMode] = useState<'preset' | 'custom'>('preset');
   const [selectedTemplate, setSelectedTemplate] = useState<ServiceTemplate | null>(null);
 
   const selectedCategory = form.watch('category');
   const selectedSubcategory = form.watch('subcategory');
+  const createdFromTemplate = form.watch('createdFromTemplate');
+  const templateId = form.watch('templateId');
 
   const currentCategory = selectedCategory ? getCategoryById(selectedCategory) : null;
   const currentSubcategory = currentCategory?.subcategories?.find(
@@ -54,6 +56,80 @@ export function BasicInfoStep({ form }: BasicInfoStepProps) {
 
   // Get templates to display
   const templatesToShow = currentSubcategory?.templates || currentCategory?.templates || [];
+
+  // Debug logging
+  useEffect(() => {
+    if (createdFromTemplate || templateId) {
+      console.log('🔍 Template debug:', {
+        isEdit,
+        createdFromTemplate,
+        templateId,
+        selectedCategory,
+        selectedSubcategory,
+        templatesToShow: templatesToShow.length,
+        selectedTemplate: selectedTemplate?.name,
+      });
+    }
+  }, [
+    isEdit,
+    createdFromTemplate,
+    templateId,
+    selectedCategory,
+    selectedSubcategory,
+    templatesToShow.length,
+    selectedTemplate,
+  ]);
+
+  // On mount: If editing a service created from template OR restoring a draft with template, restore template state
+  useEffect(() => {
+    // Only run template restoration if we have template data AND we're either editing or have a template ID
+    if (createdFromTemplate && templateId && selectedCategory && templatesToShow.length > 0) {
+      console.log('🔍 Looking for template:', templateId);
+      console.log(
+        '📋 Available templates:',
+        templatesToShow.map((t) => ({ id: t.id, name: t.name }))
+      );
+
+      // Find the template that was used
+      let originalTemplate = templatesToShow.find((t) => t.id === templateId);
+
+      // Fallback: try to find by name if ID doesn't match
+      if (!originalTemplate && templateId) {
+        const templateName = form.getValues('templateName');
+        if (templateName) {
+          originalTemplate = templatesToShow.find((t) => t.name === templateName);
+          console.log(
+            '🔄 Trying fallback by name:',
+            templateName,
+            originalTemplate ? 'Found!' : 'Not found'
+          );
+        }
+      }
+
+      if (originalTemplate) {
+        console.log('🎯 Restoring template state:', originalTemplate.name);
+        setCreationMode('preset');
+        setSelectedTemplate(originalTemplate);
+      } else {
+        console.log(
+          '❌ Template not found:',
+          templateId,
+          'Available:',
+          templatesToShow.map((t) => t.id)
+        );
+        // Only switch to custom mode if we're in edit mode (not when browsing subcategories)
+        if (isEdit) {
+          setCreationMode('custom');
+        }
+        // For new services, keep preset mode but clear selection
+        setSelectedTemplate(null);
+      }
+    } else if (createdFromTemplate === false) {
+      // Explicitly custom service (edit or draft)
+      setCreationMode('custom');
+    }
+    // Don't change mode if createdFromTemplate is undefined (new service browsing)
+  }, [createdFromTemplate, templateId, selectedCategory, templatesToShow, form, isEdit]);
 
   // Auto-fill when template is selected
   useEffect(() => {
@@ -82,12 +158,20 @@ export function BasicInfoStep({ form }: BasicInfoStepProps) {
   const handleTemplateSelect = (template: ServiceTemplate) => {
     setSelectedTemplate(template);
     form.setValue('title', template.name);
+    // Set template tracking fields
+    form.setValue('createdFromTemplate', true);
+    form.setValue('templateId', template.id);
+    form.setValue('templateName', template.name);
     // Keep category and subcategory as already selected
   };
 
   const handleCustomMode = () => {
     setCreationMode('custom');
     setSelectedTemplate(null);
+    // Clear template tracking when switching to custom
+    form.setValue('createdFromTemplate', false);
+    form.setValue('templateId', undefined);
+    form.setValue('templateName', undefined);
   };
 
   const handlePresetMode = () => {
@@ -210,36 +294,55 @@ export function BasicInfoStep({ form }: BasicInfoStepProps) {
             )}
           </div>
 
-          {/* Template Selection */}
+          {/* Template Selection - Compact Dropdown */}
           {templatesToShow.length > 0 &&
             (selectedSubcategory || !currentCategory?.subcategories) && (
               <div>
                 <Label className="text-base font-semibold mb-3 block">
                   Choose a Service Template ({templatesToShow.length} available)
                 </Label>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[400px] overflow-y-auto p-1">
-                  {templatesToShow.map((template: ServiceTemplate) => (
-                    <Card
-                      key={template.id}
-                      className={`cursor-pointer transition-all hover:shadow-md ${
-                        selectedTemplate?.id === template.id
-                          ? 'ring-2 ring-primary bg-primary/5'
-                          : 'hover:border-primary/50'
-                      }`}
-                      onClick={() => handleTemplateSelect(template)}
-                    >
-                      <CardContent className="p-4">
-                        <div className="space-y-2">
-                          <div className="flex items-start justify-between">
-                            <h4 className="font-medium text-sm leading-tight">{template.name}</h4>
-                            {selectedTemplate?.id === template.id && (
-                              <Badge variant="default" className="ml-2 shrink-0">
-                                Selected
-                              </Badge>
-                            )}
-                          </div>
 
-                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <Select
+                  value={selectedTemplate?.id || ''}
+                  onValueChange={(value) => {
+                    const template = templatesToShow.find((t) => t.id === value);
+                    if (template) {
+                      handleTemplateSelect(template);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-full h-12">
+                    <SelectValue placeholder="Select a template...">
+                      {selectedTemplate && (
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4" />
+                          <span className="font-medium">{selectedTemplate.name}</span>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {selectedTemplate.suggestedDuration}m
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <DollarSign className="h-3 w-3" />
+                              {selectedTemplate.suggestedPriceMin ===
+                              selectedTemplate.suggestedPriceMax
+                                ? `$${selectedTemplate.suggestedPriceMin}`
+                                : `$${selectedTemplate.suggestedPriceMin}-${selectedTemplate.suggestedPriceMax}`}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    {templatesToShow.map((template: ServiceTemplate) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        <div className="flex items-center justify-between w-full">
+                          <div className="flex items-center gap-2">
+                            <Package className="h-4 w-4" />
+                            <span className="font-medium">{template.name}</span>
+                          </div>
+                          <div className="flex items-center gap-3 text-sm text-muted-foreground ml-4">
                             <span className="flex items-center gap-1">
                               <Clock className="h-3 w-3" />
                               {template.suggestedDuration}m
@@ -252,20 +355,18 @@ export function BasicInfoStep({ form }: BasicInfoStepProps) {
                             </span>
                           </div>
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
                 {selectedTemplate && (
-                  <Card className="mt-4 bg-success/10 border-success/20">
-                    <CardContent className="p-4">
-                      <p className="text-sm text-muted-foreground">
-                        ✓ <strong>{selectedTemplate.name}</strong> selected! Duration and pricing
-                        will be auto-filled in the next steps.
-                      </p>
-                    </CardContent>
-                  </Card>
+                  <div className="mt-3 p-3 bg-secondary rounded-lg">
+                    <p className="text-sm text-secondary-foreground">
+                      ✓ <strong>{selectedTemplate.name}</strong> selected! Duration and pricing will
+                      be auto-filled in the next steps.
+                    </p>
+                  </div>
                 )}
               </div>
             )}
@@ -301,9 +402,9 @@ export function BasicInfoStep({ form }: BasicInfoStepProps) {
 
         {/* CUSTOM MODE */}
         <TabsContent value="custom" className="space-y-6">
-          <Card className="bg-tertiary/10 border-tertiary/20">
+          <Card className="bg-info/10 border-info/20">
             <CardContent className="p-4">
-              <p className="text-sm text-tertiary-foreground">
+              <p className="text-sm text-muted-foreground">
                 <Sparkles className="h-4 w-4 inline mr-1" />
                 <strong>Custom Service:</strong> Create your own unique service. AI will generate
                 description, hashtags, and pricing suggestions based on your title.

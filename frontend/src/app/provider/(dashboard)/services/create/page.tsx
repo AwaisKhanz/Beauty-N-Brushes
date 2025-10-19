@@ -43,8 +43,12 @@ export default function CreateServicePage() {
       setInitialData({
         title: serviceData.title,
         description: serviceData.description,
-        category: serviceData.categoryId || serviceData.category?.id || '',
-        subcategory: serviceData.subcategoryId || '',
+        category: serviceData.category?.slug || '',
+        subcategory: serviceData.subcategory?.slug || '',
+        // Template tracking
+        createdFromTemplate: serviceData.createdFromTemplate || false,
+        templateId: serviceData.templateId || undefined,
+        templateName: serviceData.templateName || undefined,
         priceMin: Number(serviceData.priceMin),
         priceMax: serviceData.priceMax ? Number(serviceData.priceMax) : 0,
         priceType: serviceData.priceType as 'fixed' | 'range' | 'starting_at',
@@ -93,6 +97,10 @@ export default function CreateServicePage() {
         depositType: data.depositType,
         depositAmount: data.depositAmount,
         addons: data.addons,
+        // Template tracking
+        createdFromTemplate: data.createdFromTemplate,
+        templateId: data.templateId,
+        templateName: data.templateName,
       };
 
       if (isEdit && editServiceId) {
