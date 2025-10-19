@@ -416,14 +416,8 @@ model ServiceMedia {
   isAfterPhoto  Boolean @default(false)
 
   // AI Tagging for Matching
-  hairType        String?
-  styleType       String?
-  colorInfo       String?
-  complexityLevel String?
-
-  // Vector Search (NEW - for AI-powered image matching with CLIP)
   aiTags       String[]                    @default([])
-  aiEmbedding  Unsupported("vector(512)")  @default(dbgenerated("'[0]'::vector"))
+  aiEmbedding  Unsupported("vector(1408)") @default(dbgenerated("'[0]'::vector"))
   colorPalette Json?
 
   // Status
@@ -722,8 +716,8 @@ model InspirationImage {
   sourceUrl    String?
 
   // AI Analysis (CLIP embeddings for image matching)
-  aiTags              String[]                   @default([])
-  aiEmbedding         Unsupported("vector(512)")  @default(dbgenerated("'[0]'::vector"))
+  aiTags              String[]                    @default([])
+  aiEmbedding         Unsupported("vector(1408)") @default(dbgenerated("'[0]'::vector"))
   styleDescription    String?
   colorPalette        Json?
 

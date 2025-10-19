@@ -260,7 +260,7 @@ export function BasicInfoStep({ form }: BasicInfoStepProps) {
                 {selectedTemplate && (
                   <Card className="mt-4 bg-success/10 border-success/20">
                     <CardContent className="p-4">
-                      <p className="text-sm text-success-foreground">
+                      <p className="text-sm text-muted-foreground">
                         ✓ <strong>{selectedTemplate.name}</strong> selected! Duration and pricing
                         will be auto-filled in the next steps.
                       </p>

@@ -199,12 +199,7 @@ export function InspirationUpload({ onMatchesFound }: InspirationUploadProps) {
                 <AlertDescription>
                   <p className="font-medium mb-2">AI Analysis Complete!</p>
                   <div className="flex flex-wrap gap-2">
-                    {analysis.styleType && <Badge variant="secondary">{analysis.styleType}</Badge>}
-                    {analysis.hairType && <Badge variant="secondary">{analysis.hairType}</Badge>}
-                    {analysis.complexityLevel && (
-                      <Badge variant="outline">{analysis.complexityLevel}</Badge>
-                    )}
-                    {analysis.tags?.slice(0, 5).map((tag: string, i: number) => (
+                    {analysis.tags?.slice(0, 10).map((tag: string, i: number) => (
                       <Badge key={i} variant="outline">
                         {tag}
                       </Badge>
@@ -251,7 +246,7 @@ export function InspirationUpload({ onMatchesFound }: InspirationUploadProps) {
           <p className="font-medium text-info-foreground mb-1">How it works:</p>
           <ol className="text-info-foreground space-y-1 list-decimal list-inside">
             <li>Upload a photo of the hairstyle or look you want</li>
-            <li>Our AI analyzes the style, texture, color, and complexity</li>
+            <li>Our AI analyzes the style with advanced visual recognition</li>
             <li>We match you with local professionals who've done similar work</li>
             <li>Book your appointment with confidence!</li>
           </ol>

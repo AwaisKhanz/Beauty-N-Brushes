@@ -13,6 +13,23 @@ import type {
 } from '../../../shared-types';
 
 /**
+ * ============================================
+ * PURE VECTOR SIMILARITY MATCHING
+ * ============================================
+ *
+ * REMOVED: isValidBeautyInspirationImage() and calculateSemanticRelevance()
+ *
+ * We now use PURE VECTOR SIMILARITY matching - NO tag-based filtering
+ * User feedback: "I complete want vector matching not these tag, they are creating issue"
+ *
+ * The system now relies entirely on:
+ * - 1408-dimensional multimodal embeddings (image + text context)
+ * - Cosine distance vector similarity search
+ * - Non-linear perception-based scoring
+ * - IVFFlat ANN indexing for performance
+ */
+
+/**
  * Upload and analyze inspiration image
  */
 export async function uploadInspiration(
@@ -50,10 +67,22 @@ export async function uploadInspiration(
     const base64Image = imageBuffer.toString('base64');
     const analysis = await aiService.analyzeImageFromBase64(base64Image);
 
-    // Generate IMAGE-BASED embedding (not text-based!)
-    // This preserves visual features like color, texture, and style
-    const embedding = await aiService.generateImageEmbedding(imageBuffer);
+    // Build text context from AI analysis for multimodal embedding
+    const inspirationContext = [
+      ...analysis.tags.slice(0, 5), // Top 5 tags
+      notes, // User's notes if provided
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    // Generate MULTIMODAL embedding (image + text context)
+    // This combines visual features + semantic meaning for better matching
+    // Uses 1408 dimensions for maximum detail
+    const embedding = await aiService.generateMultimodalEmbedding(imageBuffer, inspirationContext);
     const embeddingStr = `[${embedding.join(',')}]`;
+
+    console.log(`✅ Generated ${embedding.length}-dim MULTIMODAL embedding`);
+    console.log(`   Context: "${inspirationContext.substring(0, 80)}..."`);
 
     // Store inspiration using raw SQL for vector support
     const result = await prisma.$queryRaw<Array<{ id: string }>>`
@@ -78,7 +107,6 @@ export async function uploadInspiration(
         ${sourceUrl || null}::text,
         ${analysis.tags}::text[],
         ${embeddingStr}::vector,
-        ${analysis.styleType || null}::text,
         ${
           analysis.dominantColors ? JSON.stringify({ colors: analysis.dominantColors }) : null
         }::jsonb,
@@ -135,10 +163,6 @@ export async function uploadInspiration(
         message: 'Inspiration analyzed successfully',
         inspiration: inspiration as any,
         analysis: {
-          hairType: analysis.hairType,
-          styleType: analysis.styleType,
-          colorInfo: analysis.colorInfo,
-          complexityLevel: analysis.complexityLevel,
           tags: analysis.tags,
           dominantColors: analysis.dominantColors,
         },
@@ -188,9 +212,15 @@ export async function matchInspiration(
       throw new AppError(404, 'Inspiration not found');
     }
 
-    // Vector similarity search
-    // Using cosine distance (<=>), lower values are better matches
-    // Build query conditionally based on location filter
+    // Vector similarity search using COSINE DISTANCE
+    // Google's multimodal embeddings are NORMALIZED, so cosine distance is optimal
+    //
+    // Distance metrics:
+    // - <=> (cosine distance): Range 0-2, where 0 = identical, 2 = opposite
+    // - <#> (negative inner product): For normalized vectors, equivalent to cosine
+    // - <-> (L2 distance): Euclidean distance, not recommended for normalized embeddings
+    //
+    // Google best practice: Use cosine distance for multimodal embeddings
     const baseQuery = Prisma.sql`
       SELECT
         sm."id"::text as media_id,
@@ -245,37 +275,88 @@ export async function matchInspiration(
       }>
     >(Prisma.join([baseQuery, locationCondition, orderAndLimit], ''));
 
-    // Transform matches and calculate match scores
-    const transformedMatches = matches.map((match) => {
-      // Convert distance to match score (0-1, where 1 is perfect)
-      // Cosine distance ranges from 0 (identical) to 2 (opposite)
-      const matchScore = Math.max(0, 1 - match.distance / 2);
+    // Get inspiration tags for display purposes only
+    const inspirationTags = inspiration.aiTags || [];
 
-      // Find matching tags for reference
-      const inspirationTags = inspiration.aiTags || [];
-      const serviceTags = match.ai_tags || [];
-      const matchingTags = inspirationTags.filter((tag: string) => serviceTags.includes(tag));
+    console.log('\n🎯 Matching Debug:');
+    console.log('   Inspiration tags:', inspirationTags.slice(0, 10));
+    console.log('   Raw matches found:', matches.length);
 
-      return {
-        mediaId: match.media_id,
-        mediaUrl: match.media_url,
-        thumbnailUrl: match.thumbnail_url,
-        serviceId: match.service_id,
-        serviceTitle: match.service_title,
-        servicePriceMin: Number(match.service_price_min),
-        serviceCurrency: match.service_currency,
-        providerId: match.provider_id,
-        providerBusinessName: match.provider_business_name,
-        providerSlug: match.provider_slug,
-        providerLogoUrl: match.provider_logo_url || undefined,
-        providerCity: match.provider_city,
-        providerState: match.provider_state,
-        matchScore: Math.round(matchScore * 100), // Convert to 0-100 scale (pure vector similarity)
-        distance: match.distance,
-        matchingTags: matchingTags,
-        aiTags: match.ai_tags, // Include all AI tags
-      };
-    });
+    // Transform matches - PURE VECTOR SIMILARITY with realistic scoring
+    const transformedMatches = matches
+      .map((match) => {
+        // Convert cosine distance to similarity
+        const cosineSimilarity = 1 - match.distance;
+
+        // Realistic scoring algorithm
+        // Based on research: cosine similarity > 0.95 = very similar images
+        // We use a non-linear scale for more realistic perception
+        let matchScore: number;
+
+        if (cosineSimilarity >= 0.98) {
+          // 98-100% similarity = Nearly identical (score: 95-100)
+          matchScore = 95 + (cosineSimilarity - 0.98) * 250;
+        } else if (cosineSimilarity >= 0.9) {
+          // 90-98% similarity = Very similar (score: 85-95)
+          matchScore = 85 + (cosineSimilarity - 0.9) * 125;
+        } else if (cosineSimilarity >= 0.8) {
+          // 80-90% similarity = Similar (score: 70-85)
+          matchScore = 70 + (cosineSimilarity - 0.8) * 150;
+        } else if (cosineSimilarity >= 0.7) {
+          // 70-80% similarity = Somewhat similar (score: 55-70)
+          matchScore = 55 + (cosineSimilarity - 0.7) * 150;
+        } else if (cosineSimilarity >= 0.6) {
+          // 60-70% similarity = Loosely related (score: 40-55)
+          matchScore = 40 + (cosineSimilarity - 0.6) * 150;
+        } else {
+          // < 60% similarity = Low match (score: 0-40)
+          matchScore = Math.max(0, cosineSimilarity * 66.7);
+        }
+
+        matchScore = Math.round(Math.min(100, Math.max(0, matchScore)));
+
+        // Find matching tags for display purposes only
+        const serviceTags = match.ai_tags || [];
+        const matchingTags = inspirationTags.filter((tag: string) => serviceTags.includes(tag));
+
+        // Debug first match only
+        if (match === matches[0]) {
+          console.log('\n   📊 First Match Details:');
+          console.log('      Service tags:', serviceTags.slice(0, 10));
+          console.log('      Cosine similarity:', Math.round(cosineSimilarity * 1000) / 1000);
+          console.log('      Match score:', matchScore);
+          console.log('      Distance:', match.distance);
+        }
+
+        return {
+          mediaId: match.media_id,
+          mediaUrl: match.media_url,
+          thumbnailUrl: match.thumbnail_url,
+          serviceId: match.service_id,
+          serviceTitle: match.service_title,
+          servicePriceMin: Number(match.service_price_min),
+          serviceCurrency: match.service_currency,
+          providerId: match.provider_id,
+          providerBusinessName: match.provider_business_name,
+          providerSlug: match.provider_slug,
+          providerLogoUrl: match.provider_logo_url || undefined,
+          providerCity: match.provider_city,
+          providerState: match.provider_state,
+          matchScore: matchScore, // Realistic similarity score
+          distance: match.distance, // Raw distance for debugging
+          cosineSimilarity: Math.round(cosineSimilarity * 1000) / 1000, // Similarity for debugging
+          matchingTags: matchingTags, // Matching tags for display only
+          aiTags: match.ai_tags, // All AI tags for display
+        };
+      })
+      // Filter out low-quality matches (< 40% match score)
+      .filter((match) => match.matchScore >= 40);
+
+    console.log('   ✅ Matches after filtering:', transformedMatches.length);
+    console.log(
+      '   Top 3 scores:',
+      transformedMatches.slice(0, 3).map((m) => `${m.matchScore}%`)
+    );
 
     sendSuccess<MatchInspirationResponse>(res, {
       message: 'Matches found',

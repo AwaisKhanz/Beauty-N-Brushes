@@ -61,10 +61,6 @@ export default function CreateServicePage() {
             caption: media.caption || '',
             isFeatured: media.isFeatured || false,
             displayOrder: media.displayOrder,
-            hairType: '',
-            styleType: '',
-            colorInfo: '',
-            complexityLevel: '',
           })) || [],
         addons:
           serviceData.addons?.map((addon) => ({
@@ -112,10 +108,6 @@ export default function CreateServicePage() {
             caption: media.caption,
             displayOrder: media.displayOrder,
             isFeatured: media.isFeatured,
-            hairType: media.hairType,
-            styleType: media.styleType,
-            colorInfo: media.colorInfo,
-            complexityLevel: media.complexityLevel,
           }));
 
           await api.services.saveMedia(editServiceId, { mediaUrls });
@@ -142,10 +134,6 @@ export default function CreateServicePage() {
             caption: media.caption,
             displayOrder: media.displayOrder,
             isFeatured: media.isFeatured,
-            hairType: media.hairType,
-            styleType: media.styleType,
-            colorInfo: media.colorInfo,
-            complexityLevel: media.complexityLevel,
           }));
 
           await api.services.saveMedia(serviceId, { mediaUrls });

@@ -4,7 +4,6 @@ import { useState, useCallback, useRef } from 'react';
 import { UseFormReturn, useFieldArray } from 'react-hook-form';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -48,10 +47,6 @@ interface MediaItem {
   caption?: string;
   isFeatured: boolean;
   displayOrder: number;
-  hairType?: string;
-  styleType?: string;
-  colorInfo?: string;
-  complexityLevel?: string;
 }
 
 // Removed unused constants - now using open input fields for AI suggestions
@@ -141,10 +136,6 @@ export function MediaUploadStep({ form }: MediaUploadStepProps) {
             isFeatured: fields.length === 0, // First image is featured by default
             displayOrder: fields.length,
             caption: '',
-            hairType: '',
-            styleType: '',
-            colorInfo: '',
-            complexityLevel: '',
           } as const;
 
           append(mediaItem as any);
@@ -252,10 +243,6 @@ export function MediaUploadStep({ form }: MediaUploadStepProps) {
         const currentMedia = fields[index];
         const updatedMedia = {
           ...currentMedia,
-          hairType: result.data?.data?.hairType || currentMedia.hairType || '',
-          styleType: result.data?.data?.styleType || currentMedia.styleType || '',
-          colorInfo: result.data?.data?.colorInfo || currentMedia.colorInfo || '',
-          complexityLevel: result.data?.data?.complexityLevel || currentMedia.complexityLevel || '',
         };
 
         console.log('Updating media with AI tags:', updatedMedia);
@@ -442,27 +429,6 @@ export function MediaUploadStep({ form }: MediaUploadStepProps) {
                     {media.caption && (
                       <p className="text-xs text-muted-foreground truncate">{media.caption}</p>
                     )}
-
-                    {/* AI Tags Preview */}
-                    {(media.hairType || media.styleType || media.colorInfo) && (
-                      <div className="flex flex-wrap gap-1">
-                        {media.hairType && (
-                          <Badge variant="outline" className="text-xs">
-                            {media.hairType}
-                          </Badge>
-                        )}
-                        {media.styleType && (
-                          <Badge variant="outline" className="text-xs">
-                            {media.styleType}
-                          </Badge>
-                        )}
-                        {media.colorInfo && (
-                          <Badge variant="outline" className="text-xs">
-                            {media.colorInfo}
-                          </Badge>
-                        )}
-                      </div>
-                    )}
                   </div>
                 </div>
               ))}
@@ -510,59 +476,6 @@ export function MediaUploadStep({ form }: MediaUploadStepProps) {
                   className="resize-none"
                 />
               </div>
-
-              {/* AI Tags (for images only) */}
-              {fields[editingMedia].mediaType === 'image' && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Hair Type</Label>
-                    <Input
-                      key={`hairType-${editingMedia}`}
-                      defaultValue={fields[editingMedia].hairType || ''}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                        updateMediaField(editingMedia, 'hairType', e.target.value)
-                      }
-                      placeholder="e.g., straight, wavy, curly, coily"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Style Type</Label>
-                    <Input
-                      key={`styleType-${editingMedia}`}
-                      defaultValue={fields[editingMedia].styleType || ''}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                        updateMediaField(editingMedia, 'styleType', e.target.value)
-                      }
-                      placeholder="e.g., undercut, fade, bob, pixie cut"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Color Info</Label>
-                    <Input
-                      key={`colorInfo-${editingMedia}`}
-                      defaultValue={fields[editingMedia].colorInfo || ''}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                        updateMediaField(editingMedia, 'colorInfo', e.target.value)
-                      }
-                      placeholder="e.g., natural brown, blonde highlights, black"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Complexity Level</Label>
-                    <Input
-                      key={`complexityLevel-${editingMedia}`}
-                      defaultValue={fields[editingMedia].complexityLevel || ''}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                        updateMediaField(editingMedia, 'complexityLevel', e.target.value)
-                      }
-                      placeholder="e.g., simple, moderate, complex"
-                    />
-                  </div>
-                </div>
-              )}
 
               {/* Actions */}
               <div className="flex justify-between">

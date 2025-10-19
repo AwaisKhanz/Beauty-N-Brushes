@@ -92,36 +92,9 @@ export default function VisualSearchPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {analysisData.hairType && (
-                    <div>
-                      <p className="text-xs text-muted-foreground">Hair Type</p>
-                      <p className="font-medium capitalize">{analysisData.hairType}</p>
-                    </div>
-                  )}
-                  {analysisData.styleType && (
-                    <div>
-                      <p className="text-xs text-muted-foreground">Style</p>
-                      <p className="font-medium capitalize">{analysisData.styleType}</p>
-                    </div>
-                  )}
-                  {analysisData.colorInfo && (
-                    <div>
-                      <p className="text-xs text-muted-foreground">Color</p>
-                      <p className="font-medium capitalize">{analysisData.colorInfo}</p>
-                    </div>
-                  )}
-                  {analysisData.complexityLevel && (
-                    <div>
-                      <p className="text-xs text-muted-foreground">Complexity</p>
-                      <p className="font-medium capitalize">{analysisData.complexityLevel}</p>
-                    </div>
-                  )}
-                </div>
-
                 {analysisData.tags && analysisData.tags.length > 0 && (
                   <div>
-                    <p className="text-xs text-muted-foreground mb-2">Detected Tags:</p>
+                    <p className="text-xs text-muted-foreground mb-2">AI Detected Style Tags:</p>
                     <div className="flex flex-wrap gap-2">
                       {analysisData.tags.slice(0, 10).map((tag: string) => (
                         <Badge key={tag} variant="secondary">

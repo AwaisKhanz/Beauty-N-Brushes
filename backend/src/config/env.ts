@@ -42,17 +42,10 @@ const envSchema = z.object({
   SENDGRID_FROM_EMAIL: z.string().optional(),
   SENDGRID_FROM_NAME: z.string().default('Beauty N Brushes'),
 
-  // OpenAI
-  OPENAI_API_KEY: z.string().optional(),
-
-  // Google AI (REQUIRED for visual similarity search)
-  USE_GOOGLE_AI: z
-    .string()
-    .default('false')
-    .transform((val) => val === 'true'),
-  GOOGLE_AI_API_KEY: z.string().optional(),
-  GOOGLE_CLOUD_PROJECT_ID: z.string().optional(),
-  GOOGLE_APPLICATION_CREDENTIALS: z.string().optional(),
+  // Google Cloud AI (REQUIRED for all AI features)
+  GOOGLE_CLOUD_PROJECT: z.string(),
+  GOOGLE_CLOUD_LOCATION: z.string().default('us-central1'),
+  GOOGLE_APPLICATION_CREDENTIALS: z.string(),
 
   // Instagram OAuth
   INSTAGRAM_APP_ID: z.string().optional(),

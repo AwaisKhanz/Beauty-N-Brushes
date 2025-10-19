@@ -61,11 +61,6 @@ export const serviceWizardSchema = z.object({
         caption: z.string().default(''),
         isFeatured: z.boolean().default(false),
         displayOrder: z.number(),
-        // AI Tagging
-        hairType: z.string().default(''),
-        styleType: z.string().default(''),
-        colorInfo: z.string().default(''),
-        complexityLevel: z.string().default(''),
       })
     )
     .min(1, 'At least one image or video is required'),

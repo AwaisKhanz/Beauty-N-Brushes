@@ -222,11 +222,15 @@ export async function analyzeImage(
     const imageBuffer = await imageResponse.arrayBuffer();
     const base64Image = Buffer.from(imageBuffer).toString('base64');
 
-    const tags = await serviceService.analyzeImageForTagsFromBase64(base64Image);
+    // Use AI service directly to analyze image
+    const aiService = require('../lib/ai').default;
+    const analysis = await aiService.analyzeImageFromBase64(base64Image);
 
     sendSuccess(res, {
       message: 'Image analyzed successfully',
-      data: tags,
+      data: {
+        tags: analysis.tags,
+      },
     });
   } catch (error) {
     next(error);

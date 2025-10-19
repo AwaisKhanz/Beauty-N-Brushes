@@ -55,18 +55,27 @@ FROM_NAME=Beauty N Brushes
 # For Development: Uses local filesystem (no configuration needed)
 
 # ================================
-# AI Services
+# Google Cloud AI (REQUIRED)
 # ================================
 
-# OpenAI API (REQUIRED for AI features to work)
-# AI features will throw errors if not configured - no fallback responses
-OPENAI_API_KEY=sk-...
+# Google Cloud AI is used for ALL AI features:
+# - Image analysis (Google Vision AI)
+# - Text generation (Vertex AI - Gemini 1.5 Pro)
+# - Visual similarity search (Vision AI embeddings)
+#
+# Setup Instructions:
+# 1. Create a Google Cloud Project at https://console.cloud.google.com
+# 2. Enable these APIs:
+#    - Cloud Vision API
+#    - Vertex AI API
+# 3. Create a service account with these roles:
+#    - Vertex AI User
+#    - Cloud Vision AI Service Agent
+# 4. Download the JSON key file
+# 5. Set the path to the key file below
 
-# Google Cloud AI (REQUIRED for visual similarity search / "Find Your Look" feature)
-# This is used to create TRUE image-based embeddings (not text-based)
-# Get from: https://console.cloud.google.com/apis/credentials
-USE_GOOGLE_AI=true
-GOOGLE_CLOUD_PROJECT_ID=your-project-id
+GOOGLE_CLOUD_PROJECT=your-project-id
+GOOGLE_CLOUD_LOCATION=us-central1
 GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
 
 # How Visual Search Works:
@@ -77,7 +86,7 @@ GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
 # - Texture features (64 dims) - Color variance and complexity
 #
 # This allows matching based on ACTUAL visual similarity (color, texture, style)
-# NOT semantic text similarity (which can match yellow afro with brown fade!)
+# NOT semantic text similarity
 
 # ================================
 # Payment Providers

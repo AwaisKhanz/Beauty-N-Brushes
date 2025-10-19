@@ -370,9 +370,9 @@ export function AIDescriptionStep({ form }: AIDescriptionStepProps) {
           </div>
 
           {estimatedDuration && (
-            <div className="flex items-center gap-2 p-3 bg-info/10 rounded-lg">
-              <Clock className="h-4 w-4 text-info" />
-              <span className="text-sm text-info-foreground">
+            <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+              <Clock className="h-4 w-4 " />
+              <span className="text-sm !text-muted-foreground">
                 AI estimated duration: {estimatedDuration} minutes
               </span>
             </div>
@@ -526,8 +526,8 @@ export function AIDescriptionStep({ form }: AIDescriptionStepProps) {
       {/* Tips */}
       <Card className="bg-success/10 border-success/20">
         <CardContent className="p-4">
-          <h4 className="font-medium text-success-foreground mb-2">✨ AI Writing Tips:</h4>
-          <ul className="text-sm text-success-foreground space-y-1">
+          <h4 className="font-medium !text-muted-foreground mb-2">✨ AI Writing Tips:</h4>
+          <ul className="text-sm !text-muted-foreground space-y-1">
             <li>• AI generates descriptions based on your service title and category</li>
             <li>• Choose the tone that matches your brand personality</li>
             <li>• Edit the AI-generated content to add your personal touch</li>

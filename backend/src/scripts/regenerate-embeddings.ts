@@ -1,16 +1,16 @@
 /**
- * Migration Script: Regenerate Image Embeddings
+ * Migration Script: Regenerate Image Embeddings with 1408-dim Multimodal Fusion
  *
- * This script regenerates all image embeddings in the database using the
- * new image-based embedding system (instead of text-based).
+ * This script regenerates all image embeddings in the database using:
+ * - Google Cloud Vertex AI Multimodal Embeddings API
+ * - 1408 dimensions (upgraded from 512)
+ * - Image + text context fusion for better semantic matching
  *
  * Usage:
  *   npm run regenerate-embeddings
- *   npm run regenerate-embeddings -- --provider=openai
  *   npm run regenerate-embeddings -- --limit=10
  *
  * Options:
- *   --provider=google|openai  Override EMBEDDING_PROVIDER env variable
  *   --limit=N                 Only process N images (for testing)
  *   --skip=N                  Skip first N images
  *   --service-media           Only regenerate ServiceMedia embeddings
@@ -20,9 +20,10 @@
 import { prisma } from '../config/database';
 import { aiService } from '../lib/ai';
 import { Prisma } from '@prisma/client';
+import * as fs from 'fs';
+import * as path from 'path';
 
 interface Args {
-  provider?: 'google' | 'openai';
   limit?: number;
   skip?: number;
   serviceMedia?: boolean;
@@ -34,12 +35,7 @@ async function parseArgs(): Promise<Args> {
   const cliArgs = process.argv.slice(2);
 
   for (const arg of cliArgs) {
-    if (arg.startsWith('--provider=')) {
-      const value = arg.split('=')[1] as 'google' | 'openai';
-      if (value === 'google' || value === 'openai') {
-        args.provider = value;
-      }
-    } else if (arg.startsWith('--limit=')) {
+    if (arg.startsWith('--limit=')) {
       args.limit = parseInt(arg.split('=')[1], 10);
     } else if (arg.startsWith('--skip=')) {
       args.skip = parseInt(arg.split('=')[1], 10);
@@ -53,18 +49,73 @@ async function parseArgs(): Promise<Args> {
   return args;
 }
 
-async function regenerateServiceMediaEmbeddings(args: Args) {
-  console.log('\n📸 Regenerating ServiceMedia embeddings...\n');
+/**
+ * Helper function to load image from URL or local file
+ */
+async function loadImageBuffer(imageUrl: string): Promise<Buffer> {
+  // Check if it's a localhost URL that might fail
+  if (imageUrl.startsWith('http://localhost')) {
+    // Convert URL to local file path
+    // Example: http://localhost:8000/uploads/services/file.jpeg
+    //       -> uploads/services/file.jpeg
+    const urlPath = new URL(imageUrl).pathname;
+    const localPath = path.join(process.cwd(), urlPath.substring(1)); // Remove leading /
 
-  // Get all service media with images
-  const serviceMedia = await prisma.serviceMedia.findMany({
-    where: {
-      mediaType: 'image',
-    },
-    orderBy: { createdAt: 'desc' },
-    skip: args.skip,
-    take: args.limit,
-  });
+    // Try to read from local file first
+    if (fs.existsSync(localPath)) {
+      console.log(`   Reading from local file: ${localPath}`);
+      return fs.readFileSync(localPath);
+    } else {
+      console.log(`   File not found locally: ${localPath}`);
+      console.log(`   Attempting to fetch from URL: ${imageUrl}`);
+    }
+  }
+
+  // Fetch from URL
+  const imageResponse = await fetch(imageUrl);
+  if (!imageResponse.ok) {
+    throw new Error(`Failed to fetch image: ${imageResponse.statusText}`);
+  }
+
+  const imageArrayBuffer = await imageResponse.arrayBuffer();
+  return Buffer.from(imageArrayBuffer);
+}
+
+async function regenerateServiceMediaEmbeddings(args: Args) {
+  console.log('\n📸 Regenerating ServiceMedia embeddings with MULTIMODAL fusion...\n');
+
+  // Get all service media with service context for multimodal embeddings
+  const offsetSql = args.skip ? Prisma.sql`OFFSET ${args.skip}` : Prisma.empty;
+  const limitSql = args.limit ? Prisma.sql`LIMIT ${args.limit}` : Prisma.empty;
+
+  const serviceMedia = await prisma.$queryRaw<
+    Array<{
+      id: string;
+      serviceId: string;
+      fileUrl: string;
+      serviceTitle: string;
+      serviceDescription: string;
+      categoryName: string;
+      subcategoryName: string | null;
+    }>
+  >(Prisma.sql`
+    SELECT
+      sm.id::text,
+      sm."serviceId"::text,
+      sm."fileUrl",
+      s.title as "serviceTitle",
+      s.description as "serviceDescription",
+      sc.name as "categoryName",
+      ssc.name as "subcategoryName"
+    FROM "ServiceMedia" sm
+    INNER JOIN "Service" s ON s.id = sm."serviceId"
+    INNER JOIN "ServiceCategory" sc ON sc.id = s."categoryId"
+    LEFT JOIN "ServiceSubcategory" ssc ON ssc.id = s."subcategoryId"
+    WHERE sm."mediaType" = 'image' AND sm."fileUrl" IS NOT NULL
+    ORDER BY sm."createdAt" DESC
+    ${offsetSql}
+    ${limitSql}
+  `);
 
   console.log(`Found ${serviceMedia.length} service images to process`);
 
@@ -76,20 +127,25 @@ async function regenerateServiceMediaEmbeddings(args: Args) {
     const progress = `[${i + 1}/${serviceMedia.length}]`;
 
     try {
-      console.log(`${progress} Processing: ${media.fileUrl}`);
+      console.log(`${progress} Processing: ${media.fileUrl.substring(0, 60)}...`);
+      console.log(`   Service: "${media.serviceTitle}"`);
 
-      // Download image
-      const imageResponse = await fetch(media.fileUrl);
-      if (!imageResponse.ok) {
-        throw new Error(`Failed to fetch image: ${imageResponse.statusText}`);
-      }
+      // Load image (from local file or URL)
+      const imageBuffer = await loadImageBuffer(media.fileUrl);
 
-      const imageArrayBuffer = await imageResponse.arrayBuffer();
-      const imageBuffer = Buffer.from(imageArrayBuffer);
+      // Build multimodal context from service details
+      const serviceContext = [
+        media.serviceTitle,
+        media.serviceDescription,
+        media.categoryName,
+        media.subcategoryName,
+      ]
+        .filter(Boolean)
+        .join(' - ');
 
-      // Generate new image-based embedding
-      console.log(`${progress} Generating embedding...`);
-      const embedding = await aiService.generateImageEmbedding(imageBuffer);
+      // Generate 1408-dim MULTIMODAL embedding (image + text context)
+      console.log(`${progress} Generating 1408-dim multimodal embedding...`);
+      const embedding = await aiService.generateMultimodalEmbedding(imageBuffer, serviceContext);
       const embeddingStr = `[${embedding.join(',')}]`;
 
       // Update database using raw SQL (for vector type support)
@@ -99,13 +155,13 @@ async function regenerateServiceMediaEmbeddings(args: Args) {
         WHERE "id"::text = ${media.id}
       `;
 
-      console.log(`${progress} ✅ Success`);
+      console.log(`${progress} ✅ Updated to ${embedding.length}-dim MULTIMODAL vector`);
+      console.log(`   Context: "${serviceContext.substring(0, 50)}..."`);
       successCount++;
 
       // Add delay to avoid rate limiting
       if (i < serviceMedia.length - 1) {
-        const delayMs = args.provider === 'openai' ? 2000 : 500;
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        await new Promise((resolve) => setTimeout(resolve, 500));
       }
     } catch (error: any) {
       console.error(`${progress} ❌ Error:`, error.message);
@@ -123,16 +179,27 @@ async function regenerateServiceMediaEmbeddings(args: Args) {
 }
 
 async function regenerateInspirationEmbeddings(args: Args) {
-  console.log('\n💡 Regenerating InspirationImage embeddings...\n');
+  console.log('\n💡 Regenerating InspirationImage embeddings with MULTIMODAL fusion...\n');
 
   // Build query parts
   const offsetSql = args.skip ? Prisma.sql`OFFSET ${args.skip}` : Prisma.empty;
   const limitSql = args.limit ? Prisma.sql`LIMIT ${args.limit}` : Prisma.empty;
 
   const inspirationImages = await prisma.$queryRaw<
-    Array<{ id: string; imageUrl: string }>
+    Array<{
+      id: string;
+      imageUrl: string;
+      aiTags: string[];
+      styleDescription: string | null;
+      notes: string | null;
+    }>
   >(Prisma.sql`
-    SELECT "id"::text, "imageUrl"
+    SELECT
+      "id"::text,
+      "imageUrl",
+      "aiTags",
+      "styleDescription",
+      "notes"
     FROM "InspirationImage"
     WHERE "imageUrl" IS NOT NULL
     ORDER BY "createdAt" DESC
@@ -150,36 +217,48 @@ async function regenerateInspirationEmbeddings(args: Args) {
     const progress = `[${i + 1}/${inspirationImages.length}]`;
 
     try {
-      console.log(`${progress} Processing: ${image.imageUrl}`);
+      console.log(`${progress} Processing: ${image.imageUrl.substring(0, 60)}...`);
 
-      // Download image
-      const imageResponse = await fetch(image.imageUrl);
-      if (!imageResponse.ok) {
-        throw new Error(`Failed to fetch image: ${imageResponse.statusText}`);
-      }
+      // Load image (from local file or URL)
+      const imageBuffer = await loadImageBuffer(image.imageUrl);
 
-      const imageArrayBuffer = await imageResponse.arrayBuffer();
-      const imageBuffer = Buffer.from(imageArrayBuffer);
+      // Re-analyze image for up-to-date AI tags
+      console.log(`${progress} Re-analyzing with Gemini Vision...`);
+      const base64Image = imageBuffer.toString('base64');
+      const analysis = await aiService.analyzeImageFromBase64(base64Image);
 
-      // Generate new image-based embedding
-      console.log(`${progress} Generating embedding...`);
-      const embedding = await aiService.generateImageEmbedding(imageBuffer);
+      // Build multimodal context from AI analysis + user notes
+      const inspirationContext = [
+        ...analysis.tags.slice(0, 10), // Top 10 tags
+        image.notes,
+      ]
+        .filter(Boolean)
+        .join(' ');
+
+      // Generate 1408-dim MULTIMODAL embedding (image + text context)
+      console.log(`${progress} Generating 1408-dim multimodal embedding...`);
+      const embedding = await aiService.generateMultimodalEmbedding(
+        imageBuffer,
+        inspirationContext
+      );
       const embeddingStr = `[${embedding.join(',')}]`;
 
-      // Update database using raw SQL (for vector type support)
+      // Update database with new embedding AND updated AI tags
       await prisma.$executeRaw`
         UPDATE "InspirationImage"
-        SET "aiEmbedding" = ${embeddingStr}::vector
+        SET "aiEmbedding" = ${embeddingStr}::vector,
+            "aiTags" = ${analysis.tags}::text[]
         WHERE "id"::text = ${image.id}
       `;
 
-      console.log(`${progress} ✅ Success`);
+      console.log(`${progress} ✅ Updated to ${embedding.length}-dim MULTIMODAL vector`);
+      console.log(`   Tags: ${analysis.tags.slice(0, 5).join(', ')}`);
+      console.log(`   Context: "${inspirationContext.substring(0, 50)}..."`);
       successCount++;
 
       // Add delay to avoid rate limiting
       if (i < inspirationImages.length - 1) {
-        const delayMs = args.provider === 'openai' ? 2000 : 500;
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        await new Promise((resolve) => setTimeout(resolve, 500));
       }
     } catch (error: any) {
       console.error(`${progress} ❌ Error:`, error.message);
@@ -193,22 +272,21 @@ async function regenerateInspirationEmbeddings(args: Args) {
   console.log(`\n📊 InspirationImage Results:`);
   console.log(`   ✅ Success: ${successCount}`);
   console.log(`   ❌ Errors: ${errorCount}`);
-  console.log(`   📈 Success Rate: ${((successCount / inspirationImages.length) * 100).toFixed(1)}%`);
+  console.log(
+    `   📈 Success Rate: ${((successCount / inspirationImages.length) * 100).toFixed(1)}%`
+  );
 }
 
 async function main() {
-  console.log('\n🚀 Embedding Regeneration Script\n');
+  console.log('\n🚀 Embedding Regeneration Script - 1408-dim Multimodal Upgrade\n');
   console.log('='.repeat(50));
 
   const args = await parseArgs();
 
-  // Override provider if specified
-  if (args.provider) {
-    process.env.EMBEDDING_PROVIDER = args.provider;
-    console.log(`\n🔧 Using provider: ${args.provider}`);
-  } else {
-    console.log(`\n🔧 Using provider: ${process.env.EMBEDDING_PROVIDER || 'google'}`);
-  }
+  console.log(`\n🔧 Using Google Cloud Vertex AI Multimodal Embeddings`);
+  console.log(`   - 1408 dimensions (upgraded from 512)`);
+  console.log(`   - Image + text context fusion`);
+  console.log(`   - Better semantic matching`);
 
   console.log(`\n⚙️  Options:`);
   if (args.limit) console.log(`   Limit: ${args.limit} images`);

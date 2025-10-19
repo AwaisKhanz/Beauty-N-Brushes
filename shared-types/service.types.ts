@@ -45,11 +45,6 @@ export interface SaveServiceMediaRequest {
     caption?: string;
     displayOrder?: number;
     isFeatured?: boolean;
-    // AI Tagging
-    hairType?: string;
-    styleType?: string;
-    colorInfo?: string;
-    complexityLevel?: string;
   }[];
 }
 
@@ -189,9 +184,6 @@ export interface GenerateHashtagsResponse {
 export interface AnalyzeImageResponse {
   message: string;
   data: {
-    hairType?: string;
-    styleType?: string;
-    colorInfo?: string;
-    complexityLevel?: string;
+    tags: string[];
   };
 }

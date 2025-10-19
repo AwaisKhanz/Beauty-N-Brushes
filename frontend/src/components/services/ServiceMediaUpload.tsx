@@ -43,11 +43,6 @@ interface UploadedMedia {
   caption?: string;
   displayOrder: number;
   isFeatured?: boolean;
-  // AI Tagging
-  hairType?: string;
-  styleType?: string;
-  colorInfo?: string;
-  complexityLevel?: string;
 }
 
 interface ServiceMediaUploadProps {
@@ -632,63 +627,6 @@ export function ServiceMediaUpload({
                   rows={3}
                 />
               </div>
-
-              {/* AI Tagging (Optional) */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="hairType">Hair Type/Texture (Optional)</Label>
-                  <Input
-                    id="hairType"
-                    placeholder="e.g., 4C, Coily, Relaxed"
-                    value={editingMedia.hairType || ''}
-                    onChange={(e) => setEditingMedia({ ...editingMedia, hairType: e.target.value })}
-                    className="mt-2"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="styleType">Style Type (Optional)</Label>
-                  <Input
-                    id="styleType"
-                    placeholder="e.g., Braids, Color, Cut"
-                    value={editingMedia.styleType || ''}
-                    onChange={(e) =>
-                      setEditingMedia({ ...editingMedia, styleType: e.target.value })
-                    }
-                    className="mt-2"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="colorInfo">Color Information (Optional)</Label>
-                  <Input
-                    id="colorInfo"
-                    placeholder="e.g., Blonde, Ombre, Highlights"
-                    value={editingMedia.colorInfo || ''}
-                    onChange={(e) =>
-                      setEditingMedia({ ...editingMedia, colorInfo: e.target.value })
-                    }
-                    className="mt-2"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="complexity">Complexity Level (Optional)</Label>
-                  <Input
-                    id="complexity"
-                    placeholder="e.g., Simple, Moderate, Complex"
-                    value={editingMedia.complexityLevel || ''}
-                    onChange={(e) =>
-                      setEditingMedia({ ...editingMedia, complexityLevel: e.target.value })
-                    }
-                    className="mt-2"
-                  />
-                </div>
-              </div>
-
-              <p className="text-xs text-muted-foreground">
-                💡 AI tags help clients find your work when they upload inspiration photos
-              </p>
 
               <div className="flex justify-end gap-2">
                 <Button

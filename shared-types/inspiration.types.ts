@@ -44,10 +44,6 @@ export interface InspirationImage {
 }
 
 export interface ImageAnalysisResult {
-  hairType?: string | null;
-  styleType?: string | null;
-  colorInfo?: string | null;
-  complexityLevel?: string;
   tags: string[];
   dominantColors?: string[];
 }

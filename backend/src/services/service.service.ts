@@ -100,7 +100,7 @@ export class ServiceService {
    * Upload service media with AI auto-tagging
    */
   async uploadServiceMedia(userId: string, serviceId: string, mediaData: any[]) {
-    // Verify service belongs to user
+    // Verify service belongs to user and get service details for multimodal context
     const service = await prisma.service.findFirst({
       where: {
         id: serviceId,
@@ -108,11 +108,25 @@ export class ServiceService {
           userId,
         },
       },
+      include: {
+        category: true,
+        subcategory: true,
+      },
     });
 
     if (!service) {
       throw new Error('Service not found or access denied');
     }
+
+    // Build text context for multimodal embeddings
+    const serviceContext = [
+      service.title,
+      service.description,
+      service.category.name,
+      service.subcategory?.name,
+    ]
+      .filter(Boolean)
+      .join(' - ');
 
     // Delete existing media first (to handle reordering)
     await prisma.serviceMedia.deleteMany({
@@ -133,29 +147,30 @@ export class ServiceService {
               throw new Error(`Failed to fetch image: ${imageResponse.statusText}`);
             }
 
-            const imageBuffer = await imageResponse.arrayBuffer();
-            const base64Image = Buffer.from(imageBuffer).toString('base64');
+            const imageArrayBuffer = await imageResponse.arrayBuffer();
+            const imageBuffer = Buffer.from(imageArrayBuffer);
+            const base64Image = imageBuffer.toString('base64');
 
             // Analyze image using base64 (works with localhost URLs)
             const analysis = await aiService.analyzeImageFromBase64(base64Image);
 
-            // Generate searchable text from analysis
-            const searchText = aiService.createSearchableText(analysis);
-
-            // Generate vector embedding for similarity search
-            const embedding = await aiService.generateEmbedding(searchText);
+            // Generate MULTIMODAL vector embedding (image + text context)
+            // This combines visual features + semantic meaning for better matching
+            // Uses 1408 dimensions for maximum detail (texture, color, lighting, context)
+            const embedding = await aiService.generateMultimodalEmbedding(
+              imageBuffer,
+              serviceContext // Service title, description, category
+            );
 
             // Format embedding for PostgreSQL vector type
             const embeddingStr = `[${embedding.join(',')}]`;
 
-            console.log(`AI analysis complete for ${media.url}: ${analysis.tags.join(', ')}`);
+            console.log(`✅ AI analysis complete for ${media.url}`);
+            console.log(`   Tags: ${analysis.tags.join(', ')}`);
+            console.log(`   Embedding: ${embedding.length}-dim MULTIMODAL vector (image + text)`);
 
             return {
               ...media,
-              hairType: analysis.hairType || null,
-              styleType: analysis.styleType || null,
-              colorInfo: analysis.colorInfo || null,
-              complexityLevel: analysis.complexityLevel || 'moderate',
               aiTags: analysis.tags,
               aiEmbedding: embeddingStr,
               colorPalette: analysis.dominantColors ? { colors: analysis.dominantColors } : null,
@@ -163,16 +178,12 @@ export class ServiceService {
           } catch (error) {
             console.error('AI analysis failed for image:', error);
             // Continue with default values if analysis fails
-            // Use empty 512-dimension vector for CLIP aiEmbedding (required field)
-            const emptyEmbedding = new Array(512).fill(0);
+            // Use empty 1408-dimension vector for multimodal embedding (required field)
+            const emptyEmbedding = new Array(1408).fill(0);
             const embeddingStr = `[${emptyEmbedding.join(',')}]`;
 
             return {
               ...media,
-              hairType: null,
-              styleType: null,
-              colorInfo: null,
-              complexityLevel: null,
               aiTags: [],
               aiEmbedding: embeddingStr,
               colorPalette: null,
@@ -180,16 +191,12 @@ export class ServiceService {
           }
         }
         // Videos don't get AI analysis yet
-        // Use empty 512-dimension vector for CLIP aiEmbedding (required field)
-        const emptyEmbedding = new Array(512).fill(0);
+        // Use empty 1408-dimension vector for multimodal embedding (required field)
+        const emptyEmbedding = new Array(1408).fill(0);
         const embeddingStr = `[${emptyEmbedding.join(',')}]`;
 
         return {
           ...media,
-          hairType: null,
-          styleType: null,
-          colorInfo: null,
-          complexityLevel: null,
           aiTags: [],
           aiEmbedding: embeddingStr,
           colorPalette: null,
@@ -212,10 +219,6 @@ export class ServiceService {
           "caption",
           "isFeatured",
           "displayOrder",
-          "hairType",
-          "styleType",
-          "colorInfo",
-          "complexityLevel",
           "aiTags",
           "aiEmbedding",
           "colorPalette",
@@ -234,10 +237,6 @@ export class ServiceService {
           ${media.caption || null}::text,
           ${media.isFeatured || false}::boolean,
           ${media.displayOrder || 0}::integer,
-          ${media.hairType}::text,
-          ${media.styleType}::text,
-          ${media.colorInfo}::text,
-          ${media.complexityLevel}::text,
           ${media.aiTags}::text[],
           ${media.aiEmbedding}::vector,
           ${media.colorPalette ? JSON.stringify(media.colorPalette) : null}::jsonb,
@@ -306,7 +305,17 @@ Format the response as JSON with:
 
     try {
       const response = await aiService.generateText(prompt);
-      const parsed = JSON.parse(response);
+
+      // Remove markdown code blocks if present (```json ... ```)
+      let cleanedResponse = response.trim();
+      if (cleanedResponse.startsWith('```')) {
+        // Remove opening ```json or ```
+        cleanedResponse = cleanedResponse.replace(/^```(?:json)?\n?/, '');
+        // Remove closing ```
+        cleanedResponse = cleanedResponse.replace(/\n?```$/, '');
+      }
+
+      const parsed = JSON.parse(cleanedResponse);
 
       return {
         description: parsed.description || '',
@@ -380,71 +389,6 @@ Return as JSON array: ["hashtag1", "hashtag2", ...]`;
         '#selfcare',
         '#bookingsopen',
       ].filter((tag) => !existingHashtags.includes(tag));
-    }
-  }
-
-  /**
-   * Analyze image for AI tags using base64 image data
-   */
-  async analyzeImageForTagsFromBase64(base64Image: string) {
-    try {
-      const analysis = await aiService.analyzeImageFromBase64(base64Image);
-
-      return {
-        hairType: analysis.hairType || null,
-        styleType: analysis.styleType || null,
-        colorInfo: analysis.colorInfo || null,
-        complexityLevel: analysis.complexityLevel || 'moderate',
-      };
-    } catch (error) {
-      console.error('Error analyzing image:', error);
-      // Return default tags
-      return {
-        hairType: null,
-        styleType: null,
-        colorInfo: null,
-        complexityLevel: 'moderate',
-      };
-    }
-  }
-
-  /**
-   * Analyze image for AI tagging
-   */
-  async analyzeImageForTags(imageUrl: string) {
-    const prompt = `Analyze this beauty/wellness service image and extract relevant tags:
-
-Image URL: ${imageUrl}
-
-Please analyze the image and return JSON with:
-{
-  "hairType": "straight/wavy/curly/coily or null",
-  "styleType": "cut/color/treatment/styling or description",
-  "colorInfo": "hair color details or null",
-  "complexityLevel": "simple/moderate/complex"
-}
-
-If the image is not hair-related, adapt the tags to the service type (nails, makeup, etc.)`;
-
-    try {
-      const response = await aiService.generateText(prompt);
-      const tags = JSON.parse(response);
-
-      return {
-        hairType: tags.hairType || null,
-        styleType: tags.styleType || null,
-        colorInfo: tags.colorInfo || null,
-        complexityLevel: tags.complexityLevel || 'moderate',
-      };
-    } catch (error) {
-      console.error('Error analyzing image:', error);
-      // Return default tags
-      return {
-        hairType: null,
-        styleType: null,
-        colorInfo: null,
-        complexityLevel: 'moderate',
-      };
     }
   }
 
