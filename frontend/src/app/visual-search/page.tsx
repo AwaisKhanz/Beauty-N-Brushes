@@ -6,14 +6,25 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Sparkles, Search as SearchIcon } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Loader2, Sparkles, Search as SearchIcon, Sliders } from 'lucide-react';
 import { InspirationUpload } from '@/components/client/InspirationUpload';
 import { ServiceGrid } from '@/components/search/ServiceGrid';
 import Header from '@/components/shared/Header';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
 import { ROUTES } from '@/constants';
-import type { InspirationMatch, ImageAnalysisResult } from '@/shared-types/inspiration.types';
+import type {
+  InspirationMatch,
+  ImageAnalysisResult,
+  SearchMode,
+} from '@/shared-types/inspiration.types';
 import type { PublicServiceResult } from '@/shared-types/service.types';
 
 export default function VisualSearchPage() {
@@ -21,6 +32,7 @@ export default function VisualSearchPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [analysisData, setAnalysisData] = useState<ImageAnalysisResult | null>(null);
+  const [searchMode, setSearchMode] = useState<SearchMode>('balanced');
 
   const handleInspirationAnalyzed = async (analysis: ImageAnalysisResult) => {
     setAnalysisData(analysis);
@@ -38,6 +50,7 @@ export default function VisualSearchPage() {
       const response = await api.inspiration.match({
         embedding: analysis.embedding,
         tags: analysis.tags,
+        searchMode: searchMode, // Include selected search mode
         maxResults: 20,
       });
 
@@ -118,6 +131,92 @@ export default function VisualSearchPage() {
           <div className="max-w-4xl mx-auto mb-8">
             <InspirationUpload onMatchesFound={handleInspirationAnalyzed} />
           </div>
+
+          {/* Analysis Results Display */}
+          {analysisData && !loading && (
+            <div className="max-w-4xl mx-auto mb-8">
+              <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-accent/5">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                    <CardTitle>AI Visual Analysis</CardTitle>
+                  </div>
+                  <CardDescription>
+                    {analysisData.tags.length} comprehensive features detected
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Natural Language Description */}
+                  {analysisData.description && (
+                    <div className="bg-background/60 rounded-lg p-4 border border-primary/10">
+                      <h4 className="text-sm font-semibold text-primary mb-2">
+                        Professional Analysis
+                      </h4>
+                      <p className="text-sm text-foreground/90 leading-relaxed">
+                        {analysisData.description}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Comprehensive Tags */}
+                  <div>
+                    <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                      <span>Detected Features</span>
+                      <Badge variant="secondary" className="text-xs">
+                        {analysisData.tags.length} tags
+                      </Badge>
+                    </h4>
+                    <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                      {analysisData.tags.map((tag, idx) => (
+                        <Badge
+                          key={idx}
+                          variant="outline"
+                          className="px-2 py-1 text-xs bg-accent/10 border-accent/20 hover:bg-accent/20 transition-colors"
+                        >
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Search Mode Selector */}
+                  <div className="pt-4 border-t border-primary/10">
+                    <div className="flex items-center gap-3">
+                      <Sliders className="h-4 w-4 text-primary" />
+                      <label className="text-sm font-semibold">Search Mode:</label>
+                      <Select
+                        value={searchMode}
+                        onValueChange={(value) => {
+                          setSearchMode(value as SearchMode);
+                          if (analysisData) {
+                            findMatches(analysisData); // Re-search with new mode
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="w-[200px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="balanced">Balanced</SelectItem>
+                          <SelectItem value="visual">Visual Focus</SelectItem>
+                          <SelectItem value="style">Style Focus</SelectItem>
+                          <SelectItem value="semantic">Description Match</SelectItem>
+                          <SelectItem value="color">Color Match</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <span className="text-xs text-muted-foreground">
+                        {searchMode === 'balanced' && 'Best overall matches'}
+                        {searchMode === 'visual' && 'Prioritize visual appearance'}
+                        {searchMode === 'style' && 'Prioritize techniques & styles'}
+                        {searchMode === 'semantic' && 'Prioritize descriptions'}
+                        {searchMode === 'color' && 'Prioritize color palette'}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
           {/* Loading State */}
           {loading && (

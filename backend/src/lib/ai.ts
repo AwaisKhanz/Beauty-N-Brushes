@@ -7,10 +7,12 @@ import type { PolicyGenerationParams, GeneratedPolicies } from '../types/integra
 import { VertexAI } from '@google-cloud/vertexai';
 import vision from '@google-cloud/vision';
 import { ImageAnnotatorClient } from '@google-cloud/vision';
+import { SERVICE_CATEGORIES, getAllTemplatesForCategory } from '../../../shared-constants';
 
 // Type definitions
 export interface ImageAnalysis {
   tags: string[];
+  description?: string; // Natural language description (3-5 sentences)
   dominantColors?: string[];
   faceAttributes?: {
     shape?: string;
@@ -203,12 +205,22 @@ export class AIService {
       throw new Error('No content parts in Gemini response');
     }
 
-    const text = candidate.content.parts[0].text;
-    if (!text) {
+    // Concatenate all parts (Gemini may split long responses across multiple parts)
+    const allParts = candidate.content.parts
+      .map((part: any) => part.text || '')
+      .filter((text: string) => text.length > 0);
+
+    if (allParts.length === 0) {
+      throw new Error('No text in Gemini response parts');
+    }
+
+    const fullText = allParts.join('');
+
+    if (!fullText) {
       throw new Error('No text in Gemini response');
     }
 
-    return text;
+    return fullText;
   }
 
   /**
@@ -432,6 +444,11 @@ Do not include pricing or duration information.`;
     // Debug: Log Gemini's beauty expertise
     console.log(`\n✨ Gemini Vision Beauty Expert Analysis (${category || 'General'}):`);
     console.log('   Professional Tags:', geminiAnalysis.tags.slice(0, 8).join(', '));
+    if (geminiAnalysis.description) {
+      console.log(
+        `   Description: ${geminiAnalysis.description.substring(0, 100)}${geminiAnalysis.description.length > 100 ? '...' : ''}`
+      );
+    }
 
     // Extract advanced features from Vision AI
     const dominantColors = this.extractDominantColors(result);
@@ -442,7 +459,8 @@ Do not include pricing or duration information.`;
     const allTags = [...new Set([...geminiAnalysis.tags, ...webLabels])];
 
     const analysis: ImageAnalysis = {
-      tags: allTags, // Gemini tags + Web Detection professional context
+      tags: allTags, // Gemini tags + Web Detection professional context (50-100+)
+      description: geminiAnalysis.description, // Natural language description (3-5 sentences)
       dominantColors: dominantColors, // Vision AI color detection
       faceAttributes: faceAttributes, // Vision AI face detection
     };
@@ -451,6 +469,7 @@ Do not include pricing or duration information.`;
       totalTags: analysis.tags.length,
       geminiTags: geminiAnalysis.tags.length,
       webLabels: webLabels.length,
+      hasDescription: !!analysis.description,
       hasFaceDetection: faceCount > 0,
       hasColorAnalysis: colorCount > 0,
     });
@@ -461,19 +480,22 @@ Do not include pricing or duration information.`;
   /**
    * Analyze beauty service image using Gemini Vision (category-aware)
    * Works for ALL beauty services: hair, makeup, nails, lashes, brows, skincare, waxing, spa, etc.
+   * Returns 50-100+ comprehensive tags + detailed natural language description
    */
   private async analyzeHairstyleWithGemini(
     imageBuffer: Buffer,
     serviceCategory?: string
   ): Promise<{
     tags: string[];
+    description?: string;
   }> {
     try {
       const base64Image = imageBuffer.toString('base64');
 
-      // Generate category-specific prompt
+      // Generate category-specific prompt (enhanced for 50-100+ tags + description)
       const prompt = this.generateCategoryAwarePrompt(serviceCategory);
 
+      // Define strict JSON schema for structured output
       const result = await this.geminiModel.generateContent({
         contents: [
           {
@@ -489,43 +511,96 @@ Do not include pricing or duration information.`;
             ],
           },
         ],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: 'object',
+            properties: {
+              tags: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                },
+                description: '50-100+ comprehensive tags covering all visible aspects',
+              },
+              description: {
+                type: 'string',
+                description: 'Comprehensive 3-5 sentence natural language description',
+              },
+            },
+            required: ['tags', 'description'],
+          },
+        },
       });
 
       const response = result.response;
       const content = this.extractTextFromResponse(response);
 
-      // Parse JSON response
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('Invalid JSON response from Gemini Vision');
+      // With responseMimeType: 'application/json', Gemini returns valid JSON directly
+      const geminiResult = JSON.parse(content);
+
+      // Validate the response has the expected structure
+      if (!geminiResult.tags || !Array.isArray(geminiResult.tags)) {
+        console.warn('⚠️  Invalid response structure. Missing tags array.');
+        throw new Error('Invalid response structure from Gemini Vision');
       }
 
-      const geminiResult = JSON.parse(jsonMatch[0]);
+      console.log(`   ✅ Parsed ${geminiResult.tags.length} tags successfully`);
 
       return {
-        tags: Array.isArray(geminiResult.tags) ? geminiResult.tags : [],
+        tags: geminiResult.tags,
+        description: geminiResult.description || undefined,
       };
-    } catch (error) {
-      console.error('⚠️  Gemini Vision analysis failed, using fallback:', error);
+    } catch (error: any) {
+      console.error('⚠️  Gemini Vision analysis failed, using fallback:', error.message);
+      console.error('   Service Category:', serviceCategory);
       // Fallback to basic analysis if Gemini fails
       return {
         tags: ['beauty-service', serviceCategory || 'general'].filter(Boolean),
+        description: undefined,
       };
     }
   }
 
   /**
    * Generate category-aware prompts for comprehensive beauty professional analysis
+   * TARGET: 50-100+ ultra-comprehensive tags + detailed natural language description
    */
   private generateCategoryAwarePrompt(category?: string): string {
-    const baseInstructions = `You are an expert beauty industry professional analyzing service images for a professional beauty marketplace.
+    const baseInstructions = `You are an expert beauty industry professional analyzing service images for a professional beauty marketplace with AI-powered visual search.
 
-Analyze this image and generate 20-30 HIGHLY SPECIFIC, professional keywords that:
-1. CLIENTS would search for when looking for this exact style/look
-2. PROFESSIONALS would use to describe their work
-3. Help match clients with the right service provider
+Your task: Generate the MOST COMPREHENSIVE analysis possible to enable 90-100% accurate visual matching.
 
-Focus ONLY on what's VISIBLE in the image - no assumptions or guesses.`;
+Generate 50-100 ULTRA-COMPREHENSIVE tags covering EVERY visible aspect:
+
+🔍 UNIVERSAL VISUAL ELEMENTS (ALL images):
+✅ Person attributes: gender, age-range, skin-tone, face-shape, expression, emotion, mood, posture, body-language
+✅ Hair: exact-color, length, texture-type, style-name, cut-type, specific-technique, shine-level, volume, part-style, hair-line
+✅ Face details: eye-color, eyebrow-shape, eyebrow-color, eyebrow-style, eyelash-type, nose-shape, lip-color, lip-style, cheekbone-definition, jawline-shape
+✅ Makeup (if present): foundation-coverage, contour-level, highlight-placement, blush-color, eyeshadow-colors, eyeshadow-style, eyeliner-type, mascara-type, lip-product
+✅ Jewelry/Accessories: necklace, earrings, rings, bracelets, hair-accessories, glasses, material, style, color
+✅ Clothing: visible-garments, neckline, sleeves, colors, patterns, style, formality-level, fabric-type
+
+🎨 BEAUTY SERVICE SPECIFICS:
+✅ Tools/Instruments: scissors, combs, brushes, curling-iron, flat-iron, blow-dryer, nail-files, buffers, massage-stones, spatulas, mirrors, towels, product-bottles, applicators
+✅ Products visible: bottle-colors, jar-types, tube-brands, product-types (serum, cream, oil, polish, spray), applicator-tools
+✅ Treatment specifics: massage-technique-name, waxing-method, facial-treatment-type, nail-art-technique, specific-procedure
+✅ Skin condition: texture-appearance, clarity, tone-evenness, glow-level, hydration-look, visible-concerns
+
+🌍 ENVIRONMENTAL CONTEXT:
+✅ Setting: salon-chair, spa-bed, home-setting, outdoor, studio, professional-space, casual-setting
+✅ Lighting: natural-light, artificial-light, warm-lighting, cool-lighting, soft-light, dramatic-light, backlit, side-lit, overhead-lighting
+✅ Atmosphere: relaxing-vibe, energetic-feel, luxurious-setting, minimalist-space, cozy-environment, professional-studio, modern-decor, vintage-aesthetic
+✅ Season indicators: summer-bright, winter-tones, spring-fresh, autumn-warm, seasonal-colors, weather-feel (rainy, sunny, cold, warm)
+✅ Temperature feel: warm-tones, cool-tones, cozy-atmosphere, fresh-airy, humid-look, crisp-feel
+
+😊 AESTHETIC & EMOTIONAL TAGS:
+✅ Mood: happy, relaxed, confident, serene, joyful, peaceful, excited, satisfied, content, pampered
+✅ Style aesthetic: natural-look, glam-style, dramatic-effect, minimalist-aesthetic, bohemian-vibe, edgy-style, classic-look, modern-aesthetic, vintage-inspired, artistic
+✅ Quality indicators: professional-grade, expert-level, high-end-quality, luxury-service, polished-finish, precise-work, artistic-excellence, creative-design, masterful-execution
+✅ Complexity: simple-style, moderate-skill, intricate-detail, detailed-work, masterful-technique, competition-worthy, expert-level
+
+Focus ONLY on what's VISIBLE - no assumptions or guesses.`;
 
     const categorySpecificGuidelines = this.getCategoryGuidelines(category);
 
@@ -535,25 +610,32 @@ ${categorySpecificGuidelines}
 
 Format your response EXACTLY as JSON:
 {
-  "tags": ["keyword1", "keyword2", "keyword3", ...]
+  "tags": ["keyword1", "keyword2", "keyword3", ..., "keyword100"],
+  "description": "A comprehensive 3-5 sentence natural language description capturing the entire visual context: person details, hair/makeup/service specifics, tools/products visible, setting/lighting/atmosphere, mood/aesthetic, and professional quality. Be specific, detailed, and use industry terminology."
 }
 
 CRITICAL PROFESSIONAL STANDARDS:
 ✅ DO:
-- Generate 20-30 specific, professional keywords from what you SEE
+- Generate 50-100+ specific, professional keywords from what you SEE
 - Use industry-standard terminology AND common client search terms
-- Include style descriptors (e.g., "natural-glam", "high-fade", "french-tip")
-- Specify techniques visible (e.g., "balayage", "box-braids", "ombre-nails")
-- Describe textures, finishes, lengths, shapes, colors, patterns
-- Include complexity (simple, moderate, intricate, masterclass-level)
-- Add occasion tags if clear (bridal, editorial, everyday, red-carpet)
-- Use compound keywords (e.g., "long-natural-nails", "dark-smokey-eye")
+- Include ALL style descriptors (e.g., "natural-glam", "high-fade", "french-tip", "warm-lighting")
+- Specify ALL techniques visible (e.g., "balayage", "box-braids", "ombre-nails", "contour-blending")
+- Describe ALL textures, finishes, lengths, shapes, colors, patterns, materials
+- Include complexity AND quality indicators (simple, moderate, intricate, masterclass-level, professional-grade)
+- Add occasion tags if clear (bridal, editorial, everyday, red-carpet, special-event)
+- Use compound keywords (e.g., "long-natural-nails", "dark-smokey-eye", "soft-warm-lighting")
+- Tag EVERY visible tool, product, instrument, accessory
+- Capture environmental context: setting, lighting, atmosphere, season feel
+- Include emotional/mood tags: happy, relaxed, confident, serene
+- Write detailed 3-5 sentence description using professional terminology
 
 ❌ DON'T:
-- Generic terms: "person", "face", "photo", "image", "beauty"
-- Assumptions about things not visible
-- Brand names or product names
-- Vague descriptors: "nice", "good", "pretty"
+- Skip visible elements - tag EVERYTHING
+- Use vague generic terms: "person", "face", "photo", "image"
+- Make assumptions about things not visible
+- Include brand names or product names
+- Use vague descriptors: "nice", "good", "pretty"
+- Be brief - be COMPREHENSIVE (50-100+ tags minimum)
 
 Respond ONLY with valid JSON. No explanations, no other text.`;
   }
@@ -1409,6 +1491,219 @@ Format your response as JSON:
       console.error('Failed to match inspiration:', error);
       return [];
     }
+  }
+
+  /**
+   * Extract style keywords from category using actual service templates
+   */
+  private extractStyleKeywords(category: string): string[] {
+    const categoryLower = category.toLowerCase();
+
+    // Find matching category from service constants
+    const serviceCategory = SERVICE_CATEGORIES.find(
+      (cat) =>
+        cat.slug.toLowerCase().includes(categoryLower) ||
+        categoryLower.includes(cat.slug.toLowerCase()) ||
+        cat.name.toLowerCase().includes(categoryLower)
+    );
+
+    if (!serviceCategory) {
+      return [];
+    }
+
+    // Extract template names as style keywords
+    const templates = getAllTemplatesForCategory(serviceCategory.id);
+    const templateKeywords = templates
+      .map((t) => t.name.toLowerCase())
+      .flatMap((name) =>
+        name
+          .split(/[\s&/]+/)
+          .filter((word) => word.length > 3)
+          .map((word) => word.replace(/[()]/g, ''))
+      )
+      .slice(0, 20); // Top 20 unique template keywords
+
+    return [...new Set(templateKeywords)];
+  }
+
+  /**
+   * Generate contrastive context to help embedding learn boundaries
+   */
+  private generateContrastiveContext(category: string, tags: string[]): string {
+    // Determine style from tags
+    const hasGlam = tags.some((t) => t.includes('glam') || t.includes('dramatic'));
+    const hasNatural = tags.some((t) => t.includes('natural') || t.includes('subtle'));
+
+    let opposite = '';
+    let similar = '';
+
+    if (category.toLowerCase().includes('makeup')) {
+      if (hasGlam) {
+        opposite = 'Opposite: minimal-makeup, no-makeup-look, bare-face, natural-skin';
+        similar = 'Similar: full-glam, bridal-makeup, stage-makeup, editorial, heavy-contour';
+      } else if (hasNatural) {
+        opposite = 'Opposite: full-glam, dramatic-makeup, heavy-makeup, stage-ready';
+        similar = 'Similar: no-makeup-makeup, fresh-face, dewy-skin, minimal-look';
+      }
+    } else if (category.toLowerCase().includes('hair')) {
+      const hasColor = tags.some(
+        (t) => t.includes('balayage') || t.includes('highlight') || t.includes('ombre')
+      );
+      if (hasColor) {
+        opposite = 'Opposite: solid-color, natural-hair, no-color, single-tone';
+        similar = 'Similar: color-melt, highlights, lowlights, dimensional-color';
+      }
+    } else if (category.toLowerCase().includes('nail')) {
+      const hasArt = tags.some((t) => t.includes('art') || t.includes('design'));
+      if (hasArt) {
+        opposite = 'Opposite: solid-color, plain-nails, simple-manicure';
+        similar = 'Similar: detailed-art, intricate-design, 3d-nails, embellished';
+      }
+    }
+
+    return opposite || similar ? `\n${opposite}\n${similar}` : '';
+  }
+
+  /**
+   * Generate rich domain-aware context for embedding fusion
+   */
+  private generateEmbeddingContext(
+    serviceTitle: string,
+    serviceDescription: string,
+    category: string,
+    tags: string[],
+    webLabels: string[],
+    dominantColors?: string[]
+  ): string {
+    // Get category-specific guidelines (first 500 chars)
+    const guidelines = this.getCategoryGuidelines(category).substring(0, 500);
+
+    // Extract key style terms
+    const styleKeywords = this.extractStyleKeywords(category);
+
+    // Generate contrastive descriptors
+    const contrastive = this.generateContrastiveContext(category, tags);
+
+    // Build comprehensive context
+    const context = `
+Service: ${serviceTitle}
+Description: ${serviceDescription}
+Category: ${category}
+Style Keywords: ${styleKeywords.join(', ')}
+Detected Features: ${tags.slice(0, 30).join(', ')}
+Professional Context: ${webLabels.join(', ')}
+Color Palette: ${dominantColors?.join(', ') || 'N/A'}
+Guidelines: ${guidelines}
+${contrastive}
+`.trim();
+
+    return context;
+  }
+
+  /**
+   * Average multiple vectors
+   */
+  private averageVectors(vectors: number[][]): number[] {
+    if (vectors.length === 0) return [];
+    if (vectors.length === 1) return vectors[0];
+
+    const dim = vectors[0].length;
+    const avg = new Array(dim).fill(0);
+
+    for (const vector of vectors) {
+      for (let i = 0; i < dim; i++) {
+        avg[i] += vector[i];
+      }
+    }
+
+    for (let i = 0; i < dim; i++) {
+      avg[i] /= vectors.length;
+    }
+
+    return avg;
+  }
+
+  /**
+   * Generate multiple specialized embeddings for comprehensive matching
+   */
+  async generateMultiVectorEmbeddings(
+    imageBuffer: Buffer,
+    analysisData: {
+      tags: string[];
+      description?: string;
+      dominantColors?: string[];
+      webLabels?: string[];
+    },
+    serviceContext: {
+      title: string;
+      description: string;
+      category: string;
+    }
+  ): Promise<{
+    visualOnly: number[];
+    styleEnriched: number[];
+    semantic: number[];
+    colorAesthetic: number[];
+    hybrid: number[];
+  }> {
+    console.log('🎯 Generating multi-vector embeddings...');
+
+    // 1. Visual-Only Embedding (pure image)
+    console.log('   📸 Visual-only embedding...');
+    const visualOnly = await this.generateImageEmbedding(imageBuffer);
+
+    // 2. Style-Enriched Embedding (image + comprehensive context)
+    console.log('   🎨 Style-enriched embedding...');
+    const richContext = this.generateEmbeddingContext(
+      serviceContext.title,
+      serviceContext.description,
+      serviceContext.category,
+      analysisData.tags,
+      analysisData.webLabels || [],
+      analysisData.dominantColors
+    );
+    const styleEnriched = await this.generateMultimodalEmbedding(imageBuffer, richContext);
+
+    // 3. Semantic Embedding (text-only: description + category)
+    console.log('   💬 Semantic embedding...');
+    const semanticText = `
+${serviceContext.title}
+${analysisData.description || ''}
+Category: ${serviceContext.category}
+Features: ${analysisData.tags.slice(0, 20).join(', ')}
+`.trim();
+    const semantic = await this.generateEmbedding(semanticText, 512);
+
+    // 4. Color-Aesthetic Embedding (colors + mood tags)
+    console.log('   🌈 Color-aesthetic embedding...');
+    const moodTags = analysisData.tags.filter(
+      (t) =>
+        t.includes('mood') ||
+        t.includes('aesthetic') ||
+        t.includes('feel') ||
+        t.includes('vibe') ||
+        t.includes('atmosphere')
+    );
+    const colorText = `
+Colors: ${analysisData.dominantColors?.join(', ') || 'neutral'}
+Mood: ${moodTags.join(', ')}
+Style: ${serviceContext.category}
+`.trim();
+    const colorAesthetic = await this.generateEmbedding(colorText, 512);
+
+    // 5. Hybrid Embedding (averaged combination of visual + style)
+    console.log('   🔀 Hybrid combination...');
+    const hybrid = this.averageVectors([visualOnly, styleEnriched]);
+
+    console.log('   ✅ Multi-vector generation complete!');
+
+    return {
+      visualOnly,
+      styleEnriched,
+      semantic,
+      colorAesthetic,
+      hybrid,
+    };
   }
 
   /**

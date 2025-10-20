@@ -131,21 +131,28 @@ class MediaProcessorService {
       const imageBuffer = Buffer.from(imageArrayBuffer);
       const base64Image = imageBuffer.toString('base64');
 
-      // STAGE 1: AI Vision Analysis - Extract visual features
-      console.log(`   📊 Analyzing visual features (${job.category})...`);
+      // STAGE 1: AI Vision Analysis - Extract visual features (50-100+ tags + description)
+      console.log(`   📊 Analyzing comprehensive visual features (${job.category})...`);
       const analysis = await aiService.analyzeImageFromBase64(base64Image, job.category);
 
-      // STAGE 2: Generate ENRICHED MULTIMODAL Embedding
-      console.log(`   🧠 Generating multimodal embedding...`);
-      const enrichedContext = [job.serviceContext, ...analysis.tags.slice(0, 5)]
-        .filter(Boolean)
-        .join(' ')
-        .substring(0, 800);
+      // Extract web labels for enriched context
+      const webLabels: string[] = []; // Could be populated from Vision AI if needed
 
-      const embedding = await aiService.generateMultimodalEmbedding(imageBuffer, enrichedContext);
-
-      // Format embedding for PostgreSQL vector type
-      const embeddingStr = `[${embedding.join(',')}]`;
+      // STAGE 2: Generate MULTI-VECTOR Embeddings (5 specialized vectors)
+      const vectors = await aiService.generateMultiVectorEmbeddings(
+        imageBuffer,
+        {
+          tags: analysis.tags,
+          description: analysis.description,
+          dominantColors: analysis.dominantColors,
+          webLabels: webLabels,
+        },
+        {
+          title: job.serviceContext,
+          description: job.serviceContext, // Using serviceContext as both title and description
+          category: job.category,
+        }
+      );
 
       // Update media with analysis results using raw SQL (for vector type)
       await prisma.$executeRawUnsafe(
@@ -153,21 +160,38 @@ class MediaProcessorService {
         UPDATE "ServiceMedia"
         SET 
           "aiTags" = $1,
-          "aiEmbedding" = $2::vector,
+          "aiDescription" = $2,
           "colorPalette" = $3::jsonb,
+          "visualEmbedding" = $4::vector,
+          "styleEmbedding" = $5::vector,
+          "semanticEmbedding" = $6::vector,
+          "colorEmbedding" = $7::vector,
+          "hybridEmbedding" = $8::vector,
+          "aiEmbedding" = $8::vector,
           "processingStatus" = 'completed',
           "updatedAt" = NOW()
-        WHERE "id" = $4
+        WHERE "id" = $9
       `,
-        analysis.tags,
-        embeddingStr,
+        analysis.tags, // 50-100+ comprehensive tags
+        analysis.description || null, // Natural language description
         JSON.stringify(analysis.dominantColors || []),
+        `[${vectors.visualOnly.join(',')}]`,
+        `[${vectors.styleEnriched.join(',')}]`,
+        `[${vectors.semantic.join(',')}]`,
+        `[${vectors.colorAesthetic.join(',')}]`,
+        `[${vectors.hybrid.join(',')}]`,
         job.mediaId
       );
 
       console.log(`   ✅ Media processed successfully!`);
-      console.log(`      Tags: ${analysis.tags.slice(0, 8).join(', ')}`);
-      console.log(`      Embedding: ${embedding.length}-dim vector`);
+      console.log(`      Tags: ${analysis.tags.length} comprehensive tags`);
+      console.log(`      Sample tags: ${analysis.tags.slice(0, 8).join(', ')}`);
+      if (analysis.description) {
+        console.log(
+          `      Description: "${analysis.description.substring(0, 80)}${analysis.description.length > 80 ? '...' : ''}"`
+        );
+      }
+      console.log(`      Multi-Vectors: 5 specialized embeddings (1408+1408+512+512+1408 dims)`);
     } catch (error: any) {
       console.error(`   ❌ Processing failed:`, error.message);
       throw error;

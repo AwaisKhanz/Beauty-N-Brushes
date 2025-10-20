@@ -4,6 +4,12 @@
  */
 
 // ============================================
+// Search Modes
+// ============================================
+
+export type SearchMode = 'balanced' | 'visual' | 'semantic' | 'style' | 'color';
+
+// ============================================
 // Request Types
 // ============================================
 
@@ -15,6 +21,7 @@ export interface AnalyzeInspirationRequest {
 export interface MatchInspirationRequest {
   embedding: number[]; // 1408-dimensional embedding from analyze step
   tags?: string[]; // AI tags for display purposes
+  searchMode?: SearchMode; // Search strategy (balanced, visual, semantic, style, color)
   location?: {
     city: string;
     state?: string;
@@ -27,8 +34,9 @@ export interface MatchInspirationRequest {
 // ============================================
 
 export interface ImageAnalysisResult {
-  tags: string[]; // AI-extracted visual features
-  embedding: number[]; // 1408-dimensional enriched embedding (image + tags)
+  tags: string[]; // AI-extracted visual features (50-100+ comprehensive tags)
+  description?: string; // Natural language description (3-5 sentences)
+  embedding: number[]; // 1408-dimensional enriched embedding (image + tags + description)
 }
 
 export interface InspirationMatch {
@@ -56,7 +64,8 @@ export interface InspirationMatch {
   vectorScore: number; // 0-100 (same as matchScore)
   distance: number; // Raw vector distance (lower is better)
   matchingTags: string[]; // Tags that matched (for display only)
-  aiTags?: string[]; // All AI tags from the matched media
+  aiTags?: string[]; // All AI tags from the matched media (50-100+)
+  aiDescription?: string; // Natural language description of the matched media
 }
 
 export interface AnalyzeInspirationResponse {

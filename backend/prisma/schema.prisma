@@ -300,13 +300,19 @@ model ServiceMedia {
   isFeatured       Boolean                @default(false)
   isBeforePhoto    Boolean                @default(false)
   isAfterPhoto     Boolean                @default(false)
-  aiTags           String[]               @default([])
-  colorPalette     Json?
-  processingStatus String                 @default("pending")
-  moderationStatus String                 @default("pending")
-  createdAt        DateTime               @default(now())
-  updatedAt        DateTime               @updatedAt
-  aiEmbedding      Unsupported("vector")? @default(dbgenerated("(array_fill(0, ARRAY[1408]))::vector"))
+  aiTags             String[]               @default([])
+  aiDescription      String?
+  colorPalette       Json?
+  processingStatus   String                 @default("pending")
+  moderationStatus   String                 @default("pending")
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  aiEmbedding        Unsupported("vector")? @default(dbgenerated("(array_fill(0, ARRAY[1408]))::vector"))
+  visualEmbedding    Unsupported("vector")?
+  styleEmbedding     Unsupported("vector")?
+  semanticEmbedding  Unsupported("vector")?
+  colorEmbedding     Unsupported("vector")?
+  hybridEmbedding    Unsupported("vector")?
   service          Service                @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
   @@index([serviceId])
