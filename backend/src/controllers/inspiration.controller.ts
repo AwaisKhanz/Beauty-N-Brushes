@@ -204,30 +204,24 @@ export async function matchInspiration(
 
     const inspirationTags = tags || [];
 
-    // Transform matches - HYBRID SCORING (Vector + Tags + Category)
+    // Transform matches - VECTOR-ONLY SCORING
     const transformedMatches = matches.map((match) => {
       const serviceTags = match.ai_tags || [];
 
-      // Calculate HYBRID match score using advanced MatchingEngine
-      const hybridScore = MatchingEngine.calculateHybridScore(
-        match.distance,
-        inspirationTags,
-        serviceTags,
-        match.category_name || 'general'
-      );
+      // Calculate VECTOR-ONLY match score
+      const vectorScore = MatchingEngine.calculateVectorScore(match.distance);
 
-      // Extract intelligent matching tags (with synonym expansion)
+      // Extract matching tags for display only
       const matchingTags = MatchingEngine.extractMatchingTags(inspirationTags, serviceTags);
 
       // Debug first match only
       if (match === matches[0]) {
-        console.log('\n   📊 Top Match (Hybrid Scoring):');
+        console.log('\n   📊 Top Match (Vector-Only Scoring):');
         console.log(`      Service: ${match.service_title}`);
         console.log(`      Category: ${match.category_name}`);
         console.log(`      Provider: ${match.provider_business_name}`);
         console.log(`      Distance: ${match.distance.toFixed(4)}`);
-        console.log(`      Final Score: ${hybridScore.finalScore}%`);
-        console.log(`      Breakdown: ${hybridScore.breakdown}`);
+        console.log(`      Vector Score: ${vectorScore}%`);
         console.log(`      Matching Tags: ${matchingTags.slice(0, 5).join(', ')}`);
       }
 
@@ -245,13 +239,12 @@ export async function matchInspiration(
         providerLogoUrl: match.provider_logo_url || undefined,
         providerCity: match.provider_city,
         providerState: match.provider_state,
-        matchScore: hybridScore.finalScore, // Hybrid score (vector + tags)
-        vectorScore: hybridScore.vectorScore, // Pure vector score
-        tagScore: hybridScore.tagScore, // Tag overlap score
+        matchScore: vectorScore, // Vector-only score
+        vectorScore: vectorScore, // Same as matchScore now
         distance: match.distance, // Raw distance for debugging
-        matchingTags: matchingTags, // Intelligent matching tags
+        matchingTags: matchingTags, // Matching tags for display
         aiTags: match.ai_tags, // All AI tags for display
-        finalScore: hybridScore.finalScore, // For re-ranking
+        finalScore: vectorScore, // For re-ranking
       };
     });
 
@@ -266,7 +259,7 @@ export async function matchInspiration(
       console.log(
         `   Top 3 scores: ${rankedMatches
           .slice(0, 3)
-          .map((m) => `${m.matchScore}% (V:${m.vectorScore}% T:${m.tagScore}%)`)
+          .map((m) => `${m.matchScore}% (Vector)`)
           .join(', ')}`
       );
     }

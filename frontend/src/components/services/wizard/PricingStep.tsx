@@ -331,13 +331,13 @@ export function PricingStep({ form }: PricingStepProps) {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="percentage">
+                      <SelectItem value="PERCENTAGE">
                         <div>
                           <div className="font-medium">Percentage</div>
                           <div className="text-xs text-muted-foreground">% of service price</div>
                         </div>
                       </SelectItem>
-                      <SelectItem value="fixed">
+                      <SelectItem value="FLAT">
                         <div>
                           <div className="font-medium">Fixed Amount</div>
                           <div className="text-xs text-muted-foreground">Set dollar amount</div>
@@ -430,11 +430,11 @@ export function PricingStep({ form }: PricingStepProps) {
       {/* Pricing Tips */}
       <Card className="bg-warning/10 border-warning/20">
         <CardContent className="p-4">
-          <h4 className="font-medium text-warning-foreground mb-2 flex items-center gap-2">
+          <h4 className="font-medium text-muted-foreground mb-2 flex items-center gap-2">
             <Info className="h-4 w-4" />
             Pricing Best Practices
           </h4>
-          <ul className="text-sm text-warning-foreground space-y-1">
+          <ul className="text-sm text-muted-foreground space-y-1">
             <li>• Research competitor pricing for similar services</li>
             <li>• Consider your experience level and location</li>
             <li>• Factor in costs: products, supplies, overhead</li>

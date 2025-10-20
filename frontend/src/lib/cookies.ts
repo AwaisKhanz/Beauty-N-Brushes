@@ -50,23 +50,3 @@ export async function checkAuthStatus(): Promise<boolean> {
     return false;
   }
 }
-
-/**
- * Attempt to refresh authentication tokens
- * Returns true if refresh was successful, false otherwise
- */
-export async function refreshAuthTokens(): Promise<boolean> {
-  try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`, {
-      method: 'GET',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    return response.ok;
-  } catch (error) {
-    return false;
-  }
-}

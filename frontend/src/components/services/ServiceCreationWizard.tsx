@@ -102,6 +102,7 @@ export const serviceWizardSchema = z.object({
 
 export type ServiceWizardData = z.infer<typeof serviceWizardSchema>;
 
+// Step interface - moved outside component to prevent recreation on every render
 interface Step {
   id: string;
   title: string;
@@ -113,6 +114,53 @@ interface Step {
   isCompleted?: boolean;
   isOptional?: boolean;
 }
+
+// Wizard steps configuration - constant to prevent infinite re-render loop
+const WIZARD_STEPS: Step[] = [
+  {
+    id: 'basic-info',
+    title: 'Basic Information',
+    description: 'Service title and category',
+    icon: Tags,
+    component: BasicInfoStep,
+  },
+  {
+    id: 'ai-description',
+    title: 'AI Description',
+    description: 'Auto-generated description with hashtags',
+    icon: Sparkles,
+    component: AIDescriptionStep,
+  },
+  {
+    id: 'pricing',
+    title: 'Pricing & Duration',
+    description: 'Set price, duration, and deposit',
+    icon: DollarSign,
+    component: PricingStep,
+  },
+  {
+    id: 'media',
+    title: 'Photos & Videos',
+    description: 'Upload and tag your work',
+    icon: ImageIcon,
+    component: MediaUploadStep,
+  },
+  {
+    id: 'addons',
+    title: 'Add-ons & Variations',
+    description: 'Optional extras and pricing variations',
+    icon: Settings,
+    isOptional: true,
+    component: AddonsStep,
+  },
+  {
+    id: 'review',
+    title: 'Review & Publish',
+    description: 'Final review before publishing',
+    icon: Check,
+    component: ReviewStep,
+  },
+];
 
 // Draft recovery data structure
 interface DraftRecoveryData {
@@ -133,6 +181,7 @@ export function ServiceCreationWizard({
   isEdit = false,
 }: ServiceCreationWizardProps) {
   const [currentStep, setCurrentStep] = useState(0);
+  const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDraftDialog, setShowDraftDialog] = useState(false);
   const [pendingDraft, setPendingDraft] = useState<DraftRecoveryData | null>(null);
@@ -218,51 +267,8 @@ export function ServiceCreationWizard({
     }
   }, [initialData, isEdit, form]);
 
-  const steps: Step[] = [
-    {
-      id: 'basic-info',
-      title: 'Basic Information',
-      description: 'Service title and category',
-      icon: Tags,
-      component: BasicInfoStep,
-    },
-    {
-      id: 'ai-description',
-      title: 'AI Description',
-      description: 'Auto-generated description with hashtags',
-      icon: Sparkles,
-      component: AIDescriptionStep,
-    },
-    {
-      id: 'pricing',
-      title: 'Pricing & Duration',
-      description: 'Set price, duration, and deposit',
-      icon: DollarSign,
-      component: PricingStep,
-    },
-    {
-      id: 'media',
-      title: 'Photos & Videos',
-      description: 'Upload and tag your work',
-      icon: ImageIcon,
-      component: MediaUploadStep,
-    },
-    {
-      id: 'addons',
-      title: 'Add-ons & Variations',
-      description: 'Optional extras and pricing variations',
-      icon: Settings,
-      component: AddonsStep,
-      isOptional: true,
-    },
-    {
-      id: 'review',
-      title: 'Review & Publish',
-      description: 'Final review before publishing',
-      icon: Check,
-      component: ReviewStep,
-    },
-  ];
+  // Use constant steps array to prevent recreation on every render
+  const steps = WIZARD_STEPS;
 
   const currentStepData = steps[currentStep];
   const progress = ((currentStep + 1) / steps.length) * 100;
@@ -330,6 +336,57 @@ export function ServiceCreationWizard({
     }
   }, [currentStep, form]);
 
+  // Validate individual step to check if data is complete
+  const validateStep = useCallback(
+    async (stepIndex: number): Promise<boolean> => {
+      const stepId = steps[stepIndex].id;
+
+      switch (stepId) {
+        case 'basic-info':
+          return await form.trigger(['title', 'category'], { shouldFocus: false });
+        case 'ai-description':
+          return await form.trigger(['description'], { shouldFocus: false });
+        case 'pricing':
+          return await form.trigger(
+            ['priceType', 'priceMin', 'durationMinutes', 'depositType', 'depositAmount'],
+            { shouldFocus: false }
+          );
+        case 'media':
+          // Media is optional in edit mode, consider valid if at least empty array exists
+          const media = form.getValues('media');
+          return media !== undefined;
+        case 'addons':
+          return true; // Optional step, always valid
+        case 'review':
+          return true; // Review step doesn't require validation
+        default:
+          return true;
+      }
+    },
+    [form, steps]
+  );
+
+  // Check which steps are completed (especially important for edit mode)
+  useEffect(() => {
+    const checkStepCompletion = async () => {
+      const completed = new Set<number>();
+
+      for (let i = 0; i < steps.length; i++) {
+        const isValid = await validateStep(i);
+        if (isValid) {
+          completed.add(i);
+        }
+      }
+
+      setCompletedSteps(completed);
+    };
+
+    // Only check in edit mode or when data changes
+    if (isEdit || initialData) {
+      checkStepCompletion();
+    }
+  }, [isEdit, initialData, validateStep, steps.length]);
+
   const nextStep = async () => {
     const isValid = await validateCurrentStep();
 
@@ -337,6 +394,9 @@ export function ServiceCreationWizard({
       toast.error('Please complete all required fields');
       return;
     }
+
+    // Mark current step as completed
+    setCompletedSteps((prev) => new Set(prev).add(currentStep));
 
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
@@ -417,20 +477,24 @@ export function ServiceCreationWizard({
           {steps.map((step, index) => {
             const Icon = step.icon;
             const isActive = index === currentStep;
-            const isCompleted = index < currentStep;
-            const isAccessible = index <= currentStep;
+            const isStepCompleted = completedSteps.has(index);
+            const isAccessible = index <= currentStep || isStepCompleted;
 
             return (
               <button
                 key={step.id}
-                onClick={() => isAccessible && setCurrentStep(index)}
+                onClick={() => {
+                  if (isAccessible) {
+                    setCurrentStep(index);
+                  }
+                }}
                 disabled={!isAccessible}
                 className={cn(
                   'p-3 rounded-lg border text-left transition-all duration-200',
                   isActive && 'border-primary bg-primary/5 shadow-sm',
-                  isCompleted && 'border-success/20 bg-success/10',
+                  isStepCompleted && !isActive && 'border-success/20 bg-success/10',
                   !isAccessible && 'opacity-50 cursor-not-allowed',
-                  isAccessible && !isActive && 'hover:border-primary/50'
+                  isAccessible && !isActive && 'hover:border-primary/50 cursor-pointer'
                 )}
               >
                 <div className="flex items-center gap-2 mb-1">
@@ -438,12 +502,12 @@ export function ServiceCreationWizard({
                     className={cn(
                       'h-4 w-4',
                       isActive && 'text-primary',
-                      isCompleted && 'text-success'
+                      isStepCompleted && 'text-success'
                     )}
                   />
-                  {isCompleted && <Check className="h-3 w-3 text-success" />}
+                  {isStepCompleted && !isActive && <Check className="h-3 w-3 text-success" />}
                   {step.isOptional && (
-                    <Badge variant="secondary" className="text-xs">
+                    <Badge variant="outline" className="text-[12px] !py-0.5 px-2">
                       Optional
                     </Badge>
                   )}

@@ -54,16 +54,11 @@ export async function register(req: Request, res: Response, next: NextFunction):
     // Register user
     const user = await authService.registerUser(validatedData);
 
-    // Generate access and refresh tokens
+    // Generate access token
     const accessToken = authService.generateToken(user.id, user.email, user.role);
-    const refreshToken = authService.generateRefreshToken(user.id, user.email, user.role);
 
-    // Store refresh token in database
-    await authService.storeRefreshToken(user.id, refreshToken);
-
-    // Set cookies
-    res.cookie('access_token', accessToken, getCookieOptions(15 * 60 * 1000)); // 15 minutes
-    res.cookie('refresh_token', refreshToken, getCookieOptions(30 * 24 * 60 * 60 * 1000)); // 30 days
+    // Set cookie
+    res.cookie('access_token', accessToken, getCookieOptions(3 * 24 * 60 * 60 * 1000)); // 3 days
 
     const response: AuthResponse = {
       user: {
@@ -102,24 +97,15 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
     // Login user
     const result = await authService.loginUser(validatedData.email, validatedData.password);
 
-    // Generate access and refresh tokens
+    // Generate access token
     const accessToken = authService.generateToken(
       result.user.id,
       result.user.email,
       result.user.role
     );
-    const refreshToken = authService.generateRefreshToken(
-      result.user.id,
-      result.user.email,
-      result.user.role
-    );
 
-    // Store refresh token in database
-    await authService.storeRefreshToken(result.user.id, refreshToken);
-
-    // Set cookies
-    res.cookie('access_token', accessToken, getCookieOptions(15 * 60 * 1000)); // 15 minutes
-    res.cookie('refresh_token', refreshToken, getCookieOptions(30 * 24 * 60 * 60 * 1000)); // 30 days
+    // Set cookie
+    res.cookie('access_token', accessToken, getCookieOptions(3 * 24 * 60 * 60 * 1000)); // 3 days
 
     const response: AuthResponse = {
       user: result.user,
@@ -143,96 +129,14 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
 /**
  * User logout
  */
-export async function logout(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+export async function logout(_req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const userId = req.user?.id;
-
-    if (userId) {
-      // Revoke refresh token in database
-      await authService.revokeRefreshToken(userId);
-    }
-
-    // Clear cookies
+    // Clear cookie
     res.clearCookie('access_token', { path: '/' });
-    res.clearCookie('refresh_token', { path: '/' });
 
     sendSuccess(res, { message: 'Logout successful' });
   } catch (error) {
     next(error);
-  }
-}
-
-/**
- * Refresh access token with token rotation
- */
-export async function refreshToken(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    // Get refresh token from cookie
-    const oldRefreshToken = req.cookies.refresh_token;
-
-    if (!oldRefreshToken) {
-      res.clearCookie('access_token', { path: '/' });
-      res.clearCookie('refresh_token', { path: '/' });
-      throw new AppError(401, 'Refresh token required');
-    }
-
-    let decoded;
-    try {
-      // Verify refresh token
-      decoded = authService.verifyRefreshToken(oldRefreshToken);
-    } catch (jwtError) {
-      // JWT verification failed
-      res.clearCookie('access_token', { path: '/' });
-      res.clearCookie('refresh_token', { path: '/' });
-      throw new AppError(401, 'Invalid refresh token format');
-    }
-
-    // Validate against database
-    const isValid = await authService.validateRefreshToken(decoded.userId, oldRefreshToken);
-
-    if (!isValid) {
-      // Database validation failed
-      res.clearCookie('access_token', { path: '/' });
-      res.clearCookie('refresh_token', { path: '/' });
-      throw new AppError(401, 'Invalid or expired refresh token');
-    }
-
-    try {
-      // Generate new tokens (token rotation)
-      const newAccessToken = authService.generateToken(decoded.userId, decoded.email, decoded.role);
-      const newRefreshToken = authService.generateRefreshToken(
-        decoded.userId,
-        decoded.email,
-        decoded.role,
-        (decoded.tokenVersion || 0) + 1
-      );
-
-      // Store new refresh token in database (invalidates old one)
-      await authService.storeRefreshToken(decoded.userId, newRefreshToken);
-
-      // Set new cookies
-      res.cookie('access_token', newAccessToken, getCookieOptions(15 * 60 * 1000)); // 15 minutes
-      res.cookie('refresh_token', newRefreshToken, getCookieOptions(30 * 24 * 60 * 60 * 1000)); // 30 days
-
-      sendSuccess(res, {
-        message: 'Token refreshed successfully',
-      });
-    } catch (dbError) {
-      // Database error during token generation/storage
-      res.clearCookie('access_token', { path: '/' });
-      res.clearCookie('refresh_token', { path: '/' });
-      throw new AppError(500, 'Failed to refresh token');
-    }
-  } catch (error) {
-    // Ensure cookies are cleared for any unhandled errors
-    res.clearCookie('access_token', { path: '/' });
-    res.clearCookie('refresh_token', { path: '/' });
-
-    if (error instanceof AppError) {
-      next(error);
-    } else {
-      next(new AppError(401, 'Token refresh failed'));
-    }
   }
 }
 

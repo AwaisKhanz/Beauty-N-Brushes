@@ -24,7 +24,6 @@ import {
   Video as VideoIcon,
   Star,
   Edit,
-  Sparkles,
   Camera,
   Play,
   GripVertical,
@@ -214,48 +213,6 @@ export function MediaUploadStep({ form }: MediaUploadStepProps) {
     }
   };
 
-  const generateAITags = async (index: number) => {
-    const media = fields[index];
-    if (!media || media.mediaType !== 'image') return;
-
-    if (!media.url) {
-      console.error('Media URL is missing:', media);
-      toast.error('Image URL is missing. Please re-upload the image.');
-      return;
-    }
-
-    try {
-      // Call AI tagging service
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/services/ai/analyze-image`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageUrl: media.url }),
-      });
-
-      if (response.ok) {
-        await response.json();
-
-        // Update using useFieldArray's update function to ensure UI reflects changes
-        const currentMedia = fields[index];
-        const updatedMedia = {
-          ...currentMedia,
-        };
-
-        update(index, updatedMedia);
-
-        toast.success('AI tags generated!');
-      } else {
-        const errorText = await response.text();
-        console.error('Failed to generate AI tags:', response.status, errorText);
-        toast.error(`AI tagging failed: ${response.status}`);
-      }
-    } catch (error) {
-      console.error('Error generating AI tags:', error);
-      toast.error('AI tagging failed');
-    }
-  };
-
   return (
     <div className="space-y-6">
       {/* Upload Area */}
@@ -407,18 +364,6 @@ export function MediaUploadStep({ form }: MediaUploadStepProps) {
                           Set Featured
                         </Button>
                       )}
-                      {media.mediaType === 'image' && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => generateAITags(index)}
-                          className="text-xs"
-                        >
-                          <Sparkles className="h-3 w-3 mr-1" />
-                          AI Tag
-                        </Button>
-                      )}
                     </div>
 
                     {/* Caption Preview */}
@@ -474,16 +419,7 @@ export function MediaUploadStep({ form }: MediaUploadStepProps) {
               </div>
 
               {/* Actions */}
-              <div className="flex justify-between">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => generateAITags(editingMedia)}
-                  disabled={fields[editingMedia].mediaType !== 'image'}
-                >
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Generate AI Tags
-                </Button>
+              <div className="flex justify-end">
                 <Button onClick={() => setEditingMedia(null)}>Done</Button>
               </div>
             </div>
@@ -495,8 +431,8 @@ export function MediaUploadStep({ form }: MediaUploadStepProps) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card className="bg-info/10 border-info/20">
           <CardContent className="p-4">
-            <h4 className="font-medium text-info-foreground mb-2">📸 Photo Tips</h4>
-            <ul className="text-sm text-info-foreground space-y-1">
+            <h4 className="font-medium text-muted-foreground   mb-2">📸 Photo Tips</h4>
+            <ul className="text-sm text-muted-foreground space-y-1">
               <li>• Use good lighting (natural light works best)</li>
               <li>• Show clear before/after shots when possible</li>
               <li>• Include multiple angles of your work</li>
@@ -508,8 +444,8 @@ export function MediaUploadStep({ form }: MediaUploadStepProps) {
 
         <Card className="bg-success/10 border-success/20">
           <CardContent className="p-4">
-            <h4 className="font-medium text-success-foreground mb-2">🎬 Video Guidelines</h4>
-            <ul className="text-sm text-success-foreground space-y-1">
+            <h4 className="font-medium text-muted-foreground mb-2">🎬 Video Guidelines</h4>
+            <ul className="text-sm text-muted-foreground space-y-1">
               <li>• Keep videos under 60 seconds</li>
               <li>• Show your process or final reveal</li>
               <li>• Ensure good audio quality</li>

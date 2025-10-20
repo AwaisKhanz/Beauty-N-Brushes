@@ -1,5 +1,6 @@
 import { prisma } from '../config/database';
 import { aiService } from '../lib/ai';
+import { mediaProcessorService } from './media-processor.service';
 import type { CreateServiceData } from '../types/service.types';
 import type { SaveServiceMediaRequest } from '../../../shared-types';
 import type { Prisma } from '@prisma/client';
@@ -110,7 +111,7 @@ export class ServiceService {
     serviceId: string,
     mediaData: SaveServiceMediaRequest['mediaUrls']
   ) {
-    // Verify service belongs to user and get service details for multimodal context
+    // Verify service belongs to user and get service details
     const service = await prisma.service.findFirst({
       where: {
         id: serviceId,
@@ -131,151 +132,168 @@ export class ServiceService {
     // Build text context for multimodal embeddings
     const serviceContext = [
       service.title,
-      service.description,
+      service.description?.substring(0, 150),
       service.category.name,
       service.subcategory?.name,
     ]
       .filter(Boolean)
-      .join(' - ');
+      .join(' - ')
+      .substring(0, 200);
 
-    // Delete existing media first (to handle reordering)
+    // Fetch existing media to check which images already have embeddings
+    const existingMedia = await prisma.$queryRaw<
+      Array<{
+        fileUrl: string;
+        aiTags: string[];
+        aiEmbedding: string;
+        mediaType: string;
+      }>
+    >`
+      SELECT 
+        "fileUrl",
+        "aiTags",
+        "aiEmbedding"::text as "aiEmbedding",
+        "mediaType"
+      FROM "ServiceMedia"
+      WHERE "serviceId"::text = ${serviceId}
+    `;
+
+    // Create map for quick lookups
+    const existingMediaMap = new Map(
+      existingMedia.map((m) => [
+        m.fileUrl,
+        {
+          aiTags: m.aiTags,
+          aiEmbedding: m.aiEmbedding,
+          mediaType: m.mediaType,
+        },
+      ])
+    );
+
+    // Delete existing media (will recreate)
     await prisma.serviceMedia.deleteMany({
       where: { serviceId },
     });
 
-    // TWO-STAGE AI ANALYSIS for better matching
-    // Stage 1: Extract visual features (tags)
-    // Stage 2: Generate embedding with ENRICHED context (service info + AI tags)
-    const analyzedMedia = await Promise.all(
-      mediaData.map(async (media) => {
-        if (media.mediaType === 'image') {
-          try {
-            console.log(`🤖 Analyzing image: ${media.url}`);
+    // Separate media into reused vs new
+    const mediaToQueue: Array<{ mediaId: string; mediaUrl: string }> = [];
 
-            // Fetch the image from local storage and convert to base64
-            const imageResponse = await fetch(media.url);
-            if (!imageResponse.ok) {
-              throw new Error(`Failed to fetch image: ${imageResponse.statusText}`);
-            }
+    console.log(`\n📊 Media Upload Summary:`);
+    console.log(`   Total: ${mediaData.length} media file(s)`);
 
-            const imageArrayBuffer = await imageResponse.arrayBuffer();
-            const imageBuffer = Buffer.from(imageArrayBuffer);
-            const base64Image = imageBuffer.toString('base64');
+    // Save all media records IMMEDIATELY
+    for (let i = 0; i < mediaData.length; i++) {
+      const media = mediaData[i];
+      const existing = existingMediaMap.get(media.url);
 
-            // STAGE 1: AI Vision Analysis - Extract visual features (CATEGORY-AWARE)
-            console.log(
-              `   📊 Stage 1: Extracting visual features for ${service.category.name}...`
-            );
-            const analysis = await aiService.analyzeImageFromBase64(
-              base64Image,
-              service.category.name // Pass category for specialized analysis
-            );
-
-            // STAGE 2: Generate ENRICHED MULTIMODAL Embedding
-            // Combine: Service context + AI-extracted visual features
-            // This creates better matching because embedding includes both:
-            // - Semantic meaning (what service is about)
-            // - Visual features (what image shows)
-            console.log(`   🧠 Stage 2: Generating enriched embedding...`);
-
-            const enrichedContext = [
-              serviceContext, // "Knotless Box Braids - Medium length... - Hair"
-              ...analysis.tags.slice(0, 10), // Top 10 visual feature tags
-            ]
-              .filter(Boolean)
-              .join(' ');
-
-            const embedding = await aiService.generateMultimodalEmbedding(
-              imageBuffer,
-              enrichedContext // Service info + AI visual tags
-            );
-
-            // Format embedding for PostgreSQL vector type
-            const embeddingStr = `[${embedding.join(',')}]`;
-
-            console.log(`   ✅ Analysis complete!`);
-            console.log(`      Tags: ${analysis.tags.slice(0, 8).join(', ')}`);
-            console.log(`      Context: "${enrichedContext.substring(0, 80)}..."`);
-            console.log(`      Embedding: ${embedding.length}-dim MULTIMODAL vector`);
-
-            return {
-              ...media,
-              aiTags: analysis.tags,
-              aiEmbedding: embeddingStr,
-              colorPalette: null, // Removed - not needed for matching
-            };
-          } catch (error) {
-            console.error('❌ AI analysis failed for image:', error);
-            // Continue with default values if analysis fails
-            const emptyEmbedding = new Array(1408).fill(0);
-            const embeddingStr = `[${emptyEmbedding.join(',')}]`;
-
-            return {
-              ...media,
-              aiTags: [],
-              aiEmbedding: embeddingStr,
-              colorPalette: null,
-            };
-          }
-        }
-        // Videos don't get AI analysis yet
+      if (existing && existing.aiEmbedding && existing.aiTags.length > 0) {
+        // REUSED MEDIA: Save with existing analysis (status: completed)
+        await prisma.$executeRaw`
+          INSERT INTO "ServiceMedia" (
+            "id",
+            "serviceId",
+            "mediaType",
+            "fileUrl",
+            "thumbnailUrl",
+            "urlMedium",
+            "urlLarge",
+            "caption",
+            "isFeatured",
+            "displayOrder",
+            "aiTags",
+            "aiEmbedding",
+            "processingStatus",
+            "moderationStatus",
+            "createdAt",
+            "updatedAt"
+          ) VALUES (
+            gen_random_uuid(),
+            ${serviceId}::uuid,
+            ${media.mediaType}::text,
+            ${media.url}::text,
+            ${media.thumbnailUrl || media.url}::text,
+            ${media.mediumUrl || null}::text,
+            ${media.largeUrl || null}::text,
+            ${media.caption || null}::text,
+            ${media.isFeatured || false}::boolean,
+            ${i}::integer,
+            ${existing.aiTags}::text[],
+            ${existing.aiEmbedding}::vector,
+            'completed'::text,
+            'pending'::text,
+            NOW(),
+            NOW()
+          )
+        `;
+      } else {
+        // NEW MEDIA: Save with pending status, will be processed in background
         const emptyEmbedding = new Array(1408).fill(0);
         const embeddingStr = `[${emptyEmbedding.join(',')}]`;
 
-        return {
-          ...media,
-          aiTags: [],
-          aiEmbedding: embeddingStr,
-          colorPalette: null,
-        };
-      })
-    );
+        const result = await prisma.$queryRaw<Array<{ id: string }>>`
+          INSERT INTO "ServiceMedia" (
+            "id",
+            "serviceId",
+            "mediaType",
+            "fileUrl",
+            "thumbnailUrl",
+            "urlMedium",
+            "urlLarge",
+            "caption",
+            "isFeatured",
+            "displayOrder",
+            "aiTags",
+            "aiEmbedding",
+            "processingStatus",
+            "moderationStatus",
+            "createdAt",
+            "updatedAt"
+          ) VALUES (
+            gen_random_uuid(),
+            ${serviceId}::uuid,
+            ${media.mediaType}::text,
+            ${media.url}::text,
+            ${media.thumbnailUrl || media.url}::text,
+            ${media.mediumUrl || null}::text,
+            ${media.largeUrl || null}::text,
+            ${media.caption || null}::text,
+            ${media.isFeatured || false}::boolean,
+            ${i}::integer,
+            ARRAY[]::text[],
+            ${embeddingStr}::vector,
+            ${media.mediaType === 'image' ? 'pending' : 'n/a'}::text,
+            'pending'::text,
+            NOW(),
+            NOW()
+          )
+          RETURNING "id"
+        `;
 
-    // Create media records with AI data
-    // Note: Using raw SQL for vector insertion since Prisma doesn't fully support vector type
-    for (const media of analyzedMedia) {
-      await prisma.$executeRaw`
-        INSERT INTO "ServiceMedia" (
-          "id",
-          "serviceId",
-          "mediaType",
-          "fileUrl",
-          "thumbnailUrl",
-          "urlMedium",
-          "urlLarge",
-          "caption",
-          "isFeatured",
-          "displayOrder",
-          "aiTags",
-          "aiEmbedding",
-          "colorPalette",
-          "processingStatus",
-          "moderationStatus",
-          "createdAt",
-          "updatedAt"
-        ) VALUES (
-          gen_random_uuid(),
-          ${serviceId}::uuid,
-          ${media.mediaType}::text,
-          ${media.url}::text,
-          ${media.thumbnailUrl || media.url}::text,
-          ${media.mediumUrl || null}::text,
-          ${media.largeUrl || null}::text,
-          ${media.caption || null}::text,
-          ${media.isFeatured || false}::boolean,
-          ${media.displayOrder || 0}::integer,
-          ${media.aiTags}::text[],
-          ${media.aiEmbedding}::vector,
-          ${media.colorPalette ? JSON.stringify(media.colorPalette) : null}::jsonb,
-          'completed'::text,
-          'pending'::text,
-          NOW(),
-          NOW()
-        )
-      `;
+        // Queue for background processing (images only)
+        if (media.mediaType === 'image' && result[0]) {
+          mediaToQueue.push({ mediaId: result[0].id, mediaUrl: media.url });
+        }
+      }
     }
 
-    return { count: analyzedMedia.length };
+    // Enqueue new media for background AI processing (NON-BLOCKING)
+    if (mediaToQueue.length > 0) {
+      console.log(`🚀 Queuing ${mediaToQueue.length} image(s) for background AI processing`);
+
+      // Fire and forget - don't wait for processing
+      mediaProcessorService
+        .enqueueBatch(serviceId, mediaToQueue, service.category.name, serviceContext)
+        .catch((error) => {
+          console.error('Failed to enqueue media for processing:', error);
+        });
+    }
+
+    console.log(`✅ Uploaded ${mediaData.length} media file(s) successfully`);
+
+    return {
+      count: mediaData.length,
+      message: `Uploaded ${mediaData.length} media file(s). ${mediaToQueue.length > 0 ? `${mediaToQueue.length} image(s) are being analyzed in the background.` : 'All images already analyzed.'}`,
+    };
   }
 
   /**
@@ -308,7 +326,7 @@ export class ServiceService {
     } = params;
 
     // Create enhanced prompt for AI
-    const prompt = `Generate a compelling ${tone} service description for a beauty/wellness service:
+    const prompt = `Generate a compelling ${tone} service description (less then 800 words) for a beauty/wellness service:
 
 Service: ${title}
 Category: ${category}${subcategory ? ` > ${subcategory}` : ''}

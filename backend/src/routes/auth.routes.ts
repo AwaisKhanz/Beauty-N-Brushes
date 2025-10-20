@@ -7,7 +7,6 @@ const router = Router();
 // Public routes
 router.post('/register', authController.register);
 router.post('/login', authController.login);
-router.get('/refresh', authController.refreshToken); // Changed to GET (reads from cookies)
 router.post('/forgot-password', authController.forgotPassword);
 router.get('/validate-reset-token', authController.validateResetToken);
 router.post('/reset-password', authController.resetPassword); // Now accepts token in body

@@ -381,58 +381,78 @@ Do not include pricing or duration information.`;
   }
 
   /**
-   * Core Google Vision analysis logic - Enhanced with Gemini Vision (Category-Aware)
+   * Core Google Vision analysis logic - Advanced Beauty-Focused Analysis
+   * Combines Vision AI (advanced features) with Gemini Vision (category-aware expertise)
    */
   private async analyzeImageBuffer(buffer: Buffer, category?: string): Promise<ImageAnalysis> {
-    // Run both Vision AI (for basic features) and Gemini Vision (for category-specific analysis) in parallel
+    // Run Vision AI (for technical features) and Gemini Vision (for beauty expertise) in parallel
     const [visionResult, geminiAnalysis] = await Promise.all([
-      // Vision AI for basic object detection and colors
+      // Vision AI for ADVANCED TECHNICAL FEATURES only
+      // - Face detection: shape, landmarks, skin tone
+      // - Color analysis: dominant colors, color properties
+      // - Web detection: similar images, best guess labels from web
+      // - Safe search: content filtering
+      // NO generic labels/objects - Gemini handles that better
       this.visionClient.annotateImage({
         image: { content: buffer.toString('base64') },
         features: [
-          { type: 'FACE_DETECTION', maxResults: 5 },
-          { type: 'IMAGE_PROPERTIES' },
-          { type: 'LABEL_DETECTION', maxResults: 30 },
-          { type: 'OBJECT_LOCALIZATION', maxResults: 10 },
+          { type: 'FACE_DETECTION', maxResults: 5 }, // Face analysis for beauty services
+          { type: 'IMAGE_PROPERTIES' }, // Color analysis
+          { type: 'WEB_DETECTION', maxResults: 10 }, // Find similar professional work
+          { type: 'SAFE_SEARCH_DETECTION' }, // Content filtering
         ],
       }),
-      // Gemini Vision for category-aware detailed analysis
+      // Gemini Vision for category-aware beauty expertise
       this.analyzeHairstyleWithGemini(buffer, category),
     ]);
 
     const result = visionResult[0];
 
-    // Debug: Log what Vision AI detected
-    console.log('\n🔍 Vision AI Basic Detection:');
-    console.log(
-      '   Labels:',
-      (result.labelAnnotations || []).slice(0, 10).map((l: any) => l.description)
-    );
-    console.log(
-      '   Objects:',
-      (result.localizedObjectAnnotations || []).map((o: any) => o.name)
-    );
+    // Debug: Log advanced Vision AI features
+    console.log('\n🔍 Advanced Vision AI Analysis:');
 
-    // Debug: Log Gemini's detailed analysis
-    console.log(`\n✨ Gemini Vision ${category || 'Beauty'} Analysis:`);
-    console.log('   Tags:', geminiAnalysis.tags.slice(0, 8).join(', '));
+    // Extract professional context from Web Detection
+    const webLabels = this.extractWebLabels(result);
+    if (webLabels.length > 0) {
+      console.log('   Web Labels (Professional Context):', webLabels.slice(0, 5).join(', '));
+    }
 
-    // Combine Vision AI color detection with Gemini's hairstyle expertise
+    // Log face detection if present
+    const faceCount = result.faceAnnotations?.length || 0;
+    if (faceCount > 0) {
+      console.log(`   Face Detection: ${faceCount} face(s) detected`);
+    }
+
+    // Log color analysis
+    const colorCount = result.imagePropertiesAnnotation?.dominantColors?.colors?.length || 0;
+    if (colorCount > 0) {
+      console.log(`   Color Analysis: ${colorCount} dominant colors extracted`);
+    }
+
+    // Debug: Log Gemini's beauty expertise
+    console.log(`\n✨ Gemini Vision Beauty Expert Analysis (${category || 'General'}):`);
+    console.log('   Professional Tags:', geminiAnalysis.tags.slice(0, 8).join(', '));
+
+    // Extract advanced features from Vision AI
     const dominantColors = this.extractDominantColors(result);
     const faceAttributes = this.analyzeFaceAttributes(result);
 
-    // Merge tags from both sources (Gemini tags are more detailed)
-    const visionTags = this.generateTags(result);
-    const allTags = [...new Set([...geminiAnalysis.tags, ...visionTags])];
+    // PRIMARY: Use Gemini's beauty-focused tags as the main source
+    // SECONDARY: Add professional context from Web Detection (if available)
+    const allTags = [...new Set([...geminiAnalysis.tags, ...webLabels])];
 
     const analysis: ImageAnalysis = {
-      tags: allTags, // Combined tags
-      dominantColors: dominantColors, // Use Vision AI's color detection
-      faceAttributes: faceAttributes, // Use Vision AI's face detection
+      tags: allTags, // Gemini tags + Web Detection professional context
+      dominantColors: dominantColors, // Vision AI color detection
+      faceAttributes: faceAttributes, // Vision AI face detection
     };
 
-    console.log('\n   ✅ Final Analysis:', {
+    console.log('\n   ✅ Final Professional Analysis:', {
       totalTags: analysis.tags.length,
+      geminiTags: geminiAnalysis.tags.length,
+      webLabels: webLabels.length,
+      hasFaceDetection: faceCount > 0,
+      hasColorAnalysis: colorCount > 0,
     });
 
     return analysis;
@@ -495,12 +515,17 @@ Do not include pricing or duration information.`;
   }
 
   /**
-   * Generate category-aware prompts for comprehensive analysis
+   * Generate category-aware prompts for comprehensive beauty professional analysis
    */
   private generateCategoryAwarePrompt(category?: string): string {
-    const baseInstructions = `Analyze this beauty service image in detail and generate 15-25 specific, searchable keywords.
+    const baseInstructions = `You are an expert beauty industry professional analyzing service images for a professional beauty marketplace.
 
-Focus on what's VISIBLE in the image. Generate keywords that clients would search for.`;
+Analyze this image and generate 20-30 HIGHLY SPECIFIC, professional keywords that:
+1. CLIENTS would search for when looking for this exact style/look
+2. PROFESSIONALS would use to describe their work
+3. Help match clients with the right service provider
+
+Focus ONLY on what's VISIBLE in the image - no assumptions or guesses.`;
 
     const categorySpecificGuidelines = this.getCategoryGuidelines(category);
 
@@ -513,14 +538,24 @@ Format your response EXACTLY as JSON:
   "tags": ["keyword1", "keyword2", "keyword3", ...]
 }
 
-CRITICAL RULES:
-- Generate 15-25 specific, visual keywords from what you SEE in the image
-- Focus on features that help clients find this exact style/look
-- Include both technical terms (professionals use) and common terms (clients search)
-- Be specific about style details, not generic terms like "person" or "face"
-- Use descriptive adjectives (e.g., "natural-glam", "dramatic-lashes", "french-tip-nails")
-- Include complexity levels (simple, moderate, intricate, detailed)
-- Respond ONLY with valid JSON, no other text`;
+CRITICAL PROFESSIONAL STANDARDS:
+✅ DO:
+- Generate 20-30 specific, professional keywords from what you SEE
+- Use industry-standard terminology AND common client search terms
+- Include style descriptors (e.g., "natural-glam", "high-fade", "french-tip")
+- Specify techniques visible (e.g., "balayage", "box-braids", "ombre-nails")
+- Describe textures, finishes, lengths, shapes, colors, patterns
+- Include complexity (simple, moderate, intricate, masterclass-level)
+- Add occasion tags if clear (bridal, editorial, everyday, red-carpet)
+- Use compound keywords (e.g., "long-natural-nails", "dark-smokey-eye")
+
+❌ DON'T:
+- Generic terms: "person", "face", "photo", "image", "beauty"
+- Assumptions about things not visible
+- Brand names or product names
+- Vague descriptors: "nice", "good", "pretty"
+
+Respond ONLY with valid JSON. No explanations, no other text.`;
   }
 
   /**
@@ -531,84 +566,241 @@ CRITICAL RULES:
 
     // HAIR SERVICES
     if (lowerCategory.includes('hair')) {
-      return `HAIR SERVICE - Analyze and describe:
-- Texture: curly, wavy, straight, coily, kinky, textured, smooth
-- Type & Pattern: 4c, 3b, loose-curls, tight-curls, straight-hair
-- Style: box-braids, locs, silk-press, twist-out, wash-and-go, updo, ponytail, bun
-- Length: short, medium, long, shoulder-length, waist-length
-- Cut: fade, undercut, layers, blunt-cut, tapered, bob, pixie
-- Color: natural-black, brown, blonde, highlights, balayage, ombre, color-treated
-- Features: volume, shine, definition, sleek, natural, styled
-- Specific styles: knotless-braids, passion-twists, faux-locs, cornrows, etc.`;
+      return `HAIR SERVICE ANALYSIS - Analyze ALL visible hair characteristics:
+
+**TEXTURE & HAIR TYPE** (Critical for matching):
+- Natural texture: 4c-hair, 4b-coils, 4a-coils, 3c-curls, 3b-curls, 3a-curls, 2c-wavy, 2b-wavy, 2a-wavy, 1c-straight, 1b-straight, 1a-straight
+- Texture state: natural-texture, heat-styled, chemically-treated, relaxed-hair, texturized
+- Characteristics: tight-coils, loose-coils, kinky-curls, defined-curls, frizzy, smooth-straight
+
+**STYLE & TECHNIQUE** (What clients search for):
+- Protective styles: box-braids, knotless-braids, goddess-braids, cornrows, feed-in-braids, tribal-braids, fulani-braids
+- Locs: starter-locs, traditional-locs, faux-locs, loc-retwist, sisterlocks, microlocs
+- Natural styles: twist-out, braid-out, wash-and-go, finger-coils, rod-set, bantu-knots
+- Heat styles: silk-press, blowout, flat-iron, sleek-straight, bouncy-curls
+- Extensions: sew-in, quick-weave, wig-install, closure-install, frontal-install
+- Men's cuts: fade-haircut, taper-fade, low-fade, mid-fade, high-fade, skin-fade, burst-fade, drop-fade, temp-fade
+
+**CUT & SHAPE**:
+- Women's: bob, lob, pixie, shag, layers, blunt-cut, shoulder-length, long-layers, asymmetric
+- Men's: crew-cut, buzz-cut, undercut, pompadour, quiff, frohawk, caesar-cut, textured-crop
+
+**LENGTH**: short-hair, medium-length, long-hair, shoulder-length, bra-strap-length, waist-length, extra-long
+
+**COLOR WORK** (If visible):
+- Techniques: balayage, highlights, lowlights, ombre, sombre, color-melt, money-pieces
+- Colors: blonde, brunette, auburn, red, burgundy, platinum, ash-blonde, honey-blonde, copper
+- Fashion: pastel-hair, vivid-color, rainbow-hair, split-dye, color-block
+
+**FEATURES & FINISH**:
+- Volume: voluminous, flat-roots, lifted-crown, body
+- Shine: glossy, matte, natural-sheen, high-shine
+- Definition: curl-definition, texture-definition, separated-curls, clumped-curls
+- Overall: sleek, polished, natural-look, textured-finish, tousled, messy-chic
+
+**COMPLEXITY**: simple-style, moderate-skill, advanced-technique, masterclass-work, intricate-braiding
+
+**OCCASION** (If clear): everyday-hair, special-event, bridal-hair, editorial-hair, red-carpet, photoshoot`;
     }
 
     // MAKEUP SERVICES
     if (lowerCategory.includes('makeup')) {
-      return `MAKEUP SERVICE - Analyze and describe:
-- Style: natural-makeup, glam-makeup, smokey-eye, cut-crease, bridal-makeup
-- Finish: matte, dewy, natural, airbrushed, full-coverage
-- Eye Makeup: dramatic-eyes, natural-eyes, winged-liner, false-lashes, shimmer
-- Lips: nude-lips, bold-lips, matte-lipstick, glossy-lips, lip-liner
-- Face: contour, highlight, blush, bronzer, full-face
-- Occasion: everyday-makeup, special-event, photoshoot, wedding
-- Skin Tone: fair, medium, deep, warm-undertones, cool-undertones
-- Complexity: simple, moderate, intricate, professional`;
+      return `MAKEUP SERVICE ANALYSIS - Analyze ALL visible makeup characteristics:
+
+**OVERALL STYLE** (Critical for matching):
+- Look: natural-makeup, no-makeup-makeup, soft-glam, full-glam, dramatic-makeup, editorial-makeup, avant-garde
+- Finish: matte-finish, dewy-finish, satin-finish, airbrushed-look, natural-finish, radiant-finish
+- Coverage: light-coverage, medium-coverage, full-coverage, flawless-skin
+
+**EYE MAKEUP** (What clients search for):
+- Eyeshadow styles: smokey-eye, cut-crease, halo-eye, neutral-eye, colorful-eye, monochromatic
+- Eyeshadow finish: matte-shadow, shimmer-shadow, glitter-eye, metallic-eye
+- Eyeliner: winged-liner, cat-eye, graphic-liner, tight-line, smudged-liner, bold-liner, no-liner
+- Lashes: natural-lashes, false-lashes, dramatic-lashes, wispy-lashes, volume-lashes, individual-lashes
+- Brows: natural-brows, bold-brows, feathered-brows, defined-brows, ombre-brows
+
+**LIP MAKEUP**:
+- Style: nude-lips, bold-lips, ombre-lips, gradient-lips, overlining, natural-lips
+- Finish: matte-lipstick, glossy-lips, satin-lips, velvet-lips, sheer-lips
+- Colors: red-lips, pink-lips, berry-lips, nude-pink, mauve-lips, brown-lips, dark-lips
+
+**FACE MAKEUP**:
+- Contour: sculpted-contour, soft-contour, dramatic-contour, natural-contour, chiseled-cheekbones
+- Highlight: subtle-highlight, intense-highlight, strobing, glowing-skin, natural-glow
+- Blush: natural-blush, pink-blush, peach-blush, draping, flushed-cheeks
+- Bronzer: sun-kissed, warm-bronzer, sculpting-bronzer
+
+**SKIN TONE & UNDERTONES**:
+- Tone: fair-skin, light-skin, medium-skin, tan-skin, deep-skin, dark-skin, ebony-skin
+- Undertones: warm-undertones, cool-undertones, neutral-undertones, olive-undertones
+
+**COMPLEXITY & SKILL**:
+- Level: simple-makeup, moderate-skill, advanced-technique, professional-artistry, masterclass-work
+- Detail: clean-lines, precise-application, blended, seamless, intricate-detail
+
+**OCCASION** (If clear):
+- everyday-makeup, office-makeup, date-night, special-event, bridal-makeup, wedding-guest, prom-makeup, editorial-shoot, red-carpet, photoshoot, party-makeup, festival-makeup`;
     }
 
     // NAIL SERVICES
     if (lowerCategory.includes('nail')) {
-      return `NAIL SERVICE - Analyze and describe:
-- Style: french-tips, ombre-nails, solid-color, nail-art, 3d-nails
-- Length: short-nails, medium-nails, long-nails, extra-long
-- Shape: square, round, oval, stiletto, coffin, almond
-- Design: floral-nails, geometric, abstract, glitter, chrome
-- Type: acrylic, gel, dip-powder, natural, shellac
-- Color: nude, red, pink, black, multi-color, pastel
-- Details: rhinestones, gems, studs, hand-painted
-- Complexity: simple, detailed, intricate, artistic`;
+      return `NAIL SERVICE ANALYSIS - Analyze ALL visible nail characteristics:
+
+**NAIL SHAPE** (Critical for style matching):
+- Shapes: square-nails, squoval-nails, round-nails, oval-nails, almond-nails, stiletto-nails, coffin-nails, ballerina-nails, lipstick-shape, edge-nails, mountain-peak
+
+**NAIL LENGTH**:
+- Length: natural-short, short-nails, medium-nails, long-nails, extra-long-nails, xl-nails
+
+**NAIL TYPE & APPLICATION**:
+- Type: natural-nails, acrylic-nails, gel-nails, gel-x, dip-powder-nails, press-on-nails, builder-gel
+- Enhancement: nail-extensions, tips, overlay, sculpted-nails
+
+**DESIGN STYLE** (What clients search for):
+- Classic: french-manicure, french-tips, reverse-french, american-manicure, bare-nails
+- Modern: ombre-nails, gradient-nails, chrome-nails, mirror-nails, glazed-donut-nails
+- Artistic: nail-art, hand-painted-nails, detailed-art, abstract-nails, artistic-nails
+- 3D & Texture: 3d-nails, embellished-nails, textured-nails, dimensional-art
+- Trendy: jelly-nails, milk-bath-nails, glass-nails, aura-nails, swirl-nails, marble-nails
+
+**DESIGN ELEMENTS**:
+- Patterns: floral-nails, geometric-nails, animal-print, stripes, polka-dots, abstract-design
+- Effects: glitter-nails, sparkle, holographic, iridescent, metallic-nails, shimmer
+- Embellishments: rhinestones, crystals, gems, studs, pearls, charms, gold-foil, silver-foil
+- Techniques: stamping, water-marble, freehand, airbrushed-nails
+
+**COLOR & FINISH**:
+- Colors: nude-nails, red-nails, pink-nails, black-nails, white-nails, pastel-nails, neon-nails, jewel-tones
+- Specific: burgundy, emerald-green, royal-blue, lavender, coral, mint-green
+- Finish: matte-nails, glossy-nails, satin-finish, velvet-nails, glass-finish
+
+**COMPLEXITY & SKILL**:
+- Simple: solid-color, minimalist-nails, clean-nails, simple-design
+- Moderate: accent-nail, simple-art, two-tone, basic-french
+- Advanced: intricate-art, detailed-design, complex-patterns, mixed-media
+- Expert: masterclass-work, artistic-excellence, competition-worthy, editorial-nails
+
+**OCCASION** (If clear):
+- everyday-nails, office-appropriate, special-event, bridal-nails, wedding-nails, holiday-nails, summer-nails, winter-nails, vacation-nails`;
     }
 
     // LASH SERVICES
     if (lowerCategory.includes('lash')) {
-      return `LASH SERVICE - Analyze and describe:
-- Style: classic-lashes, volume-lashes, mega-volume, hybrid-lashes
-- Length: natural-length, medium, long, dramatic
-- Curl: natural-curl, c-curl, d-curl, l-curl
-- Fullness: natural, full, dramatic, wispy
-- Look: natural-lashes, glamorous, doll-eyes, cat-eye
-- Type: individual-lashes, strip-lashes, lash-extensions
-- Features: fluffy, dense, separated, layered`;
+      return `LASH SERVICE ANALYSIS - Analyze ALL visible lash characteristics:
+
+**LASH TYPE & APPLICATION**:
+- Extensions: lash-extensions, classic-lashes, volume-lashes, mega-volume-lashes, hybrid-lashes, russian-volume
+- Temporary: strip-lashes, false-lashes, individual-lashes, cluster-lashes, magnetic-lashes
+- Natural: lash-lift, lash-tint, lash-perm, natural-lashes
+
+**STYLE & LOOK** (What clients search for):
+- Effect: natural-lashes, natural-glam, glamorous-lashes, dramatic-lashes, wispy-lashes, spiky-lashes
+- Shape: cat-eye-lashes, doll-eye-lashes, open-eye, almond-eye, squirrel-lashes, dolly-lashes
+
+**LENGTH & CURL**:
+- Length: short-lashes, natural-length, medium-length, long-lashes, extra-long, dramatic-length
+- Curl: j-curl, b-curl, c-curl, d-curl, l-curl, m-curl, u-curl, natural-curl, lifted-curl
+
+**FULLNESS & DENSITY**:
+- Volume: natural-volume, full-volume, dramatic-volume, mega-volume, ultra-volume
+- Density: sparse, medium-density, dense-lashes, full-set, fluffy-lashes
+
+**CHARACTERISTICS**:
+- Texture: fluffy, feathery, separated, layered, textured, uniform
+- Finish: glossy-lashes, matte-lashes, natural-finish
+
+**COMPLEXITY**:
+- Simple: classic-set, natural-enhancement
+- Moderate: hybrid-set, volume-set
+- Advanced: mega-volume, intricate-mapping, custom-design`;
     }
 
     // BROW SERVICES
     if (lowerCategory.includes('brow')) {
-      return `BROW SERVICE - Analyze and describe:
-- Shape: arched-brows, straight-brows, rounded, angled
-- Fullness: natural-brows, full-brows, bold-brows, feathered
-- Style: clean-brows, fluffy-brows, laminated, groomed
-- Technique: microblading, threading, waxing, tinting
-- Look: natural, defined, sculpted, dramatic
-- Color: matched, tinted, natural, darker`;
+      return `BROW SERVICE ANALYSIS - Analyze ALL visible brow characteristics:
+
+**BROW SHAPE** (Critical for matching):
+- Arch: high-arch, soft-arch, straight-brows, angled-brows, rounded-brows, low-arch
+- Style: natural-shape, sculpted-brows, clean-brows, defined-shape, lifted-brows
+
+**BROW FULLNESS & THICKNESS**:
+- Full: bold-brows, thick-brows, full-brows, bushy-brows
+- Medium: natural-brows, moderate-thickness
+- Thin: thin-brows, delicate-brows, pencil-thin
+
+**BROW TEXTURE & FINISH**:
+- Natural: fluffy-brows, feathered-brows, natural-texture, brushed-up
+- Groomed: sleek-brows, polished-brows, precise-brows, clean-edges
+- Enhanced: laminated-brows, brow-gel, set-brows, soap-brows
+
+**TECHNIQUE & SERVICE** (If identifiable):
+- Shaping: threading, waxing, tweezing, trimming
+- Color: brow-tint, henna-brows, color-matched, darker-brows, lighter-brows
+- Semi-permanent: microblading, powder-brows, ombre-brows, combination-brows, nanoblading
+- Temporary: brow-pencil, brow-pomade, brow-powder, filled-brows
+
+**STYLE & LOOK**:
+- Natural: natural-brows, barely-there, subtle-enhancement
+- Defined: defined-brows, structured-brows, sharp-lines
+- Bold: bold-brows, statement-brows, instagram-brows, dramatic-brows
+
+**COMPLEXITY**:
+- Simple: basic-grooming, cleanup, tinting
+- Moderate: shaping, filling, defining
+- Advanced: microblading, ombre-technique, custom-mapping`;
     }
 
     // SKINCARE SERVICES
     if (lowerCategory.includes('skin') || lowerCategory.includes('facial')) {
-      return `SKINCARE/FACIAL SERVICE - Analyze and describe:
-- Treatment Type: facial, chemical-peel, microdermabrasion, extraction
-- Skin Type: oily, dry, combination, sensitive, mature
-- Concern: acne, anti-aging, hydration, brightening, dark-spots
-- Result: glowing-skin, clear-skin, smooth-skin, radiant
-- Technique: deep-cleansing, exfoliation, massage, mask
-- Features: refreshed, rejuvenated, healthy-glow`;
+      return `SKINCARE/FACIAL SERVICE ANALYSIS - Analyze ALL visible skincare characteristics:
+
+**TREATMENT TYPE**:
+- Basic: facial, classic-facial, european-facial, deep-cleansing-facial
+- Advanced: chemical-peel, microdermabrasion, dermaplaning, hydrafacial, oxygen-facial
+- Specialized: acne-facial, anti-aging-facial, brightening-facial, hydrating-facial
+- Extraction: blackhead-removal, extraction-facial, deep-pore-cleansing
+
+**SKIN CONDITION** (If visible):
+- Type: oily-skin, dry-skin, combination-skin, sensitive-skin, normal-skin, mature-skin
+- Concerns: acne-prone, anti-aging, hyperpigmentation, dark-spots, fine-lines, wrinkles, dullness, dehydration
+
+**RESULTS & BENEFITS** (If visible):
+- Glow: glowing-skin, radiant-skin, dewy-skin, luminous-skin, healthy-glow
+- Texture: smooth-skin, soft-skin, refined-texture, even-texture
+- Clarity: clear-skin, bright-skin, even-tone, fresh-skin
+- Firmness: lifted-skin, tightened-skin, plump-skin
+
+**TECHNIQUES & MODALITIES**:
+- Manual: facial-massage, lymphatic-drainage, gua-sha, facial-cupping
+- Exfoliation: enzyme-peel, glycolic-peel, lactic-acid, microdermabrasion
+- Technology: led-therapy, microcurrent, ultrasound, radiofrequency
+- Masks: clay-mask, sheet-mask, hydrating-mask, brightening-mask
+
+**ATMOSPHERE** (If visible):
+- Setting: spa-setting, treatment-room, relaxing-environment, luxury-spa
+- Experience: pampering, rejuvenation, self-care, wellness`;
     }
 
     // WAXING SERVICES
     if (lowerCategory.includes('wax')) {
-      return `WAXING SERVICE - Analyze and describe:
-- Area: eyebrow-wax, lip-wax, leg-wax, brazilian, bikini
-- Result: smooth-skin, hair-removal, clean, groomed
-- Type: sugaring, hard-wax, strip-wax
-- Coverage: full, partial, touch-up`;
+      return `WAXING SERVICE ANALYSIS - Analyze visible waxing characteristics:
+
+**BODY AREA** (Critical for service matching):
+- Face: eyebrow-wax, lip-wax, chin-wax, sideburn-wax, full-face-wax
+- Body: leg-wax, arm-wax, underarm-wax, back-wax, chest-wax, stomach-wax
+- Bikini: bikini-wax, brazilian-wax, hollywood-wax, extended-bikini, landing-strip
+
+**RESULTS** (If visible):
+- Finish: smooth-skin, hair-free, clean-skin, groomed, silky-skin
+- Duration: long-lasting, semi-permanent-hair-removal
+
+**TECHNIQUE & TYPE**:
+- Method: hard-wax, soft-wax, strip-wax, sugaring, wax-strips
+- Application: professional-waxing, precision-waxing
+
+**SKIN CONDITION** (If visible):
+- skin-type: sensitive-skin, normal-skin, all-skin-types
+- Results: no-irritation, smooth-results, clean-finish`;
     }
 
     // SPA & WELLNESS
@@ -617,50 +809,105 @@ CRITICAL RULES:
       lowerCategory.includes('massage') ||
       lowerCategory.includes('wellness')
     ) {
-      return `SPA/WELLNESS SERVICE - Analyze and describe:
-- Treatment: massage, body-scrub, aromatherapy, hot-stone
-- Environment: relaxing, spa-setting, tranquil, luxurious
-- Result: relaxation, rejuvenation, stress-relief, wellness
-- Type: deep-tissue, swedish, therapeutic, holistic`;
+      return `SPA/WELLNESS SERVICE ANALYSIS - Analyze visible spa/wellness characteristics:
+
+**TREATMENT TYPE**:
+- Massage: swedish-massage, deep-tissue, hot-stone-massage, aromatherapy-massage, sports-massage, prenatal-massage
+- Body: body-scrub, body-wrap, body-polish, exfoliation, detox-wrap
+- Hydrotherapy: jacuzzi, steam-room, sauna, hydrotherapy-bath
+- Specialty: reflexology, thai-massage, shiatsu, couples-massage
+
+**ENVIRONMENT & SETTING** (If visible):
+- Ambiance: relaxing-spa, luxury-spa, tranquil-setting, peaceful-environment, zen-space
+- Features: spa-room, massage-table, treatment-room, spa-suite, private-room
+- Elements: candles, aromatherapy, calming-music, dim-lighting, natural-elements
+
+**WELLNESS FOCUS**:
+- Benefits: relaxation, stress-relief, tension-relief, muscle-relief, pain-management
+- Results: rejuvenation, renewal, wellness, self-care, healing, balance
+- Experience: pampering, therapeutic, restorative, calming, peaceful
+
+**MODALITY STYLE**:
+- Pressure: gentle, moderate, firm, deep-pressure, light-touch
+- Technique: kneading, stroking, compression, stretching, acupressure
+- Approach: holistic, therapeutic, clinical, relaxation-focused`;
     }
 
     // GENERIC/UNKNOWN CATEGORY
-    return `BEAUTY SERVICE - Analyze and describe ALL visible elements:
-- Service Type: hair, makeup, nails, lashes, brows, skincare, waxing, spa
-- Style Details: specific techniques, looks, patterns visible
-- Quality: professional, polished, natural, dramatic, subtle
-- Features: colors, textures, shapes, designs, finishes
-- Complexity: simple, moderate, detailed, intricate, artistic
-- Occasion: everyday, special-event, bridal, photoshoot, professional`;
+    return `BEAUTY & PERSONAL CARE SERVICE ANALYSIS - Comprehensive professional analysis:
+
+**SERVICE IDENTIFICATION** (Critical - identify what service this is):
+- Category: hair-service, makeup-service, nail-service, lash-service, brow-service, skincare-service, waxing-service, spa-service, body-treatment, wellness-service
+- Specific service visible: haircut, color-treatment, styling, manicure, pedicure, facial, massage, etc.
+
+**VISUAL CHARACTERISTICS**:
+- Style & Technique: specific methods, approaches, styles visible in the image
+- Quality Level: professional-grade, expert-work, advanced-technique, basic-service
+- Finish & Result: polished, natural, dramatic, subtle, bold, understated
+- Complexity: simple, moderate-complexity, detailed-work, intricate, masterclass-level
+
+**DESIGN ELEMENTS**:
+- Colors: specific colors, color combinations, color techniques visible
+- Textures: smooth, textured, glossy, matte, rough, soft, silky
+- Patterns: geometric, floral, abstract, organic, structured, freeform
+- Shapes: specific shapes and forms visible
+
+**FEATURES & DETAILS**:
+- Technical aspects: precision, blending, application, execution
+- Artistic elements: creativity, design, artistry, uniqueness
+- Aesthetic: modern, classic, trendy, timeless, edgy, elegant, minimalist
+
+**OCCASION & PURPOSE** (If identifiable):
+- Daily: everyday, casual, low-maintenance, simple, practical
+- Special: event, wedding, bridal, prom, party, celebration, formal
+- Professional: photoshoot, editorial, red-carpet, runway, competition, portfolio
+
+**CLIENT SEARCH TERMS** (Think like a client):
+- What would someone search to find THIS exact look/service?
+- Include both professional terms AND common language
+- Focus on distinguishing features that make this unique
+
+Generate 20-30 highly specific, searchable keywords that help match clients with providers offering THIS exact style/service.`;
   }
 
   /**
-   * Generate comprehensive tags for search
+   * Extract professional context labels from Web Detection
+   * Uses Google's web entity detection to find similar professional work
    */
-  private generateTags(result: any): string[] {
-    const tags = new Set<string>();
+  private extractWebLabels(result: any): string[] {
+    const labels = new Set<string>();
 
-    // Add label annotations
-    const labels = result.labelAnnotations || [];
-    labels.forEach((label: any) => {
-      if (label.score > 0.7) {
-        tags.add(label.description.toLowerCase());
+    // Extract best guess labels (what Google thinks this image shows)
+    const bestGuessLabels = result.webDetection?.bestGuessLabels || [];
+    bestGuessLabels.forEach((label: any) => {
+      if (label.label) {
+        // Split multi-word labels and add them
+        const words = label.label
+          .toLowerCase()
+          .split(/[\s,]+/)
+          .filter((word: string) => word.length > 2);
+        words.forEach((word: string) => labels.add(word));
       }
     });
 
-    // Add object annotations
-    const objects = result.localizedObjectAnnotations || [];
-    objects.forEach((obj: any) => {
-      tags.add(obj.name.toLowerCase());
+    // Extract web entities (recognized concepts from similar professional images)
+    const webEntities = result.webDetection?.webEntities || [];
+    webEntities.forEach((entity: any) => {
+      if (entity.score > 0.6 && entity.description) {
+        // Only add relevant beauty/professional terms
+        const desc = entity.description.toLowerCase();
+
+        // Filter out generic/irrelevant terms
+        const genericTerms = ['person', 'people', 'human', 'photo', 'image', 'picture', 'model'];
+        const isGeneric = genericTerms.some((term) => desc === term);
+
+        if (!isGeneric && desc.length > 2) {
+          labels.add(desc);
+        }
+      }
     });
 
-    // Add beauty-specific tags based on detection
-    if (result.faceAnnotations?.length > 0) {
-      tags.add('portrait');
-      tags.add('face');
-    }
-
-    return Array.from(tags);
+    return Array.from(labels);
   }
 
   /**

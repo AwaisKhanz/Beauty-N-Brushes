@@ -1,5 +1,3 @@
-import { UserRole } from '@/shared-types/auth.types';
-
 /**
  * Re-export shared auth types
  */
@@ -24,13 +22,4 @@ export interface CookieOptions {
   maxAge: number;
   path: string;
   domain?: string;
-}
-
-export interface RefreshTokenPayload {
-  userId: string;
-  email: string;
-  role: UserRole;
-  tokenVersion: number;
-  iat?: number;
-  exp?: number;
 }

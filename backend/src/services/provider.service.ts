@@ -133,11 +133,23 @@ export class ProviderService {
   }
 
   /**
-   * Get public provider profile by slug
+   * Get public provider profile by slug or business name
    */
-  async getPublicProfile(slug: string) {
-    const profile = await prisma.providerProfile.findUnique({
-      where: { slug },
+  async getPublicProfile(slugOrBusinessName: string) {
+    console.log('slugOrBusinessName', slugOrBusinessName);
+    // Try to find by slug OR business name in a single query
+    const profile = await prisma.providerProfile.findFirst({
+      where: {
+        OR: [
+          { slug: slugOrBusinessName },
+          {
+            businessName: {
+              equals: slugOrBusinessName,
+              mode: 'insensitive',
+            },
+          },
+        ],
+      },
       include: {
         user: {
           select: {

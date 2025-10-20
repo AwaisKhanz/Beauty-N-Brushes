@@ -1732,8 +1732,8 @@ export const BUSINESS_TYPES = [
 ] as const;
 
 export const DEPOSIT_TYPES = [
-  { value: 'percentage', label: 'Percentage of Service Price' },
-  { value: 'fixed', label: 'Fixed Amount' },
+  { value: 'PERCENTAGE', label: 'Percentage of Service Price' },
+  { value: 'FLAT', label: 'Fixed Amount' },
 ] as const;
 
 // ============================================

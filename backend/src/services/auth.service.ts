@@ -2,13 +2,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { randomBytes } from 'crypto';
 import { prisma } from '../config/database';
-import type {
-  UserRole,
-  RegisterRequest,
-  AuthUser,
-  TokenPayload,
-  RefreshTokenPayload,
-} from '../types/auth.types';
+import type { UserRole, RegisterRequest, AuthUser, TokenPayload } from '../types/auth.types';
 import { sendVerificationEmail as sendEmailVerification, emailService } from '../lib/email';
 import { env } from '../config/env';
 
@@ -41,115 +35,11 @@ export class AuthService {
   }
 
   /**
-   * Generate refresh token
-   */
-  generateRefreshToken(
-    userId: string,
-    email: string,
-    role: UserRole,
-    tokenVersion: number = 0
-  ): string {
-    const payload: RefreshTokenPayload = { userId, email, role, tokenVersion };
-    const secret = env.REFRESH_TOKEN_SECRET;
-    const expiresIn = env.REFRESH_TOKEN_EXPIRY;
-
-    return jwt.sign(payload, secret, { expiresIn } as jwt.SignOptions);
-  }
-
-  /**
    * Verify JWT access token
    */
   verifyToken(token: string): TokenPayload {
     const secret = env.JWT_SECRET;
     return jwt.verify(token, secret) as TokenPayload;
-  }
-
-  /**
-   * Verify refresh token
-   */
-  verifyRefreshToken(token: string): RefreshTokenPayload {
-    const secret = env.REFRESH_TOKEN_SECRET;
-    return jwt.verify(token, secret) as RefreshTokenPayload;
-  }
-
-  /**
-   * Store refresh token hash in database
-   */
-  async storeRefreshToken(userId: string, refreshToken: string): Promise<void> {
-    try {
-      const refreshTokenHash = await this.hashPassword(refreshToken);
-      const expiryDays = parseInt(env.REFRESH_TOKEN_EXPIRY.replace('d', ''));
-      const refreshTokenExpiry = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000);
-
-      await prisma.user.update({
-        where: { id: userId },
-        data: {
-          refreshTokenHash,
-          refreshTokenExpiry,
-        },
-      });
-    } catch (error) {
-      console.error('Failed to store refresh token:', error);
-      throw new Error('Failed to store refresh token');
-    }
-  }
-
-  /**
-   * Verify refresh token against database
-   */
-  async validateRefreshToken(userId: string, refreshToken: string): Promise<boolean> {
-    try {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          refreshTokenHash: true,
-          refreshTokenExpiry: true,
-          status: true,
-        },
-      });
-
-      if (!user || !user.refreshTokenHash || !user.refreshTokenExpiry) {
-        return false;
-      }
-
-      // Check if user is active
-      if (user.status !== 'ACTIVE') {
-        return false;
-      }
-
-      // Check if token is expired
-      if (user.refreshTokenExpiry < new Date()) {
-        // Clean up expired token
-        await this.revokeRefreshToken(userId);
-        return false;
-      }
-
-      // Verify token hash
-      const isValid = await this.verifyPassword(refreshToken, user.refreshTokenHash);
-
-      if (!isValid) {
-        // Invalid token - revoke it for security
-        await this.revokeRefreshToken(userId);
-      }
-
-      return isValid;
-    } catch (error) {
-      console.error('Failed to validate refresh token:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Revoke refresh token (for logout)
-   */
-  async revokeRefreshToken(userId: string): Promise<void> {
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        refreshTokenHash: null,
-        refreshTokenExpiry: null,
-      },
-    });
   }
 
   /**

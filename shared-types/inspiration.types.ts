@@ -51,12 +51,11 @@ export interface InspirationMatch {
   providerCity: string;
   providerState: string;
 
-  // Match Info (Hybrid Scoring)
-  matchScore: number; // 0-100 (hybrid: vector + tags + category)
-  vectorScore: number; // 0-100 (pure vector similarity)
-  tagScore: number; // 0-100 (tag overlap score)
+  // Match Info (Vector-Only Scoring)
+  matchScore: number; // 0-100 (vector similarity only)
+  vectorScore: number; // 0-100 (same as matchScore)
   distance: number; // Raw vector distance (lower is better)
-  matchingTags: string[]; // Tags that matched (with synonym expansion)
+  matchingTags: string[]; // Tags that matched (for display only)
   aiTags?: string[]; // All AI tags from the matched media
 }
 

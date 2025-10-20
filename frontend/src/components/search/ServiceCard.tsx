@@ -38,10 +38,7 @@ export function ServiceCard({ service, showDistance }: ServiceCardProps) {
 
         {/* Provider Type Badge */}
         <div className="absolute top-3 left-3">
-          <Badge
-            variant={service.providerIsSalon ? 'default' : 'secondary'}
-            className="backdrop-blur-sm bg-white/90"
-          >
+          <Badge variant={service.providerIsSalon ? 'default' : 'secondary'}>
             {service.providerIsSalon ? (
               <>
                 <Building2 className="h-3 w-3 mr-1" />
@@ -59,9 +56,7 @@ export function ServiceCard({ service, showDistance }: ServiceCardProps) {
         {/* Distance Badge */}
         {showDistance && service.distance && (
           <div className="absolute top-3 right-3">
-            <Badge variant="secondary" className="backdrop-blur-sm bg-white/90">
-              {service.distance.toFixed(1)} mi
-            </Badge>
+            <Badge variant="secondary">{service.distance.toFixed(1)} mi</Badge>
           </div>
         )}
       </Link>

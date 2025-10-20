@@ -34,8 +34,6 @@ model User {
   resetTokenExpiry        DateTime?
   verificationToken       String?            @unique
   verificationTokenExpiry DateTime?
-  refreshTokenHash        String?
-  refreshTokenExpiry      DateTime?
   bookingsAsClient        Booking[]          @relation("ClientBookings")
   favorites               Favorite[]
   InspirationImage        InspirationImage[]

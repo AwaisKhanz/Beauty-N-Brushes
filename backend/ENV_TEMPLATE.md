@@ -18,9 +18,7 @@ DATABASE_URL=postgresql://username:password@localhost:5432/bnb_dev
 
 # JWT Authentication
 JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
-JWT_EXPIRY=15m
-REFRESH_TOKEN_SECRET=your-different-refresh-token-secret-change-this
-REFRESH_TOKEN_EXPIRY=30d
+JWT_EXPIRY=3d
 COOKIE_SECRET=your-cookie-signing-secret-change-this
 
 # ================================

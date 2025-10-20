@@ -116,9 +116,9 @@ export function DraftServicesSection({ className }: DraftServicesSectionProps) {
             <p className="text-muted-foreground mb-4">
               Start creating a new service and it will be saved as a draft automatically.
             </p>
-            <Button onClick={handleCreateNew} className="bg-primary hover:bg-primary/90">
-              <Plus className="h-4 w-4 mr-2" />
-              Create Your First Service
+            <Button size="sm" onClick={handleCreateNew} className="bg-primary hover:bg-primary/90">
+              <Plus className="h-2 w-2 " />
+              Create Service
             </Button>
           </div>
         ) : (

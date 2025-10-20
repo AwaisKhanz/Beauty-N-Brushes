@@ -80,16 +80,16 @@ export function FilterSidebar({
           <div className="space-y-3">
             <Label>Category</Label>
             <Select
-              value={localFilters.category || ''}
+              value={localFilters.category || 'all'}
               onValueChange={(value) =>
-                setLocalFilters({ ...localFilters, category: value || undefined })
+                setLocalFilters({ ...localFilters, category: value === 'all' ? undefined : value })
               }
             >
               <SelectTrigger>
                 <SelectValue placeholder="All Categories" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Categories</SelectItem>
+                <SelectItem value="all">All Categories</SelectItem>
                 {categories.map((cat) => (
                   <SelectItem key={cat.id} value={cat.slug}>
                     {cat.name} ({cat.serviceCount})
@@ -101,16 +101,19 @@ export function FilterSidebar({
             {/* Subcategory Filter */}
             {localFilters.category && (
               <Select
-                value={localFilters.subcategory || ''}
+                value={localFilters.subcategory || 'all'}
                 onValueChange={(value) =>
-                  setLocalFilters({ ...localFilters, subcategory: value || undefined })
+                  setLocalFilters({
+                    ...localFilters,
+                    subcategory: value === 'all' ? undefined : value,
+                  })
                 }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="All Subcategories" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Subcategories</SelectItem>
+                  <SelectItem value="all">All Subcategories</SelectItem>
                   {categories
                     .find((cat) => cat.slug === localFilters.category)
                     ?.subcategories?.map((sub) => (

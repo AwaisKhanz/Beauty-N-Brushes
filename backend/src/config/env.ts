@@ -18,9 +18,7 @@ const envSchema = z.object({
 
   // JWT
   JWT_SECRET: z.string(),
-  JWT_EXPIRY: z.string().default('15m'),
-  REFRESH_TOKEN_SECRET: z.string(),
-  REFRESH_TOKEN_EXPIRY: z.string().default('30d'),
+  JWT_EXPIRY: z.string().default('3d'),
   COOKIE_SECRET: z.string(),
 
   // AWS S3

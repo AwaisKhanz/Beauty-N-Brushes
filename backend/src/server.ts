@@ -10,6 +10,7 @@ import { errorHandler } from './middleware/errorHandler';
 import { notFoundHandler } from './middleware/notFoundHandler';
 import { testDatabaseConnection } from './config/database';
 import logger from './utils/logger';
+import { mediaProcessorService } from './services/media-processor.service';
 
 // Load environment variables
 dotenv.config();
@@ -32,6 +33,7 @@ import inspirationRoutes from './routes/inspiration.routes';
 import settingsRoutes from './routes/settings.routes';
 import serviceDraftRoutes from './routes/serviceDraft.routes';
 import teamRoutes from './routes/team.routes';
+import adminRoutes from './routes/admin.routes';
 
 const app: Application = express();
 const PORT = process.env.PORT || 8000;
@@ -136,6 +138,7 @@ app.use('/api/v1/inspiration', inspirationRoutes);
 app.use('/api/v1/settings', settingsRoutes);
 app.use('/api/v1/service-drafts', serviceDraftRoutes);
 app.use('/api/v1/team', teamRoutes);
+app.use('/api/v1/admin', adminRoutes);
 
 // 404 handler
 app.use(notFoundHandler);
@@ -162,6 +165,24 @@ async function startServer() {
       logger.info(`🌐 Frontend URL: ${process.env.FRONTEND_URL}`);
       logger.info(`✅ Health check: http://localhost:${PORT}/health`);
     });
+
+    // Automatic recovery: Re-queue stuck/pending media after server startup
+    setTimeout(async () => {
+      try {
+        logger.info('🔧 Running startup media recovery...');
+        const result = await mediaProcessorService.recoverStuckMedia();
+
+        if (result.recovered > 0) {
+          logger.info(
+            `♻️  Recovered ${result.recovered} media items (${result.pending} pending, ${result.stuck} stuck)`
+          );
+        } else {
+          logger.info('✅ No stuck media found');
+        }
+      } catch (error) {
+        logger.error('Failed to recover stuck media:', error);
+      }
+    }, 3000); // Wait 3 seconds after startup
   } catch (error) {
     logger.error('Failed to start server:', error);
     process.exit(1);

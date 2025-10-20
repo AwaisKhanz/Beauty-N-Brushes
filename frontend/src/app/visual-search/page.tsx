@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Sparkles, Search as SearchIcon } from 'lucide-react';
 import { InspirationUpload } from '@/components/client/InspirationUpload';
 import { ServiceGrid } from '@/components/search/ServiceGrid';
+import Header from '@/components/shared/Header';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
 import { ROUTES } from '@/constants';
@@ -80,99 +81,121 @@ export default function VisualSearchPage() {
   }));
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-accent/5 to-primary/5 py-12">
-      <div className="container mx-auto px-4">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <Sparkles className="h-8 w-8 text-primary" />
-            <h1 className="text-4xl font-heading font-bold text-foreground">
-              AI-Powered Visual Search
-            </h1>
-          </div>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-4">
-            Upload a photo of your dream hairstyle and our AI will find beauty professionals who can
-            recreate the look
-          </p>
-          <Link href={ROUTES.SEARCH}>
-            <Button variant="outline" size="sm">
-              <SearchIcon className="h-4 w-4 mr-2" />
-              Try Text Search Instead
-            </Button>
-          </Link>
+    <>
+      <Header />
+      <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/10 relative">
+        {/* Decorative Elements */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/10 rounded-full blur-3xl" />
+          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-accent/10 rounded-full blur-3xl" />
         </div>
 
-        {/* Upload Section */}
-        <div className="max-w-4xl mx-auto mb-12">
-          <InspirationUpload onMatchesFound={handleInspirationAnalyzed} />
-        </div>
-
-        {/* Analysis Tags */}
-        {analysisData && (
-          <div className="max-w-4xl mx-auto mb-8">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Detected Style Features</CardTitle>
-                <CardDescription>
-                  Our AI identified these characteristics in your inspiration photo
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  {analysisData.tags.slice(0, 15).map((tag, i) => (
-                    <Badge key={i} variant="secondary">
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Loading State */}
-        {loading && (
-          <div className="max-w-4xl mx-auto">
-            <Card>
-              <CardContent className="py-12">
-                <div className="text-center">
-                  <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary mb-4" />
-                  <p className="text-lg font-medium">Finding perfect matches for you...</p>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Analyzing thousands of portfolios with AI
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Error State */}
-        {error && !loading && (
-          <div className="max-w-4xl mx-auto">
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          </div>
-        )}
-
-        {/* Matches */}
-        {matches.length > 0 && !loading && (
-          <div className="max-w-7xl mx-auto">
-            <div className="mb-6">
-              <h2 className="text-2xl font-heading font-bold text-foreground mb-2">
-                {matches.length} Matching Professionals Found
-              </h2>
-              <p className="text-muted-foreground">
-                Sorted by similarity to your inspiration photo
-              </p>
+        <div className="container mx-auto px-4 py-8 relative">
+          {/* Compact Header */}
+          <div className="max-w-3xl mx-auto text-center mb-8">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 mb-3">
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              <span className="text-xs font-medium text-primary">AI-Powered Visual Search</span>
             </div>
 
-            {/* Use ServiceGrid for consistent display */}
-            <ServiceGrid services={servicesFromMatches} />
+            <h1 className="text-3xl md:text-4xl font-heading font-bold text-foreground mb-3">
+              Find Your Perfect Look
+            </h1>
+
+            <p className="text-base text-muted-foreground mb-4 max-w-xl mx-auto">
+              Upload a photo and let AI match you with professionals who can recreate it
+            </p>
+
+            <Button size="sm" variant="outline" asChild className="gap-2">
+              <Link href={ROUTES.SEARCH}>
+                <SearchIcon className="h-3.5 w-3.5" />
+                Try Text Search
+              </Link>
+            </Button>
+          </div>
+
+          {/* Upload Section - Main Focus */}
+          <div className="max-w-4xl mx-auto mb-8">
+            <InspirationUpload onMatchesFound={handleInspirationAnalyzed} />
+          </div>
+
+          {/* Loading State */}
+          {loading && (
+            <div className="max-w-4xl mx-auto mb-8">
+              <Card className="border-primary/20">
+                <CardContent className="py-16">
+                  <div className="text-center">
+                    <div className="relative inline-block mb-6">
+                      <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                      </div>
+                      <div className="absolute inset-0 rounded-full border-4 border-primary/20 animate-pulse" />
+                    </div>
+                    <h3 className="text-2xl font-semibold mb-2">Finding Your Perfect Matches</h3>
+                    <p className="text-muted-foreground mb-4">
+                      Our AI is analyzing thousands of professional portfolios...
+                    </p>
+                    <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                      <Sparkles className="h-4 w-4 text-primary animate-pulse" />
+                      <span>This typically takes 5-10 seconds</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Error State */}
+          {error && !loading && (
+            <div className="max-w-4xl mx-auto mb-8">
+              <Alert variant="destructive" className="border-destructive/50">
+                <AlertDescription className="text-center py-4">{error}</AlertDescription>
+              </Alert>
+            </div>
+          )}
+        </div>
+
+        {/* Results Section */}
+        {matches.length > 0 && !loading && (
+          <div className="bg-background/50 backdrop-blur py-12">
+            <div className="container mx-auto px-4">
+              <div className="max-w-7xl mx-auto">
+                {/* Results Header */}
+                <div className="text-center mb-8">
+                  <Badge variant="secondary" className="mb-4 px-4 py-1 text-sm">
+                    {matches.length} Professional{matches.length !== 1 ? 's' : ''} Found
+                  </Badge>
+                </div>
+
+                {/* Service Grid */}
+                <ServiceGrid services={servicesFromMatches} />
+
+                {/* Bottom CTA */}
+                <div className="text-center mt-12">
+                  <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-accent/5 max-w-2xl mx-auto">
+                    <CardContent className="py-8">
+                      <h3 className="text-xl font-semibold mb-2">
+                        Didn't find what you're looking for?
+                      </h3>
+                      <p className="text-muted-foreground mb-4">
+                        Try uploading a different photo or browse all services
+                      </p>
+                      <div className="flex flex-wrap items-center justify-center gap-3">
+                        <Button variant="outline" onClick={() => window.location.reload()}>
+                          Upload New Photo
+                        </Button>
+                        <Button variant="default" asChild>
+                          <Link href={ROUTES.SEARCH}>Browse All Services</Link>
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 }
