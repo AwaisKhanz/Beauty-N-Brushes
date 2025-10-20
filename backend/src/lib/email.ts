@@ -303,6 +303,27 @@ class EmailTemplateService {
 
     await this.sendEmail(email, '✅ Beauty N Brushes - Email Test Successful!', html);
   }
+
+  /**
+   * Send team invitation email
+   */
+  async sendTeamInvitation(params: {
+    to: string;
+    salonName: string;
+    role: string;
+    invitationId: string;
+  }): Promise<void> {
+    const acceptUrl = `${env.FRONTEND_URL}/team/accept-invitation/${params.invitationId}`;
+
+    const template = await this.loadTemplate('team-invitation');
+    const html = this.replaceVariables(template, {
+      salonName: params.salonName,
+      role: params.role.charAt(0).toUpperCase() + params.role.slice(1),
+      acceptUrl,
+    });
+
+    await this.sendEmail(params.to, `You've Been Invited to Join ${params.salonName}`, html);
+  }
 }
 
 export const emailService = new EmailTemplateService();

@@ -28,7 +28,14 @@ const DEFAULT_SCHEDULE: DaySchedule[] = [
 ];
 
 interface Step8AvailabilityProps {
-  onNext: (data: any) => Promise<void>;
+  onNext: (data: {
+    schedule: DaySchedule[];
+    timezone: string;
+    advanceBookingDays: number;
+    minimumNoticeHours: number;
+    bufferMinutes: number;
+    sameDayBooking: boolean;
+  }) => Promise<void>;
   onBack: () => void;
   isLoading: boolean;
 }
@@ -41,7 +48,11 @@ export function Step8Availability({ onNext, onBack, isLoading }: Step8Availabili
   const [sameDayBooking, setSameDayBooking] = useState(false);
   const [copyFromDay, setCopyFromDay] = useState<number | null>(null);
 
-  const updateDay = (dayIndex: number, field: keyof DaySchedule, value: any) => {
+  const updateDay = (
+    dayIndex: number,
+    field: keyof DaySchedule,
+    value: string | boolean | number
+  ) => {
     const updated = [...schedule];
     updated[dayIndex] = { ...updated[dayIndex], [field]: value };
     setSchedule(updated);
@@ -93,6 +104,7 @@ export function Step8Availability({ onNext, onBack, isLoading }: Step8Availabili
     // Convert to backend expected format: array with dayOfWeek numbers
     const scheduleArray = schedule.map((day) => ({
       dayOfWeek: day.dayOfWeek, // 0 = Sunday, 1 = Monday, etc.
+      dayName: day.dayName,
       startTime: day.startTime,
       endTime: day.endTime,
       isAvailable: day.isAvailable,

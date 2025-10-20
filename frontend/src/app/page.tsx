@@ -1,99 +1,66 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Header from '@/components/shared/Header';
 import Footer from '@/components/shared/Footer';
+import { HeroSearch } from '@/components/home/HeroSearch';
+import { CategorySection } from '@/components/home/CategorySection';
+import { FeaturedServices } from '@/components/home/FeaturedServices';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/shared/Logo';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import {
   Sparkles,
-  Search,
-  MapPin,
   Star,
   Calendar,
   Shield,
   Zap,
-  Upload,
   MessageSquare,
   TrendingUp,
-  CheckCircle2,
   ArrowRight,
   Image as ImageIcon,
+  Search,
 } from 'lucide-react';
+import { api } from '@/lib/api';
+import type { PublicServiceResult, CategoryWithCount } from '@/shared-types/service.types';
 
 export default function HomePage() {
+  const [featuredServices, setFeaturedServices] = useState<PublicServiceResult[]>([]);
+  const [categories, setCategories] = useState<CategoryWithCount[]>([]);
+
+  useEffect(() => {
+    // Load featured services and categories
+    const loadData = async () => {
+      try {
+        const [featuredResponse, categoriesResponse] = await Promise.all([
+          api.services.getFeatured(6),
+          api.services.getCategories(),
+        ]);
+
+        setFeaturedServices(featuredResponse.data.services);
+        setCategories(categoriesResponse.data.categories);
+      } catch (error) {
+        console.error('Failed to load homepage data:', error);
+      }
+    };
+
+    loadData();
+  }, []);
+
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
 
       <main className="flex-1">
-        {/* Hero Section */}
-        <section className="py-20 lg:py-32">
-          <div className="container mx-auto px-4">
-            <div className="max-w-4xl mx-auto text-center space-y-8">
-              <Badge variant="secondary" className="gap-2">
-                <Sparkles className="h-4 w-4" />
-                AI-Powered Beauty Marketplace
-              </Badge>
+        {/* Hero Section with Enhanced Search */}
+        <HeroSearch />
 
-              <h1 className="text-4xl md:text-6xl lg:text-7xl font-heading font-bold leading-tight">
-                Find Your Perfect Beauty Professional{' '}
-                <span className="text-primary">Through Real Work</span>
-              </h1>
+        {/* Featured Services Section */}
+        {featuredServices.length > 0 && <FeaturedServices services={featuredServices} />}
 
-              <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
-                Visual-first booking platform connecting clients with beauty professionals. See real
-                examples, upload inspiration photos, and book with confidence.
-              </p>
-
-              {/* Search Card */}
-              <Card className="max-w-3xl mx-auto">
-                <CardContent className="p-4">
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <div className="flex-1 relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input placeholder="What service are you looking for?" className="pl-9" />
-                    </div>
-                    <div className="relative sm:w-48">
-                      <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input placeholder="City or zip code" className="pl-9" />
-                    </div>
-                    <Button variant="dark" size="lg" asChild>
-                      <Link href="/search">Search</Link>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* AI Upload */}
-              <Button variant="outline" size="lg" asChild>
-                <Link href="/ai-match">
-                  <Upload className="h-5 w-5" />
-                  Upload Inspiration Photo
-                </Link>
-              </Button>
-
-              {/* Trust Indicators */}
-              <div className="flex flex-wrap items-center justify-center gap-4 pt-8">
-                <Badge variant="outline" className="gap-2">
-                  <CheckCircle2 className="h-4 w-4" />
-                  Verified Professionals
-                </Badge>
-                <Badge variant="outline" className="gap-2">
-                  <Star className="h-4 w-4" />
-                  Real Reviews
-                </Badge>
-                <Badge variant="outline" className="gap-2">
-                  <Shield className="h-4 w-4" />
-                  Secure Booking
-                </Badge>
-              </div>
-            </div>
-          </div>
-        </section>
+        {/* Categories Section */}
+        {categories.length > 0 && <CategorySection categories={categories} />}
 
         {/* Features Section */}
         <section className="py-20 bg-muted/30">

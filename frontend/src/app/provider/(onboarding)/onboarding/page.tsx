@@ -18,13 +18,49 @@ import { ONBOARDING_STEPS, ONBOARDING_STORAGE_KEY, ROUTES } from '@/constants';
 
 const STEPS: Step[] = ONBOARDING_STEPS.map((step) => ({ ...step }));
 
+interface OnboardingDefaultValues {
+  accountType?: 'solo' | 'salon';
+  businessName?: string;
+  tagline?: string;
+  businessType?: string;
+  description?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  country?: string;
+  latitude?: number;
+  longitude?: number;
+  phone?: string;
+  email?: string;
+  instagramHandle?: string;
+  website?: string;
+  serviceSpecializations?: string[];
+  yearsExperience?: number;
+  profilePhotoUrl?: string;
+  logoUrl?: string;
+  coverPhotoUrl?: string;
+  brandColorPrimary?: string;
+  brandColorSecondary?: string;
+  brandColorAccent?: string;
+  brandFontHeading?: string;
+  brandFontBody?: string;
+  policies?: {
+    cancellationPolicy?: string;
+    lateArrivalPolicy?: string;
+    depositRequired?: boolean;
+    refundPolicy?: string;
+  };
+  subscriptionTier?: string;
+}
+
 export default function OnboardingPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
   const [steps, setSteps] = useState<Step[]>(STEPS);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [defaultValues, setDefaultValues] = useState<Record<string, any>>({});
+  const [defaultValues, setDefaultValues] = useState<OnboardingDefaultValues>({});
 
   // Fetch onboarding status and prefill data
   useEffect(() => {
@@ -115,12 +151,19 @@ export default function OnboardingPage() {
             brandColorAccent: status.profile.brandColorAccent || '',
             brandFontHeading: status.profile.brandFontHeading || '',
             brandFontBody: status.profile.brandFontBody || '',
-            policies: status.profile.policies,
-            subscriptionTier: status.profile.subscriptionTier,
+            policies: status.profile.policies
+              ? {
+                  cancellationPolicy: status.profile.policies.cancellationPolicy ?? undefined,
+                  lateArrivalPolicy: status.profile.policies.lateArrivalPolicy ?? undefined,
+                  depositRequired: status.profile.policies.depositRequired ?? undefined,
+                  refundPolicy: status.profile.policies.refundPolicy ?? undefined,
+                }
+              : undefined,
+            subscriptionTier: status.profile.subscriptionTier ?? undefined,
           });
         }
-      } catch (error: any) {
-        console.error('Error fetching onboarding status:', error);
+      } catch (error: unknown) {
+        // Error is logged silently - user can retry if needed
       } finally {
         setIsLoading(false);
       }
@@ -185,11 +228,11 @@ export default function OnboardingPage() {
         setCurrentStep(nextStep);
         localStorage.setItem(ONBOARDING_STORAGE_KEY, nextStep.toString());
       }
-    } catch (error: any) {
-      console.error(`Error saving step ${stepId}:`, error);
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : `Failed to save step ${stepId}. Please try again.`;
       toast.error('Failed to save', {
-        description:
-          error.response?.data?.message || `Failed to save step ${stepId}. Please try again.`,
+        description: errorMessage,
       });
     } finally {
       setIsSaving(false);

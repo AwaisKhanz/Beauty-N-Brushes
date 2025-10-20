@@ -57,39 +57,12 @@ export function BasicInfoStep({ form, isEdit }: BasicInfoStepProps) {
   // Get templates to display
   const templatesToShow = currentSubcategory?.templates || currentCategory?.templates || [];
 
-  // Debug logging
-  useEffect(() => {
-    if (createdFromTemplate || templateId) {
-      console.log('🔍 Template debug:', {
-        isEdit,
-        createdFromTemplate,
-        templateId,
-        selectedCategory,
-        selectedSubcategory,
-        templatesToShow: templatesToShow.length,
-        selectedTemplate: selectedTemplate?.name,
-      });
-    }
-  }, [
-    isEdit,
-    createdFromTemplate,
-    templateId,
-    selectedCategory,
-    selectedSubcategory,
-    templatesToShow.length,
-    selectedTemplate,
-  ]);
+  // Debug logging removed - template restoration happens in useEffect below
 
   // On mount: If editing a service created from template OR restoring a draft with template, restore template state
   useEffect(() => {
     // Only run template restoration if we have template data AND we're either editing or have a template ID
     if (createdFromTemplate && templateId && selectedCategory && templatesToShow.length > 0) {
-      console.log('🔍 Looking for template:', templateId);
-      console.log(
-        '📋 Available templates:',
-        templatesToShow.map((t) => ({ id: t.id, name: t.name }))
-      );
-
       // Find the template that was used
       let originalTemplate = templatesToShow.find((t) => t.id === templateId);
 
@@ -98,25 +71,13 @@ export function BasicInfoStep({ form, isEdit }: BasicInfoStepProps) {
         const templateName = form.getValues('templateName');
         if (templateName) {
           originalTemplate = templatesToShow.find((t) => t.name === templateName);
-          console.log(
-            '🔄 Trying fallback by name:',
-            templateName,
-            originalTemplate ? 'Found!' : 'Not found'
-          );
         }
       }
 
       if (originalTemplate) {
-        console.log('🎯 Restoring template state:', originalTemplate.name);
         setCreationMode('preset');
         setSelectedTemplate(originalTemplate);
       } else {
-        console.log(
-          '❌ Template not found:',
-          templateId,
-          'Available:',
-          templatesToShow.map((t) => t.id)
-        );
         // Only switch to custom mode if we're in edit mode (not when browsing subcategories)
         if (isEdit) {
           setCreationMode('custom');

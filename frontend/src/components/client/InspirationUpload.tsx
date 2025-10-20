@@ -11,7 +11,7 @@ import { Sparkles, Image as ImageIcon, AlertCircle, Loader2, X } from 'lucide-re
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
-import type { ImageAnalysisResult } from '../../../../../shared-types';
+import type { ImageAnalysisResult } from '@/shared-types/inspiration.types';
 
 interface InspirationUploadProps {
   onMatchesFound?: (analysis: ImageAnalysisResult) => void;

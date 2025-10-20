@@ -19,7 +19,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-import { CheckCircle2, AlertCircle } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { CheckCircle2, AlertCircle, Instagram, Link as LinkIcon } from 'lucide-react';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
 import type { UpdateProfileSettingsRequest } from '@/shared-types/settings.types';
@@ -42,6 +44,9 @@ export default function ProfileSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [instagramConnected, setInstagramConnected] = useState(false);
+  const [instagramUsername, setInstagramUsername] = useState<string | null>(null);
+  const [disconnecting, setDisconnecting] = useState(false);
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -59,7 +64,62 @@ export default function ProfileSettingsPage() {
 
   useEffect(() => {
     fetchProfileSettings();
+    checkInstagramConnection();
   }, []);
+
+  async function checkInstagramConnection() {
+    try {
+      // TODO: Add API endpoint to check Instagram connection status
+      // For now, we'll infer from instagramHandle
+      const response = await api.settings.getProfile();
+      const handle = response.data.profile.instagramHandle;
+      if (handle) {
+        setInstagramConnected(true);
+        setInstagramUsername(handle);
+      }
+    } catch (err: unknown) {
+      console.error('Failed to check Instagram connection:', err);
+    }
+  }
+
+  async function handleInstagramConnect() {
+    try {
+      // Redirect to Instagram OAuth flow
+      window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/instagram/connect`;
+    } catch (err: unknown) {
+      setError(extractErrorMessage(err) || 'Failed to connect Instagram');
+    }
+  }
+
+  async function handleInstagramDisconnect() {
+    if (
+      !confirm(
+        'Are you sure you want to disconnect Instagram? This will remove access to import your photos.'
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setDisconnecting(true);
+      setError('');
+
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/instagram/disconnect`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      setInstagramConnected(false);
+      setInstagramUsername(null);
+      setSuccess('Instagram disconnected successfully');
+
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: unknown) {
+      setError(extractErrorMessage(err) || 'Failed to disconnect Instagram');
+    } finally {
+      setDisconnecting(false);
+    }
+  }
 
   async function fetchProfileSettings() {
     try {
@@ -296,6 +356,67 @@ export default function ProfileSettingsPage() {
           </div>
         </form>
       </Form>
+
+      {/* Instagram Integration Section */}
+      <Card className="mt-8">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Instagram className="h-5 w-5" />
+                Instagram Integration
+              </CardTitle>
+              <CardDescription>
+                Connect your Instagram to import your portfolio photos
+              </CardDescription>
+            </div>
+            {instagramConnected ? (
+              <Badge className="bg-success gap-1">
+                <CheckCircle2 className="h-3 w-3" />
+                Connected
+              </Badge>
+            ) : (
+              <Badge variant="secondary">Not Connected</Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {instagramConnected ? (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Connected Account:</span>
+                <span className="text-sm font-medium">@{instagramUsername}</span>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" asChild>
+                  <a href="/provider/services" className="gap-2">
+                    <LinkIcon className="h-4 w-4" />
+                    Import Photos
+                  </a>
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleInstagramDisconnect}
+                  disabled={disconnecting}
+                >
+                  {disconnecting ? 'Disconnecting...' : 'Disconnect'}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Connect your Instagram account to easily import photos from your feed to your
+                portfolio. This helps showcase your work to potential clients.
+              </p>
+              <Button onClick={handleInstagramConnect} className="gap-2">
+                <Instagram className="h-4 w-4" />
+                Connect Instagram
+              </Button>
+            </>
+          )}
+        </CardContent>
+      </Card>
     </SettingsLayout>
   );
 }

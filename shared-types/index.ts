@@ -20,6 +20,7 @@ export * from './payment.types';
 
 // Webhook Types
 export * from './webhook.types';
+export * from './team.types';
 
 // Error Types
 export * from './error.types';
@@ -35,6 +36,12 @@ export * from './inspiration.types';
 
 // Settings Types
 export * from './settings.types';
+
+// Team Types
+export * from './team.types';
+
+// Booking Types
+export * from './booking.types';
 
 // Common Response Type
 export interface ApiResponse<T = unknown> {

@@ -167,3 +167,139 @@ export interface SubscriptionInfoResponse {
   cardBrand: string | null;
   billingHistory: BillingRecord[];
 }
+
+// ================================
+// Branding Settings
+// ================================
+
+export interface UpdateBrandingRequest {
+  logoUrl?: string | null;
+  brandColorPrimary?: string | null;
+  brandColorSecondary?: string | null;
+  brandColorAccent?: string | null;
+  brandFontHeading?: string | null;
+  brandFontBody?: string | null;
+}
+
+export interface BrandingSettingsResponse {
+  message: string;
+  branding: {
+    logoUrl: string | null;
+    brandColorPrimary: string | null;
+    brandColorSecondary: string | null;
+    brandColorAccent: string | null;
+    brandFontHeading: string | null;
+    brandFontBody: string | null;
+  };
+}
+
+export interface GenerateBrandThemeRequest {
+  description: string; // Natural language description of brand vibe
+}
+
+export interface GenerateBrandThemeResponse {
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  fontHeading: string;
+  fontBody: string;
+  vibe: string;
+}
+
+// ================================
+// Location Settings
+// ================================
+
+export interface UpdateLocationRequest {
+  addressLine1?: string;
+  addressLine2?: string | null;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  country?: string;
+  businessPhone?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+}
+
+export interface LocationSettingsResponse {
+  message: string;
+  location: {
+    addressLine1: string | null;
+    addressLine2: string | null;
+    city: string;
+    state: string;
+    zipCode: string;
+    country: string;
+    businessPhone: string | null;
+    latitude: number | null;
+    longitude: number | null;
+  };
+}
+
+// ================================
+// Google Calendar Integration
+// ================================
+
+export interface GoogleCalendarConnectionResponse {
+  connected: boolean;
+  email: string | null;
+  lastSyncAt: string | null;
+}
+
+export interface GoogleCalendarConnectResponse {
+  authUrl: string;
+}
+
+export interface GoogleCalendarDisconnectResponse {
+  message: string;
+}
+
+// ================================
+// Business Details (Settings)
+// ================================
+
+export interface UpdateBusinessDetailsSettingsRequest {
+  businessPhone?: string;
+  businessType?: string;
+  licenseNumber?: string | null;
+  timezone?: string;
+}
+
+export interface BusinessDetailsResponse {
+  message: string;
+  details: {
+    businessPhone: string | null;
+    businessType: string | null;
+    licenseNumber: string | null;
+    licenseVerified: boolean;
+    insuranceVerified: boolean;
+    timezone: string;
+  };
+}
+
+// ================================
+// Subscription Management
+// ================================
+
+export interface ChangeTierRequest {
+  newTier: 'solo' | 'salon';
+}
+
+export interface ChangeTierResponse {
+  message: string;
+  newTier: 'solo' | 'salon';
+  newMonthlyFee: number;
+  effectiveDate: string;
+}
+
+export interface CancelSubscriptionRequest {
+  reason?: string;
+  feedback?: string;
+}
+
+export interface CancelSubscriptionResponse {
+  message: string;
+  cancelledAt: string;
+  accessUntil: string;
+}

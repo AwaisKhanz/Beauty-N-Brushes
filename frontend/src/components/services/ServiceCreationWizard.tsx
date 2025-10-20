@@ -59,7 +59,7 @@ export const serviceWizardSchema = z.object({
   durationMinutes: z.coerce.number().min(15, 'Duration must be at least 15 minutes'),
 
   // Deposit
-  depositType: z.enum(['percentage', 'fixed']),
+  depositType: z.enum(['PERCENTAGE', 'FLAT']),
   depositAmount: z.coerce.number().min(1, 'Deposit amount required'),
 
   // Media
@@ -156,13 +156,13 @@ export function ServiceCreationWizard({
       keywords: initialData?.keywords || [],
 
       // Pricing & Duration
-      priceType: initialData?.priceType || 'fixed',
+      priceType: 'fixed',
       priceMin: initialData?.priceMin || 0,
       priceMax: initialData?.priceMax || 0,
       durationMinutes: initialData?.durationMinutes || 60,
 
       // Deposit
-      depositType: initialData?.depositType || 'percentage',
+      depositType: initialData?.depositType || 'PERCENTAGE',
       depositAmount: initialData?.depositAmount || 50,
 
       // Media
@@ -199,13 +199,13 @@ export function ServiceCreationWizard({
         keywords: initialData.keywords || [],
 
         // Pricing & Duration
-        priceType: initialData.priceType || 'fixed',
+        priceType: 'fixed',
         priceMin: initialData.priceMin || 0,
         priceMax: initialData.priceMax || 0,
         durationMinutes: initialData.durationMinutes || 60,
 
         // Deposit
-        depositType: initialData.depositType || 'percentage',
+        depositType: initialData.depositType || 'PERCENTAGE',
         depositAmount: initialData.depositAmount || 50,
 
         // Media
@@ -272,7 +272,6 @@ export function ServiceCreationWizard({
     if (!isEdit && !initialData) {
       checkForDraft();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function checkForDraft() {

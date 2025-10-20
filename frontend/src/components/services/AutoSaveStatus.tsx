@@ -21,8 +21,8 @@ export function AutoSaveStatus({ status, lastSaved }: AutoSaveStatusProps) {
       )}
       {status === 'saved' && (
         <>
-          <Check className="h-4 w-4 text-green-600" />
-          <span className="text-green-600">Draft saved</span>
+          <Check className="h-4 w-4 text-success" />
+          <span className="text-success">Draft saved</span>
         </>
       )}
       {status === 'error' && (

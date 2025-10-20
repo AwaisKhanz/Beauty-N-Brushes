@@ -110,7 +110,7 @@ export function LocationAutocomplete({
     setIsLoading(true);
     try {
       // Try with different search strategies for better results
-      let searchUrl =
+      const searchUrl =
         `https://nominatim.openstreetmap.org/search?` +
         `format=json&` +
         `q=${encodeURIComponent(searchQuery)}&` +

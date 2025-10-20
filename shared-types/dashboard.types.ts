@@ -35,6 +35,11 @@ export interface DashboardBooking {
   date: string;
   time: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+
+  // Team member info (salon bookings)
+  assignedTeamMemberId?: string | null;
+  assignedTeamMemberName?: string | null;
+  anyAvailableStylist?: boolean;
 }
 
 export interface GetRecentBookingsResponse {

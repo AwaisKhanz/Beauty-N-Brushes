@@ -1,22 +1,24 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/authenticate';
+import * as bookingController from '../controllers/booking.controller';
 
 const router = Router();
 
 // All booking routes require authentication
 router.use(authenticate);
 
-// Placeholder routes
-router.get('/', (_req, res) => {
-  res.json({ message: 'Get bookings endpoint - to be implemented' });
-});
+// Salon-specific routes (MUST be before :bookingId route)
+router.get('/available-stylists', bookingController.getAvailableStylists);
 
-router.get('/:id', (_req, res) => {
-  res.json({ message: 'Get booking by ID endpoint - to be implemented' });
-});
+// Booking CRUD
+router.post('/', bookingController.createBooking);
+router.get('/', bookingController.listBookings);
+router.get('/:bookingId', bookingController.getBooking);
+router.put('/:bookingId', bookingController.updateBooking);
 
-router.post('/', (_req, res) => {
-  res.json({ message: 'Create booking endpoint - to be implemented' });
-});
+// Booking actions
+router.post('/:bookingId/cancel', bookingController.cancelBooking);
+router.post('/:bookingId/complete', bookingController.completeBooking);
+router.post('/:bookingId/assign-team-member', bookingController.assignTeamMember);
 
 export default router;

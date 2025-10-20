@@ -39,13 +39,31 @@ export async function getProviderDashboardStats(
       throw new AppError(404, 'Provider profile not found');
     }
 
-    // Get bookings count (when bookings are implemented)
-    // For now, return 0
-    const totalBookings = 0;
-    const upcomingBookings = 0;
+    // Get bookings count
+    const allBookings = await prisma.booking.count({
+      where: { providerId: profile.id },
+    });
 
-    // Calculate revenue (when bookings are implemented)
-    const totalRevenue = 0;
+    const upcoming = await prisma.booking.count({
+      where: {
+        providerId: profile.id,
+        appointmentDate: { gte: new Date() },
+        bookingStatus: { in: ['PENDING', 'CONFIRMED'] },
+      },
+    });
+
+    // Calculate revenue from completed bookings
+    const completedBookings = await prisma.booking.findMany({
+      where: {
+        providerId: profile.id,
+        bookingStatus: 'COMPLETED',
+      },
+      select: {
+        servicePrice: true,
+      },
+    });
+
+    const revenue = completedBookings.reduce((sum, b) => sum + Number(b.servicePrice), 0);
 
     // Get average rating (when reviews are implemented)
     const averageRating = 0;
@@ -62,9 +80,9 @@ export async function getProviderDashboardStats(
 
     sendSuccess(res, {
       stats: {
-        totalBookings,
-        upcomingBookings,
-        totalRevenue,
+        totalBookings: allBookings,
+        upcomingBookings: upcoming,
+        totalRevenue: revenue,
         averageRating,
         totalReviews,
         profileViews,
@@ -108,9 +126,44 @@ export async function getRecentBookings(
       throw new AppError(404, 'Provider profile not found');
     }
 
-    // TODO: Get real bookings when booking system is implemented
-    // For now, return empty array
-    const bookings: any[] = [];
+    // Get recent bookings with team member info
+    const recentBookings = await prisma.booking.findMany({
+      where: { providerId: profile.id },
+      include: {
+        client: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+        service: {
+          select: {
+            title: true,
+          },
+        },
+        assignedTeamMember: {
+          select: {
+            id: true,
+            displayName: true,
+          },
+        },
+      },
+      orderBy: { appointmentDate: 'desc' },
+      take: 10,
+    });
+
+    const bookings = recentBookings.map((b) => ({
+      id: b.id,
+      clientName: `${b.client.firstName} ${b.client.lastName}`,
+      service: b.service.title,
+      date: b.appointmentDate.toISOString().split('T')[0],
+      time: b.appointmentTime,
+      status: b.bookingStatus.toLowerCase() as 'pending' | 'confirmed' | 'completed' | 'cancelled',
+      // Team member info
+      assignedTeamMemberId: b.assignedTeamMemberId,
+      assignedTeamMemberName: b.assignedTeamMember?.displayName || null,
+      anyAvailableStylist: b.anyAvailableStylist,
+    }));
 
     sendSuccess(res, {
       bookings,

@@ -4,7 +4,19 @@ import { authenticate } from '../middleware/authenticate';
 
 const router = Router();
 
-// All service routes require authentication
+// ============================================
+// PUBLIC ROUTES (No authentication required)
+// ============================================
+
+// Public search and discovery
+router.get('/search', serviceController.searchServices);
+router.get('/featured', serviceController.getFeaturedServices);
+router.get('/categories', serviceController.getCategories);
+
+// ============================================
+// PROTECTED ROUTES (Authentication required)
+// ============================================
+
 router.use(authenticate);
 
 // Service routes

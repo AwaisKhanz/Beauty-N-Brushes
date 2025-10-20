@@ -4,11 +4,22 @@ import { authenticate } from '../middleware/authenticate';
 
 const router = Router();
 
-// Provider profile management (require authentication)
+// ============================================
+// PUBLIC ROUTES (No authentication required)
+// ============================================
+
+// Public provider profile
+router.get('/:slug/public', providerController.getPublicProfile);
+
+// ============================================
+// PROTECTED ROUTES (Authentication required)
+// ============================================
+
+// Provider profile management
 router.post('/profile/pause', authenticate, providerController.pauseProfile);
 router.post('/profile/resume', authenticate, providerController.resumeProfile);
 
-// Admin routes (require authentication and admin role)
+// Admin routes
 router.post('/admin/:providerId/deactivate', authenticate, providerController.deactivateProvider);
 router.post('/admin/:providerId/reactivate', authenticate, providerController.reactivateProvider);
 

@@ -37,7 +37,7 @@ type PoliciesFormValues = z.infer<typeof policiesSchema>;
 
 interface Step5PoliciesProps {
   defaultValues?: Partial<PoliciesFormValues> & { businessName?: string };
-  onNext: (data: any) => Promise<void>;
+  onNext: (data: Partial<PoliciesFormValues>) => Promise<void>;
   onBack: () => void;
   isLoading: boolean;
 }
@@ -83,10 +83,9 @@ export function Step5Policies({ defaultValues, onNext, onBack, isLoading }: Step
 
         setShowAIPrompt(false);
       }
-    } catch (error: any) {
-      console.error('Error generating policies:', error);
+    } catch (error: unknown) {
       toast.error('Failed to generate policies', {
-        description: error.response?.data?.message || 'Please try again',
+        description: 'Please try again',
       });
     } finally {
       setIsGenerating(false);

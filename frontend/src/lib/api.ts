@@ -12,7 +12,7 @@ import type {
   // Onboarding
   CreateAccountTypeRequest,
   CreateAccountTypeResponse,
-  UpdateBusinessDetailsRequest,
+  UpdateBusinessDetailsRequest as OnboardingBusinessDetailsRequest,
   UpdateBusinessDetailsResponse,
   SaveProfileMediaRequest,
   SaveProfileMediaResponse,
@@ -42,6 +42,12 @@ import type {
   GenerateHashtagsResponse,
   AnalyzeImageRequest,
   AnalyzeImageResponse,
+  // Public Search
+  SearchServicesRequest,
+  SearchServicesResponse,
+  FeaturedServicesResponse,
+  CategoriesResponse,
+  GetPublicProviderProfileResponse,
   // Service Drafts
   SaveDraftRequest,
   SaveDraftResponse,
@@ -82,6 +88,42 @@ import type {
   ProviderPoliciesResponse,
   SubscriptionInfoResponse,
   NotificationSettingsResponse,
+  BrandingSettingsResponse,
+  UpdateBrandingRequest,
+  LocationSettingsResponse,
+  UpdateLocationRequest,
+  BusinessDetailsResponse,
+  UpdateBusinessDetailsSettingsRequest,
+  GoogleCalendarConnectionResponse,
+  GoogleCalendarConnectResponse,
+  GoogleCalendarDisconnectResponse,
+  ChangeTierRequest,
+  ChangeTierResponse,
+  CancelSubscriptionRequest,
+  CancelSubscriptionResponse,
+  // Team
+  InviteTeamMemberRequest,
+  InviteTeamMemberResponse,
+  GetTeamMembersResponse,
+  GetTeamMemberResponse,
+  UpdateTeamMemberRequest,
+  UpdateTeamMemberResponse,
+  DeleteTeamMemberResponse,
+  GetTeamAnalyticsResponse,
+  // Booking
+  CreateBookingRequest,
+  CreateBookingResponse,
+  GetBookingResponse,
+  GetBookingsResponse,
+  UpdateBookingRequest,
+  UpdateBookingResponse,
+  CancelBookingRequest,
+  CancelBookingResponse,
+  CompleteBookingRequest,
+  CompleteBookingResponse,
+  AssignTeamMemberRequest,
+  AssignTeamMemberResponse,
+  GetAvailableStylists,
 } from '../../../shared-types';
 
 export const api = {
@@ -127,7 +169,7 @@ export const api = {
     createAccountType: (data: CreateAccountTypeRequest) =>
       apiClient.post<{ data: CreateAccountTypeResponse }>('/onboarding/account-type', data),
 
-    updateBusinessDetails: (data: UpdateBusinessDetailsRequest) =>
+    updateBusinessDetails: (data: OnboardingBusinessDetailsRequest) =>
       apiClient.post<{ data: UpdateBusinessDetailsResponse }>('/onboarding/business-details', data),
 
     saveProfileMedia: (data: SaveProfileMediaRequest) =>
@@ -188,6 +230,35 @@ export const api = {
 
     // Draft services
     getDrafts: () => apiClient.get<{ data: GetDraftServicesResponse }>('/services/drafts'),
+
+    // Public search and discovery (no auth required)
+    search: (params: SearchServicesRequest) => {
+      // Flatten the params for query string
+      const queryParams: Record<string, unknown> = {};
+
+      if (params.filters) {
+        Object.entries(params.filters).forEach(([key, value]) => {
+          if (value !== undefined) {
+            queryParams[key] = value;
+          }
+        });
+      }
+
+      if (params.sort) {
+        queryParams.sortField = params.sort.field;
+        queryParams.sortOrder = params.sort.order;
+      }
+
+      if (params.page) queryParams.page = params.page;
+      if (params.limit) queryParams.limit = params.limit;
+
+      return apiClient.get<{ data: SearchServicesResponse }>('/services/search', queryParams);
+    },
+
+    getFeatured: (limit?: number) =>
+      apiClient.get<{ data: FeaturedServicesResponse }>('/services/featured', { limit }),
+
+    getCategories: () => apiClient.get<{ data: CategoriesResponse }>('/services/categories'),
   },
 
   // ============================================
@@ -325,5 +396,114 @@ export const api = {
       apiClient.put<{ data: { message: string } }>('/settings/account', data),
 
     deactivateAccount: () => apiClient.post<{ data: { message: string } }>('/settings/deactivate'),
+
+    // Branding
+    getBranding: () => apiClient.get<{ data: BrandingSettingsResponse }>('/settings/branding'),
+
+    updateBranding: (data: UpdateBrandingRequest) =>
+      apiClient.put<{ data: BrandingSettingsResponse }>('/settings/branding', data),
+
+    // Location
+    getLocation: () => apiClient.get<{ data: LocationSettingsResponse }>('/settings/location'),
+
+    updateLocation: (data: UpdateLocationRequest) =>
+      apiClient.put<{ data: LocationSettingsResponse }>('/settings/location', data),
+
+    // Business Details
+    getBusinessDetails: () =>
+      apiClient.get<{ data: BusinessDetailsResponse }>('/settings/business-details'),
+
+    updateBusinessDetails: (data: UpdateBusinessDetailsSettingsRequest) =>
+      apiClient.put<{ data: BusinessDetailsResponse }>('/settings/business-details', data),
+
+    // Google Calendar
+    getCalendarStatus: () =>
+      apiClient.get<{ data: GoogleCalendarConnectionResponse }>('/settings/calendar-status'),
+
+    // Subscription Management
+    changeTier: (data: ChangeTierRequest) =>
+      apiClient.post<{ data: ChangeTierResponse }>('/settings/subscription/change-tier', data),
+
+    cancelSubscription: (data: CancelSubscriptionRequest) =>
+      apiClient.post<{ data: CancelSubscriptionResponse }>('/settings/subscription/cancel', data),
+  },
+
+  // Google Calendar Integration
+  googleCalendar: {
+    connect: () =>
+      apiClient.post<{ data: GoogleCalendarConnectResponse }>('/calendar/google/connect', {}),
+
+    disconnect: () =>
+      apiClient.post<{ data: GoogleCalendarDisconnectResponse }>('/calendar/google/disconnect', {}),
+  },
+
+  // ============================================
+  // Team Management APIs (Salon Only)
+  // ============================================
+  team: {
+    getAll: () => apiClient.get<{ data: GetTeamMembersResponse }>('/team'),
+
+    getById: (memberId: string) =>
+      apiClient.get<{ data: GetTeamMemberResponse }>(`/team/${memberId}`),
+
+    invite: (data: InviteTeamMemberRequest) =>
+      apiClient.post<{ data: InviteTeamMemberResponse }>('/team/invite', data),
+
+    update: (memberId: string, data: UpdateTeamMemberRequest) =>
+      apiClient.put<{ data: UpdateTeamMemberResponse }>(`/team/${memberId}`, data),
+
+    delete: (memberId: string) =>
+      apiClient.delete<{ data: DeleteTeamMemberResponse }>(`/team/${memberId}`),
+
+    getAnalytics: () => apiClient.get<{ data: GetTeamAnalyticsResponse }>('/team/analytics'),
+  },
+
+  // ============================================
+  // Booking APIs (With Team Member Support)
+  // ============================================
+  bookings: {
+    create: (data: CreateBookingRequest) =>
+      apiClient.post<{ data: CreateBookingResponse }>('/bookings', data),
+
+    getAll: (params?: { page?: number; limit?: number }) =>
+      apiClient.get<{ data: GetBookingsResponse }>('/bookings', params),
+
+    getById: (bookingId: string) =>
+      apiClient.get<{ data: GetBookingResponse }>(`/bookings/${bookingId}`),
+
+    update: (bookingId: string, data: UpdateBookingRequest) =>
+      apiClient.put<{ data: UpdateBookingResponse }>(`/bookings/${bookingId}`, data),
+
+    cancel: (bookingId: string, data: CancelBookingRequest) =>
+      apiClient.post<{ data: CancelBookingResponse }>(`/bookings/${bookingId}/cancel`, data),
+
+    complete: (bookingId: string, data: CompleteBookingRequest) =>
+      apiClient.post<{ data: CompleteBookingResponse }>(`/bookings/${bookingId}/complete`, data),
+
+    // Salon-specific: Team member assignment
+    assignTeamMember: (bookingId: string, data: AssignTeamMemberRequest) =>
+      apiClient.post<{ data: AssignTeamMemberResponse }>(
+        `/bookings/${bookingId}/assign-team-member`,
+        data
+      ),
+
+    getAvailableStylists: (params: {
+      providerId: string;
+      date: string;
+      time: string;
+      duration: number;
+    }) =>
+      apiClient.get<{ data: GetAvailableStylists }>(
+        `/bookings/available-stylists?providerId=${params.providerId}&date=${params.date}&time=${params.time}&duration=${params.duration}`
+      ),
+  },
+
+  // ============================================
+  // Provider APIs (Public)
+  // ============================================
+  providers: {
+    // Public provider profile (no auth required)
+    getPublicProfile: (slug: string) =>
+      apiClient.get<{ data: GetPublicProviderProfileResponse }>(`/providers/${slug}/public`),
   },
 };

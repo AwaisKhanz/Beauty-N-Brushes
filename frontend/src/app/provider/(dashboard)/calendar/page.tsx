@@ -26,7 +26,7 @@ import type {
   DaySchedule,
   BlockedDate,
   CreateBlockedDateRequest,
-} from '../../../../../../shared-types';
+} from '@/shared-types/calendar.types';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -100,7 +100,7 @@ export default function CalendarPage() {
     }
   }
 
-  const updateDay = (dayIndex: number, field: keyof DaySchedule, value: any) => {
+  const updateDay = (dayIndex: number, field: keyof DaySchedule, value: string | boolean) => {
     const updated = [...schedule];
     updated[dayIndex] = { ...updated[dayIndex], [field]: value };
     setSchedule(updated);

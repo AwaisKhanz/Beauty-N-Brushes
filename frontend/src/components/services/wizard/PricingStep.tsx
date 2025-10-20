@@ -88,7 +88,7 @@ export function PricingStep({ form }: PricingStepProps) {
   // Calculate deposit based on price and type
   useEffect(() => {
     if (priceMin && depositAmount) {
-      if (depositType === 'percentage') {
+      if (depositType === 'PERCENTAGE') {
         setCalculatedDeposit((priceMin * depositAmount) / 100);
       } else {
         setCalculatedDeposit(depositAmount);
@@ -356,11 +356,11 @@ export function PricingStep({ form }: PricingStepProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    Deposit Amount {depositType === 'percentage' ? '(%)' : '($)'} *
+                    Deposit Amount {depositType === 'PERCENTAGE' ? '(%)' : '($)'} *
                   </FormLabel>
                   <FormControl>
                     <div className="relative">
-                      {depositType === 'percentage' ? (
+                      {depositType === 'PERCENTAGE' ? (
                         <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
                           %
                         </span>
@@ -369,7 +369,7 @@ export function PricingStep({ form }: PricingStepProps) {
                       )}
                       <Input
                         type="number"
-                        placeholder={depositType === 'percentage' ? '50' : '25'}
+                        placeholder={depositType === 'PERCENTAGE' ? '50' : '25'}
                         className="pl-10"
                         {...field}
                         onChange={(e) => field.onChange(Number(e.target.value))}
@@ -393,7 +393,7 @@ export function PricingStep({ form }: PricingStepProps) {
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 Based on{' '}
-                {depositType === 'percentage'
+                {depositType === 'PERCENTAGE'
                   ? `${depositAmount}% of $${priceMin}`
                   : `$${depositAmount} fixed amount`}
               </p>
@@ -401,7 +401,7 @@ export function PricingStep({ form }: PricingStepProps) {
           )}
 
           {/* Deposit Quick Buttons for percentage */}
-          {depositType === 'percentage' && (
+          {depositType === 'PERCENTAGE' && (
             <div className="space-y-2">
               <Label>Common Deposit Percentages</Label>
               <div className="flex flex-wrap gap-2">

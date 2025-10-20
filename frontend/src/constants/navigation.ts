@@ -5,7 +5,7 @@
 export const NAV_LINKS = {
   PUBLIC: [
     { href: '/search', label: 'Browse Services' },
-    { href: '/about', label: 'About' },
+    { href: '/visual-search', label: 'AI Visual Search' },
     { href: '/for-providers', label: 'For Providers' },
   ],
 

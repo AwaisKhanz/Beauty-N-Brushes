@@ -11,7 +11,7 @@ import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import type { InspirationMatch, ImageAnalysisResult } from '../../../../../shared-types';
+import type { InspirationMatch, ImageAnalysisResult } from '@/shared-types/inspiration.types';
 
 export default function VisualSearchPage() {
   const router = useRouter();
@@ -21,11 +21,6 @@ export default function VisualSearchPage() {
   const [analysisData, setAnalysisData] = useState<ImageAnalysisResult | null>(null);
 
   const handleInspirationAnalyzed = async (analysis: ImageAnalysisResult) => {
-    console.log('📊 Analysis received:', {
-      tags: analysis.tags.slice(0, 5),
-      embeddingDimensions: analysis.embedding.length,
-    });
-
     setAnalysisData(analysis);
     setError(null);
 
@@ -38,14 +33,12 @@ export default function VisualSearchPage() {
     setError(null);
 
     try {
-      console.log('🔍 Finding matches...');
       const response = await api.inspiration.match({
         embedding: analysis.embedding,
         tags: analysis.tags,
         maxResults: 20,
       });
 
-      console.log(`✅ Found ${response.data.matches.length} matches`);
       setMatches(response.data.matches || []);
 
       if (response.data.matches?.length === 0) {

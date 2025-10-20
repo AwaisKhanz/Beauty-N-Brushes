@@ -2,6 +2,7 @@ import { prisma } from '../config/database';
 import { aiService } from '../lib/ai';
 import type { CreateServiceData } from '../types/service.types';
 import type { SaveServiceMediaRequest } from '../../../shared-types';
+import type { Prisma } from '@prisma/client';
 
 export class ServiceService {
   /**
@@ -638,12 +639,12 @@ Return as JSON array: ["hashtag1", "hashtag2", ...]`;
 
     // Convert drafts to DraftService format
     const draftServices = drafts.map((draft) => {
-      const draftData = draft.draftData as any;
+      const draftData = draft.draftData as Record<string, unknown>;
       return {
         id: draft.id,
-        title: draftData.title || 'Untitled Service',
-        category: draftData.category || '',
-        subcategory: draftData.subcategory || '',
+        title: (draftData.title as string) || 'Untitled Service',
+        category: (draftData.category as string) || '',
+        subcategory: (draftData.subcategory as string) || '',
         currentStep: draft.currentStep,
         lastSaved: draft.updatedAt.toISOString(),
         isDraft: true as const,
@@ -653,6 +654,385 @@ Return as JSON array: ["hashtag1", "hashtag2", ...]`;
     return {
       drafts: draftServices,
       total: draftServices.length,
+    };
+  }
+
+  /**
+   * Public search services with comprehensive filters
+   */
+  async searchServices(params: {
+    filters?: {
+      query?: string;
+      category?: string;
+      subcategory?: string;
+      city?: string;
+      state?: string;
+      latitude?: number;
+      longitude?: number;
+      radius?: number;
+      priceMin?: number;
+      priceMax?: number;
+      rating?: number;
+      mobileService?: boolean;
+      isSalon?: boolean;
+      availability?: string;
+    };
+    sort?: {
+      field: 'relevance' | 'price' | 'rating' | 'distance' | 'createdAt';
+      order: 'asc' | 'desc';
+    };
+    page?: number;
+    limit?: number;
+  }) {
+    const {
+      filters = {},
+      sort = { field: 'relevance', order: 'desc' },
+      page = 1,
+      limit = 20,
+    } = params;
+
+    const skip = (page - 1) * limit;
+
+    // Build provider filter separately
+    const providerFilter: Prisma.ProviderProfileWhereInput = {
+      user: {
+        status: 'ACTIVE',
+      },
+      verificationStatus: 'approved',
+      acceptsNewClients: true,
+      profilePaused: false,
+    };
+
+    // Add location filters
+    if (filters.city) {
+      providerFilter.city = {
+        equals: filters.city,
+        mode: 'insensitive',
+      };
+    }
+
+    if (filters.state) {
+      providerFilter.state = {
+        equals: filters.state,
+        mode: 'insensitive',
+      };
+    }
+
+    // Add rating filter
+    if (filters.rating !== undefined) {
+      providerFilter.averageRating = {
+        gte: filters.rating,
+      };
+    }
+
+    // Add mobile service filter
+    if (filters.mobileService !== undefined) {
+      providerFilter.mobileServiceAvailable = filters.mobileService;
+    }
+
+    // Add salon vs solo filter
+    if (filters.isSalon !== undefined) {
+      providerFilter.isSalon = filters.isSalon;
+    }
+
+    // Build main where clause
+    const where: Prisma.ServiceWhereInput = {
+      active: true,
+      provider: providerFilter,
+    };
+
+    // Text search (service title and description)
+    if (filters.query) {
+      where.OR = [
+        { title: { contains: filters.query, mode: 'insensitive' } },
+        { description: { contains: filters.query, mode: 'insensitive' } },
+      ];
+    }
+
+    // Category filter
+    if (filters.category) {
+      where.category = {
+        slug: filters.category,
+      };
+    }
+
+    // Subcategory filter
+    if (filters.subcategory) {
+      where.subcategory = {
+        slug: filters.subcategory,
+      };
+    }
+
+    // Price range filter
+    if (filters.priceMin !== undefined) {
+      where.priceMin = {
+        gte: filters.priceMin,
+      };
+    }
+
+    if (filters.priceMax !== undefined) {
+      where.priceMin = {
+        ...(where.priceMin as Prisma.DecimalFilter),
+        lte: filters.priceMax,
+      };
+    }
+
+    // Build orderBy using Prisma's generated type
+    let orderBy: Prisma.ServiceOrderByWithRelationInput = { createdAt: 'desc' };
+
+    switch (sort.field) {
+      case 'price':
+        orderBy = { priceMin: sort.order };
+        break;
+      case 'rating':
+        orderBy = { provider: { averageRating: sort.order } };
+        break;
+      case 'createdAt':
+        orderBy = { createdAt: sort.order };
+        break;
+      case 'distance':
+        // Distance sorting requires raw SQL with lat/long calculation
+        // For now, default to relevance
+        orderBy = { createdAt: 'desc' };
+        break;
+      default:
+        // Relevance: newest first
+        orderBy = { createdAt: 'desc' };
+    }
+
+    // Get services
+    const services = await prisma.service.findMany({
+      where,
+      include: {
+        category: true,
+        subcategory: true,
+        provider: {
+          select: {
+            id: true,
+            businessName: true,
+            slug: true,
+            logoUrl: true,
+            city: true,
+            state: true,
+            latitude: true,
+            longitude: true,
+            averageRating: true,
+            totalReviews: true,
+            isSalon: true,
+          },
+        },
+        media: {
+          where: { isFeatured: true },
+          take: 1,
+          orderBy: { displayOrder: 'asc' },
+        },
+      },
+      orderBy,
+      skip,
+      take: limit,
+    });
+
+    // Calculate distance if lat/lng provided
+    const servicesWithDistance = services.map((service) => {
+      let distance: number | undefined;
+
+      if (
+        filters.latitude &&
+        filters.longitude &&
+        service.provider.latitude &&
+        service.provider.longitude
+      ) {
+        // Haversine formula for distance calculation
+        const R = 3959; // Earth's radius in miles
+        const lat1 = (filters.latitude * Math.PI) / 180;
+        const lat2 = (service.provider.latitude.toNumber() * Math.PI) / 180;
+        const dLat = ((service.provider.latitude.toNumber() - filters.latitude) * Math.PI) / 180;
+        const dLon = ((service.provider.longitude.toNumber() - filters.longitude) * Math.PI) / 180;
+
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        distance = R * c;
+      }
+
+      return {
+        id: service.id,
+        title: service.title,
+        description: service.description,
+        priceMin: service.priceMin.toNumber(),
+        priceMax: service.priceMax?.toNumber() || null,
+        priceType: service.priceType,
+        currency: service.currency,
+        durationMinutes: service.durationMinutes,
+        category: service.category.name,
+        subcategory: service.subcategory?.name || null,
+        featuredImageUrl: service.media[0]?.fileUrl || null,
+        providerId: service.provider.id,
+        providerName: service.provider.businessName,
+        providerSlug: service.provider.slug,
+        providerLogoUrl: service.provider.logoUrl,
+        providerCity: service.provider.city,
+        providerState: service.provider.state,
+        providerRating: service.provider.averageRating.toNumber(),
+        providerReviewCount: service.provider.totalReviews,
+        providerIsSalon: service.provider.isSalon,
+        distance,
+      };
+    });
+
+    // Filter by radius if distance calculated
+    let filteredServices = servicesWithDistance;
+    if (filters.radius && filters.latitude && filters.longitude) {
+      filteredServices = servicesWithDistance.filter(
+        (s) => s.distance !== undefined && s.distance <= filters.radius!
+      );
+    }
+
+    // Sort by distance if requested
+    if (sort.field === 'distance' && filters.latitude && filters.longitude) {
+      filteredServices.sort((a, b) => {
+        const distA = a.distance || Infinity;
+        const distB = b.distance || Infinity;
+        return sort.order === 'asc' ? distA - distB : distB - distA;
+      });
+    }
+
+    return {
+      services: filteredServices,
+      total: filteredServices.length,
+      page,
+      limit,
+      totalPages: Math.ceil(filteredServices.length / limit),
+      appliedFilters: filters,
+    };
+  }
+
+  /**
+   * Get featured/popular services
+   */
+  async getFeaturedServices(limit: number = 12) {
+    const services = await prisma.service.findMany({
+      where: {
+        active: true,
+        provider: {
+          user: {
+            status: 'ACTIVE',
+          },
+          verificationStatus: 'approved',
+          acceptsNewClients: true,
+          featured: true, // Featured providers
+        },
+      },
+      include: {
+        category: true,
+        subcategory: true,
+        provider: {
+          select: {
+            id: true,
+            businessName: true,
+            slug: true,
+            logoUrl: true,
+            city: true,
+            state: true,
+            averageRating: true,
+            totalReviews: true,
+            isSalon: true,
+          },
+        },
+        media: {
+          where: { isFeatured: true },
+          take: 1,
+          orderBy: { displayOrder: 'asc' },
+        },
+      },
+      orderBy: [{ bookingCount: 'desc' }, { provider: { averageRating: 'desc' } }],
+      take: limit,
+    });
+
+    return {
+      services: services.map((service) => ({
+        id: service.id,
+        title: service.title,
+        description: service.description,
+        priceMin: service.priceMin.toNumber(),
+        priceMax: service.priceMax?.toNumber() || null,
+        priceType: service.priceType,
+        currency: service.currency,
+        durationMinutes: service.durationMinutes,
+        category: service.category.name,
+        subcategory: service.subcategory?.name || null,
+        featuredImageUrl: service.media[0]?.fileUrl || null,
+        providerId: service.provider.id,
+        providerName: service.provider.businessName,
+        providerSlug: service.provider.slug,
+        providerLogoUrl: service.provider.logoUrl,
+        providerCity: service.provider.city,
+        providerState: service.provider.state,
+        providerRating: service.provider.averageRating.toNumber(),
+        providerReviewCount: service.provider.totalReviews,
+        providerIsSalon: service.provider.isSalon,
+      })),
+      total: services.length,
+    };
+  }
+
+  /**
+   * Get all categories with service counts
+   */
+  async getCategories() {
+    const categories = await prisma.serviceCategory.findMany({
+      where: { active: true },
+      include: {
+        subcategories: {
+          where: { active: true },
+          include: {
+            _count: {
+              select: {
+                services: {
+                  where: {
+                    active: true,
+                    provider: {
+                      verificationStatus: 'approved',
+                      acceptsNewClients: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            services: {
+              where: {
+                active: true,
+                provider: {
+                  verificationStatus: 'approved',
+                  acceptsNewClients: true,
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { displayOrder: 'asc' },
+    });
+
+    return {
+      categories: categories.map((cat) => ({
+        id: cat.id,
+        name: cat.name,
+        slug: cat.slug,
+        icon: cat.iconName,
+        serviceCount: cat._count.services,
+        subcategories: cat.subcategories.map((sub) => ({
+          id: sub.id,
+          name: sub.name,
+          slug: sub.slug,
+          serviceCount: sub._count.services,
+        })),
+      })),
     };
   }
 }

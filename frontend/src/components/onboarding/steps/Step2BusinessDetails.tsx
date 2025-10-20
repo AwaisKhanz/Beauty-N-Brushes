@@ -61,7 +61,7 @@ type BusinessDetailsFormValues = z.infer<typeof businessDetailsSchema>;
 interface Step2BusinessDetailsProps {
   defaultValues?: Partial<BusinessDetailsFormValues>;
   accountType?: 'solo' | 'salon';
-  onNext: (data: any) => Promise<void>;
+  onNext: (data: BusinessDetailsFormValues) => Promise<void>;
   onBack: () => void;
   isLoading: boolean;
 }
@@ -166,17 +166,17 @@ export function Step2BusinessDetails({
       toast.success('Location detected successfully!', {
         description: 'Your address has been filled in automatically',
       });
-    } catch (error: any) {
-      console.error('Geolocation error:', error);
-      if (error.code === 1) {
+    } catch (error: unknown) {
+      const geoError = error as GeolocationPositionError | Error;
+      if ('code' in geoError && geoError.code === 1) {
         toast.error('Location permission denied', {
           description: 'Please allow location access to use this feature',
         });
-      } else if (error.code === 2) {
+      } else if ('code' in geoError && geoError.code === 2) {
         toast.error('Location unavailable', {
           description: 'Please check your device settings',
         });
-      } else if (error.code === 3) {
+      } else if ('code' in geoError && geoError.code === 3) {
         toast.error('Location request timed out', {
           description: 'Please try again',
         });

@@ -16,4 +16,9 @@ router.get('/blocked-dates', calendarController.getBlockedDates);
 router.post('/blocked-dates', calendarController.createBlockedDate);
 router.delete('/blocked-dates/:blockedDateId', calendarController.deleteBlockedDate);
 
+// Google Calendar Integration
+router.post('/google/connect', calendarController.connectGoogleCalendar);
+router.get('/google/callback', calendarController.handleGoogleCalendarCallback);
+router.post('/google/disconnect', calendarController.disconnectGoogleCalendar);
+
 export default router;

@@ -6,6 +6,7 @@ export const ROUTES = {
   // Public routes
   HOME: '/',
   SEARCH: '/search',
+  VISUAL_SEARCH: '/visual-search',
   ABOUT: '/about',
   FOR_PROVIDERS: '/for-providers',
 
@@ -92,6 +93,17 @@ export function getOnboardingRoute(role: 'PROVIDER' | 'CLIENT' | 'ADMIN'): strin
 }
 
 /**
+ * Dynamic route builders for public pages
+ */
+export function getServiceDetailRoute(serviceId: string): string {
+  return `/services/${serviceId}`;
+}
+
+export function getProviderProfileRoute(slug: string): string {
+  return `/providers/${slug}`;
+}
+
+/**
  * Public routes that don't require authentication
  */
 export const PUBLIC_ROUTES = [
@@ -102,6 +114,7 @@ export const PUBLIC_ROUTES = [
   ROUTES.RESET_PASSWORD,
   ROUTES.VERIFY_EMAIL,
   ROUTES.SEARCH,
+  ROUTES.VISUAL_SEARCH,
   ROUTES.ABOUT,
   ROUTES.FOR_PROVIDERS,
 ] as const;

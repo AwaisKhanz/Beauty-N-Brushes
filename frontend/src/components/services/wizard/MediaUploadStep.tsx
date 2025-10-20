@@ -42,9 +42,9 @@ interface MediaUploadStepProps {
 
 interface MediaItem {
   url: string;
-  thumbnailUrl?: string;
+  thumbnailUrl: string;
   mediaType: 'image' | 'video';
-  caption?: string;
+  caption: string;
   isFeatured: boolean;
   displayOrder: number;
 }
@@ -125,20 +125,17 @@ export function MediaUploadStep({ form }: MediaUploadStepProps) {
           }
 
           const result = await response.json();
-          console.log(result);
           // Add to form
-          const mediaItem = {
+          const mediaItem: MediaItem = {
             url: result.data.file.url,
-            thumbnailUrl: result.data.file.thumbnailUrl,
-            mediumUrl: result.data.file.mediumUrl,
-            largeUrl: result.data.file.largeUrl,
-            mediaType: file.type.startsWith('image/') ? 'image' : 'video',
+            thumbnailUrl: result.data.file.thumbnailUrl || result.data.file.url,
+            mediaType: (file.type.startsWith('image/') ? 'image' : 'video') as 'image' | 'video',
             isFeatured: fields.length === 0, // First image is featured by default
             displayOrder: fields.length,
             caption: '',
-          } as const;
+          };
 
-          append(mediaItem as any);
+          append(mediaItem);
         }
 
         toast.success(`${files.length} file(s) uploaded successfully!`);
@@ -203,7 +200,11 @@ export function MediaUploadStep({ form }: MediaUploadStepProps) {
     setDraggedItem(null);
   };
 
-  const updateMediaField = (index: number, field: keyof MediaItem, value: any) => {
+  const updateMediaField = (
+    index: number,
+    field: keyof MediaItem,
+    value: string | boolean | number
+  ) => {
     try {
       const currentMedia = fields[index];
       const updatedMedia = { ...currentMedia, [field]: value };
@@ -224,9 +225,6 @@ export function MediaUploadStep({ form }: MediaUploadStepProps) {
     }
 
     try {
-      console.log('Generating AI tags for media:', media);
-      console.log('Image URL:', media.url);
-
       // Call AI tagging service
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/services/ai/analyze-image`, {
         method: 'POST',
@@ -236,8 +234,7 @@ export function MediaUploadStep({ form }: MediaUploadStepProps) {
       });
 
       if (response.ok) {
-        const result = await response.json();
-        console.log('AI analysis result:', result);
+        await response.json();
 
         // Update using useFieldArray's update function to ensure UI reflects changes
         const currentMedia = fields[index];
@@ -245,7 +242,6 @@ export function MediaUploadStep({ form }: MediaUploadStepProps) {
           ...currentMedia,
         };
 
-        console.log('Updating media with AI tags:', updatedMedia);
         update(index, updatedMedia);
 
         toast.success('AI tags generated!');

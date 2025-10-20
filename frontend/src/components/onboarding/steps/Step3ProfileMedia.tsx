@@ -96,10 +96,11 @@ export function Step3ProfileMedia({
         logoUrl: logoResult?.url,
         coverPhotoUrl: coverPhotoResult?.url,
       });
-    } catch (error: any) {
-      console.error('Error uploading media:', error);
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to upload media. Please try again.';
       toast.error('Upload failed', {
-        description: error.message || 'Failed to upload media. Please try again.',
+        description: errorMessage,
       });
     } finally {
       setIsUploading(false);

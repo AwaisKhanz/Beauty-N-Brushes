@@ -1,12 +1,13 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { sendSuccess } from '../utils/response';
 import { AppError } from '../middleware/errorHandler';
 import { storageService } from '../lib/storage';
+import type { AuthRequest } from '../types';
 
 /**
  * Upload single file (image, document, etc.)
  */
-export async function uploadFile(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function uploadFile(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const file = req.file;
 
@@ -88,7 +89,7 @@ export async function uploadFile(req: Request, res: Response, next: NextFunction
  * Upload multiple files
  */
 export async function uploadMultipleFiles(
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -144,7 +145,7 @@ export async function uploadMultipleFiles(
 /**
  * Delete file by URL
  */
-export async function deleteFile(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function deleteFile(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const { fileUrl } = req.body;
 

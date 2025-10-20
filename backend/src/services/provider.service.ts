@@ -131,6 +131,94 @@ export class ProviderService {
 
     return { message: 'Provider account reactivated successfully' };
   }
+
+  /**
+   * Get public provider profile by slug
+   */
+  async getPublicProfile(slug: string) {
+    const profile = await prisma.providerProfile.findUnique({
+      where: { slug },
+      include: {
+        user: {
+          select: {
+            firstName: true,
+            lastName: true,
+            avatarUrl: true,
+            status: true,
+          },
+        },
+        services: {
+          where: { active: true },
+          include: {
+            category: true,
+            subcategory: true,
+            media: {
+              where: { isFeatured: true },
+              take: 1,
+              orderBy: { displayOrder: 'asc' },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    if (!profile) {
+      throw new Error('Provider not found');
+    }
+
+    // Check if profile is active
+    if (profile.user.status !== 'ACTIVE' || profile.verificationStatus !== 'approved') {
+      throw new Error('Provider not found');
+    }
+
+    // Get reviews (mock for now - we'll need a reviews table)
+    const reviews: any[] = [];
+
+    return {
+      provider: {
+        id: profile.id,
+        businessName: profile.businessName,
+        slug: profile.slug,
+        tagline: profile.tagline,
+        description: profile.description,
+        logoUrl: profile.logoUrl,
+        coverPhotoUrl: profile.coverPhotoUrl,
+        city: profile.city,
+        state: profile.state,
+        address: profile.addressLine1,
+        averageRating: profile.averageRating.toNumber(),
+        totalReviews: profile.totalReviews,
+        isSalon: profile.isSalon,
+        acceptsNewClients: profile.acceptsNewClients,
+        mobileServiceAvailable: profile.mobileServiceAvailable,
+        services: profile.services.map((service) => ({
+          id: service.id,
+          title: service.title,
+          description: service.description,
+          priceMin: service.priceMin.toNumber(),
+          priceMax: service.priceMax?.toNumber() || null,
+          priceType: service.priceType,
+          currency: service.currency,
+          durationMinutes: service.durationMinutes,
+          category: service.category.name,
+          subcategory: service.subcategory?.name || null,
+          featuredImageUrl: service.media[0]?.fileUrl || null,
+          providerId: profile.id,
+          providerName: profile.businessName,
+          providerSlug: profile.slug,
+          providerLogoUrl: profile.logoUrl,
+          providerCity: profile.city,
+          providerState: profile.state,
+          providerRating: profile.averageRating.toNumber(),
+          providerReviewCount: profile.totalReviews,
+          providerIsSalon: profile.isSalon,
+        })),
+        portfolioImages: [],
+        reviews,
+      },
+    };
+  }
 }
 
 export const providerService = new ProviderService();

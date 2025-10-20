@@ -31,4 +31,23 @@ router.put('/notifications', settingsController.updateNotificationSettings);
 router.put('/account', settingsController.updateAccount);
 router.post('/deactivate', settingsController.deactivateAccount);
 
+// Branding
+router.get('/branding', settingsController.getBrandingSettings);
+router.put('/branding', settingsController.updateBrandingSettings);
+
+// Location
+router.get('/location', settingsController.getLocationSettings);
+router.put('/location', settingsController.updateLocationSettings);
+
+// Business Details
+router.get('/business-details', settingsController.getBusinessDetails);
+router.put('/business-details', settingsController.updateBusinessDetails);
+
+// Google Calendar
+router.get('/calendar-status', settingsController.getGoogleCalendarStatus);
+
+// Subscription Management
+router.post('/subscription/change-tier', settingsController.changeSubscriptionTier);
+router.post('/subscription/cancel', settingsController.cancelSubscription);
+
 export default router;

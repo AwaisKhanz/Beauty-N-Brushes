@@ -37,16 +37,17 @@ export default function PaystackCardForm({
       // TRIAL MODE: Start free trial without payment collection
       // Payment will be collected later when trial ends
       await api.onboarding.setupPayment({
-        regionCode: regionCode as any,
+        regionCode: regionCode as 'NA' | 'EU' | 'GH' | 'NG',
         subscriptionTier,
         paymentMethodId: 'paystack_trial', // Placeholder for trial mode
       });
 
       // Success - proceed to next step
       onSuccess();
-    } catch (err: any) {
-      console.error('Trial setup error:', err);
-      setError(err.message || 'Failed to start trial. Please try again.');
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof Error ? err.message : 'Failed to start trial. Please try again.';
+      setError(errorMessage);
       setProcessing(false);
     }
   };

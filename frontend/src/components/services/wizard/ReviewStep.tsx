@@ -180,7 +180,7 @@ export function ReviewStep({ form, onNext, isEdit }: ReviewStepProps) {
                     <div className="flex justify-between">
                       <span>Deposit:</span>
                       <span>
-                        {formData.depositType === 'percentage'
+                        {formData.depositType === 'PERCENTAGE'
                           ? `${formData.depositAmount}%`
                           : `$${formData.depositAmount}`}
                       </span>
@@ -278,7 +278,7 @@ export function ReviewStep({ form, onNext, isEdit }: ReviewStepProps) {
               <div>
                 <span className="text-muted-foreground">Deposit:</span>
                 <p className="font-medium">
-                  {formData.depositType === 'percentage'
+                  {formData.depositType === 'PERCENTAGE'
                     ? `${formData.depositAmount}%`
                     : `$${formData.depositAmount}`}
                 </p>

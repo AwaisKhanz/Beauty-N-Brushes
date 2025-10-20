@@ -11,7 +11,7 @@ export interface CreateServiceData {
   priceMax?: number;
   priceType: 'fixed' | 'range' | 'starting_at';
   durationMinutes: number;
-  depositType: 'percentage' | 'fixed';
+  depositType: 'PERCENTAGE' | 'FLAT';
   depositAmount: number;
   addons?: Array<{
     name: string;

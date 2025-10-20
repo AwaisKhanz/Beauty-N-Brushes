@@ -47,5 +47,8 @@
     "ai-powered"
   ],
   "author": "",
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "dependencies": {
+    "googleapis": "^164.0.0"
+  }
 }

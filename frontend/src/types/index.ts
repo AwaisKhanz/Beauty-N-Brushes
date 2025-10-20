@@ -191,7 +191,7 @@ export interface OnboardingStatus {
     logoUrl?: string | null;
     coverPhotoUrl?: string | null;
     avatarUrl?: string | null;
-    policies?: any;
+    policies?: Record<string, unknown>;
     subscriptionTier?: string | null;
   };
 }
@@ -202,3 +202,28 @@ export interface OnboardingStatus {
 
 export type RegionCode = 'NA' | 'EU' | 'GH' | 'NG';
 export type PaymentProvider = 'stripe' | 'paystack';
+
+export interface PaystackResponse {
+  reference: string;
+  status: string;
+  trans: string;
+  transaction: string;
+  trxref: string;
+  message?: string;
+}
+
+export interface WindowWithPaystack extends Window {
+  PaystackPop?: {
+    setup: (config: {
+      key: string;
+      email: string;
+      amount: number;
+      currency: string;
+      ref: string;
+      onClose: () => void;
+      callback: (response: PaystackResponse) => void;
+    }) => {
+      openIframe: () => void;
+    };
+  };
+}

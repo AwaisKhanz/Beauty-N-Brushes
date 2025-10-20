@@ -11,7 +11,7 @@ import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
 import { toast } from 'sonner';
 import { DraftServiceCard } from './DraftServiceCard';
-import type { DraftService } from '../../../shared-types';
+import type { DraftService } from '@/shared-types/service.types';
 
 interface DraftServicesSectionProps {
   className?: string;
@@ -91,7 +91,7 @@ export function DraftServicesSection({ className }: DraftServicesSectionProps) {
             <FileText className="h-5 w-5" />
             Draft Services
             {drafts.length > 0 && (
-              <Badge variant="secondary" className="bg-amber-100 text-amber-800">
+              <Badge variant="secondary" className="bg-warning/20 text-warning">
                 {drafts.length}
               </Badge>
             )}
@@ -111,9 +111,9 @@ export function DraftServicesSection({ className }: DraftServicesSectionProps) {
       <CardContent>
         {drafts.length === 0 ? (
           <div className="text-center py-8">
-            <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Draft Services</h3>
-            <p className="text-gray-500 mb-4">
+            <AlertCircle className="h-12 w-12 text-muted-foreground/70 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-foreground mb-2">No Draft Services</h3>
+            <p className="text-muted-foreground mb-4">
               Start creating a new service and it will be saved as a draft automatically.
             </p>
             <Button onClick={handleCreateNew} className="bg-primary hover:bg-primary/90">

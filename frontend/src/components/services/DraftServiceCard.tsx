@@ -20,7 +20,7 @@ import {
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
 import { toast } from 'sonner';
-import type { DraftService } from '../../../shared-types';
+import type { DraftService } from '@/shared-types/service.types';
 
 interface DraftServiceCardProps {
   draft: DraftService;
@@ -60,14 +60,14 @@ export function DraftServiceCard({ draft, onDelete }: DraftServiceCardProps) {
 
   const getStepIcon = (step: number) => {
     const icons = [
-      <FileText className="h-4 w-4" />,
-      <CheckCircle2 className="h-4 w-4" />,
-      <Clock className="h-4 w-4" />,
-      <Edit3 className="h-4 w-4" />,
-      <AlertCircle className="h-4 w-4" />,
-      <CheckCircle2 className="h-4 w-4" />,
+      <FileText key="step-0" className="h-4 w-4" />,
+      <CheckCircle2 key="step-1" className="h-4 w-4" />,
+      <Clock key="step-2" className="h-4 w-4" />,
+      <Edit3 key="step-3" className="h-4 w-4" />,
+      <AlertCircle key="step-4" className="h-4 w-4" />,
+      <CheckCircle2 key="step-5" className="h-4 w-4" />,
     ];
-    return icons[step] || <FileText className="h-4 w-4" />;
+    return icons[step] || <FileText key="step-default" className="h-4 w-4" />;
   };
 
   const formatLastSaved = (dateString: string) => {
@@ -83,19 +83,19 @@ export function DraftServiceCard({ draft, onDelete }: DraftServiceCardProps) {
   };
 
   return (
-    <Card className="border-amber-200 bg-amber-50/50 hover:shadow-md transition-shadow">
+    <Card className="border-warning/30 bg-warning/5 hover:shadow-md transition-shadow">
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex-1">
-            <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
               {getStepIcon(draft.currentStep)}
               {draft.title}
             </CardTitle>
             <div className="flex items-center gap-2 mt-1">
-              <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-200">
+              <Badge variant="secondary" className="bg-warning/20 text-warning border-warning/30">
                 Draft
               </Badge>
-              <span className="text-sm text-gray-500">
+              <span className="text-sm text-muted-foreground">
                 {draft.category}
                 {draft.subcategory && ` • ${draft.subcategory}`}
               </span>
@@ -108,13 +108,13 @@ export function DraftServiceCard({ draft, onDelete }: DraftServiceCardProps) {
         <div className="space-y-3">
           {/* Progress Info */}
           <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-600">
+            <span className="text-muted-foreground">
               Step {draft.currentStep + 1} of {STEP_NAMES.length}
             </span>
-            <span className="text-gray-500">{formatLastSaved(draft.lastSaved)}</span>
+            <span className="text-muted-foreground">{formatLastSaved(draft.lastSaved)}</span>
           </div>
 
-          <div className="text-sm text-gray-700">
+          <div className="text-sm text-foreground/90">
             <strong>{STEP_NAMES[draft.currentStep]}</strong>
           </div>
 
@@ -134,7 +134,7 @@ export function DraftServiceCard({ draft, onDelete }: DraftServiceCardProps) {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -152,7 +152,7 @@ export function DraftServiceCard({ draft, onDelete }: DraftServiceCardProps) {
                   <AlertDialogAction
                     onClick={handleDelete}
                     disabled={isDeleting}
-                    className="bg-red-600 hover:bg-red-700"
+                    className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
                   >
                     {isDeleting ? 'Deleting...' : 'Delete Draft'}
                   </AlertDialogAction>

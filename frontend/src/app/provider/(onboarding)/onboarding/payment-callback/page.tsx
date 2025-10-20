@@ -27,7 +27,7 @@ export default function PaymentCallbackPage() {
 
         if (provider === 'paystack') {
           // Verify the transaction with Paystack via backend
-          const verifyResponse: any = await api.payment.verifyPaystack(reference);
+          const verifyResponse = await api.payment.verifyPaystack(reference);
 
           if (verifyResponse.data.status !== 'success') {
             throw new Error('Payment was not successful');
@@ -35,9 +35,9 @@ export default function PaymentCallbackPage() {
 
           // Payment successful, create subscription with authorization
           await api.onboarding.setupPayment({
-            regionCode: region as any,
+            regionCode: region as 'NA' | 'EU' | 'GH' | 'NG',
             subscriptionTier: tier as 'solo' | 'salon',
-            paymentMethodId: verifyResponse.data.authorizationCode,
+            paymentMethodId: verifyResponse.data.authorization.authorization_code,
           });
 
           setStatus('success');
@@ -48,10 +48,11 @@ export default function PaymentCallbackPage() {
             router.push(ROUTES.PROVIDER.ONBOARDING);
           }, 2000);
         }
-      } catch (error: any) {
-        console.error('Payment callback error:', error);
+      } catch (error: unknown) {
         setStatus('error');
-        setMessage(error.message || 'Payment processing failed. Please try again.');
+        const errorMessage =
+          error instanceof Error ? error.message : 'Payment processing failed. Please try again.';
+        setMessage(errorMessage);
 
         // Redirect back to payment setup after 3 seconds
         setTimeout(() => {

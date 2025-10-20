@@ -76,7 +76,7 @@ export const serviceCreateSchema = z.object({
   priceMax: z.number().positive().max(10000).optional(),
   durationMinutes: z.number().min(15).max(1440),
   depositRequired: z.boolean().default(true),
-  depositType: z.enum(['fixed', 'percentage']).optional(),
+  depositType: z.enum(['FLAT', 'PERCENTAGE']).optional(),
   depositAmount: z.number().positive().optional(),
 });
 

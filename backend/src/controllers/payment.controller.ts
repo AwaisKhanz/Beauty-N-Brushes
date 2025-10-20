@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../types';
 import { sendSuccess } from '../utils/response';
 import { AppError } from '../middleware/errorHandler';
@@ -8,12 +8,12 @@ import { env } from '../config/env';
  * Initialize Paystack transaction
  */
 export async function initializePaystackTransaction(
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const userId = (req as AuthRequest).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       throw new AppError(401, 'Unauthorized');
     }
@@ -83,12 +83,12 @@ export async function initializePaystackTransaction(
  * Verify Paystack transaction
  */
 export async function verifyPaystackTransaction(
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const userId = (req as AuthRequest).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       throw new AppError(401, 'Unauthorized');
     }

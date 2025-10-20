@@ -1,4 +1,4 @@
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { sendSuccess } from '../utils/response';
 import { AppError } from '../middleware/errorHandler';
 import { providerService } from '../services/provider.service';
@@ -138,6 +138,32 @@ export async function reactivateProvider(
   } catch (error) {
     if (error instanceof Error && error.message === 'Provider not found') {
       return next(new AppError(404, error.message));
+    }
+    next(error);
+  }
+}
+
+/**
+ * PUBLIC: Get provider public profile by slug
+ */
+export async function getPublicProfile(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { slug } = req.params;
+
+    if (!slug) {
+      throw new AppError(400, 'Provider slug required');
+    }
+
+    const result = await providerService.getPublicProfile(slug);
+
+    sendSuccess(res, result);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Provider not found') {
+      return next(new AppError(404, 'Provider not found'));
     }
     next(error);
   }

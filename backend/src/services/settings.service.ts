@@ -8,6 +8,11 @@ import type {
   UpdatePoliciesRequest,
   UpdateNotificationSettingsRequest,
   UpdateAccountRequest,
+  UpdateBrandingRequest,
+  UpdateLocationRequest,
+  UpdateBusinessDetailsSettingsRequest,
+  ChangeTierRequest,
+  CancelSubscriptionRequest,
 } from '../../../shared-types';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
@@ -575,6 +580,342 @@ class SettingsService {
     });
 
     return { success: true };
+  }
+
+  /**
+   * Get branding settings
+   */
+  async getBrandingSettings(userId: string) {
+    const profile = await prisma.providerProfile.findUnique({
+      where: { userId },
+      select: {
+        logoUrl: true,
+        brandColorPrimary: true,
+        brandColorSecondary: true,
+        brandColorAccent: true,
+        brandFontHeading: true,
+        brandFontBody: true,
+      },
+    });
+
+    if (!profile) {
+      throw new AppError(404, 'Provider profile not found');
+    }
+
+    return profile;
+  }
+
+  /**
+   * Update branding settings
+   */
+  async updateBrandingSettings(userId: string, data: UpdateBrandingRequest) {
+    const profile = await prisma.providerProfile.findUnique({
+      where: { userId },
+    });
+
+    if (!profile) {
+      throw new AppError(404, 'Provider profile not found');
+    }
+
+    const updated = await prisma.providerProfile.update({
+      where: { userId },
+      data: {
+        ...(data.logoUrl !== undefined && { logoUrl: data.logoUrl }),
+        ...(data.brandColorPrimary !== undefined && { brandColorPrimary: data.brandColorPrimary }),
+        ...(data.brandColorSecondary !== undefined && {
+          brandColorSecondary: data.brandColorSecondary,
+        }),
+        ...(data.brandColorAccent !== undefined && { brandColorAccent: data.brandColorAccent }),
+        ...(data.brandFontHeading !== undefined && { brandFontHeading: data.brandFontHeading }),
+        ...(data.brandFontBody !== undefined && { brandFontBody: data.brandFontBody }),
+        updatedAt: new Date(),
+      },
+      select: {
+        logoUrl: true,
+        brandColorPrimary: true,
+        brandColorSecondary: true,
+        brandColorAccent: true,
+        brandFontHeading: true,
+        brandFontBody: true,
+      },
+    });
+
+    return updated;
+  }
+
+  /**
+   * Get location settings
+   */
+  async getLocationSettings(userId: string) {
+    const profile = await prisma.providerProfile.findUnique({
+      where: { userId },
+      select: {
+        addressLine1: true,
+        addressLine2: true,
+        city: true,
+        state: true,
+        zipCode: true,
+        country: true,
+        businessPhone: true,
+        latitude: true,
+        longitude: true,
+      },
+    });
+
+    if (!profile) {
+      throw new AppError(404, 'Provider profile not found');
+    }
+
+    return profile;
+  }
+
+  /**
+   * Update location settings
+   */
+  async updateLocationSettings(userId: string, data: UpdateLocationRequest) {
+    const profile = await prisma.providerProfile.findUnique({
+      where: { userId },
+    });
+
+    if (!profile) {
+      throw new AppError(404, 'Provider profile not found');
+    }
+
+    const updated = await prisma.providerProfile.update({
+      where: { userId },
+      data: {
+        ...(data.addressLine1 !== undefined && { addressLine1: data.addressLine1 }),
+        ...(data.addressLine2 !== undefined && { addressLine2: data.addressLine2 }),
+        ...(data.city !== undefined && { city: data.city }),
+        ...(data.state !== undefined && { state: data.state }),
+        ...(data.zipCode !== undefined && { zipCode: data.zipCode }),
+        ...(data.country !== undefined && { country: data.country }),
+        ...(data.businessPhone !== undefined && { businessPhone: data.businessPhone }),
+        ...(data.latitude !== undefined && { latitude: data.latitude }),
+        ...(data.longitude !== undefined && { longitude: data.longitude }),
+        updatedAt: new Date(),
+      },
+      select: {
+        addressLine1: true,
+        addressLine2: true,
+        city: true,
+        state: true,
+        zipCode: true,
+        country: true,
+        businessPhone: true,
+        latitude: true,
+        longitude: true,
+      },
+    });
+
+    return updated;
+  }
+
+  /**
+   * Get business details
+   */
+  async getBusinessDetails(userId: string) {
+    const profile = await prisma.providerProfile.findUnique({
+      where: { userId },
+      select: {
+        businessPhone: true,
+        businessType: true,
+        licenseNumber: true,
+        licenseVerified: true,
+        insuranceVerified: true,
+        timezone: true,
+      },
+    });
+
+    if (!profile) {
+      throw new AppError(404, 'Provider profile not found');
+    }
+
+    return profile;
+  }
+
+  /**
+   * Update business details
+   */
+  async updateBusinessDetails(userId: string, data: UpdateBusinessDetailsSettingsRequest) {
+    const profile = await prisma.providerProfile.findUnique({
+      where: { userId },
+    });
+
+    if (!profile) {
+      throw new AppError(404, 'Provider profile not found');
+    }
+
+    const updated = await prisma.providerProfile.update({
+      where: { userId },
+      data: {
+        ...(data.businessPhone !== undefined && { businessPhone: data.businessPhone }),
+        ...(data.businessType !== undefined && { businessType: data.businessType }),
+        ...(data.licenseNumber !== undefined && { licenseNumber: data.licenseNumber }),
+        ...(data.timezone !== undefined && { timezone: data.timezone }),
+        updatedAt: new Date(),
+      },
+      select: {
+        businessPhone: true,
+        businessType: true,
+        licenseNumber: true,
+        licenseVerified: true,
+        insuranceVerified: true,
+        timezone: true,
+      },
+    });
+
+    return updated;
+  }
+
+  /**
+   * Get Google Calendar connection status
+   */
+  async getGoogleCalendarStatus(userId: string) {
+    const profile = await prisma.providerProfile.findUnique({
+      where: { userId },
+      select: {
+        googleCalendarConnected: true,
+        googleEmail: true,
+        googleCalendarLastSync: true,
+      },
+    });
+
+    if (!profile) {
+      throw new AppError(404, 'Provider profile not found');
+    }
+
+    return {
+      connected: profile.googleCalendarConnected || false,
+      email: profile.googleEmail || null,
+      lastSyncAt: profile.googleCalendarLastSync?.toISOString() || null,
+    };
+  }
+
+  /**
+   * Change subscription tier
+   */
+  async changeSubscriptionTier(userId: string, data: ChangeTierRequest) {
+    const profile = await prisma.providerProfile.findUnique({
+      where: { userId },
+      select: {
+        id: true,
+        subscriptionTier: true,
+        paymentProvider: true,
+        regionCode: true,
+        stripeSubscriptionId: true,
+        paystackSubscriptionCode: true,
+      },
+    });
+
+    if (!profile) {
+      throw new AppError(404, 'Provider profile not found');
+    }
+
+    if (profile.subscriptionTier === data.newTier.toUpperCase()) {
+      throw new AppError(400, 'Already subscribed to this tier');
+    }
+
+    // Calculate new monthly fee
+    const newMonthlyFee = data.newTier === 'solo' ? 19.0 : 49.0;
+
+    // Update subscription in payment provider
+    if (profile.paymentProvider === 'STRIPE' && profile.stripeSubscriptionId) {
+      const newPriceId =
+        data.newTier === 'solo'
+          ? process.env.STRIPE_SOLO_PRICE_ID
+          : process.env.STRIPE_SALON_PRICE_ID;
+
+      if (!newPriceId) {
+        throw new AppError(500, 'Stripe price ID not configured');
+      }
+
+      try {
+        const subscription = await stripe.subscriptions.retrieve(profile.stripeSubscriptionId);
+
+        await stripe.subscriptions.update(profile.stripeSubscriptionId, {
+          items: [
+            {
+              id: subscription.items.data[0].id,
+              price: newPriceId,
+            },
+          ],
+          proration_behavior: 'create_prorations',
+        });
+      } catch (error) {
+        console.error('Error updating Stripe subscription:', error);
+        throw new AppError(500, 'Failed to update subscription');
+      }
+    }
+    // TODO: Implement Paystack subscription tier change
+
+    // Update database
+    await prisma.providerProfile.update({
+      where: { userId },
+      data: {
+        subscriptionTier: data.newTier.toUpperCase() as 'SOLO' | 'SALON',
+        monthlyFee: newMonthlyFee,
+        updatedAt: new Date(),
+      },
+    });
+
+    return {
+      message: 'Subscription tier changed successfully',
+      newTier: data.newTier,
+      newMonthlyFee,
+      effectiveDate: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Cancel subscription
+   */
+  async cancelSubscription(userId: string, data: CancelSubscriptionRequest) {
+    const profile = await prisma.providerProfile.findUnique({
+      where: { userId },
+      select: {
+        id: true,
+        paymentProvider: true,
+        stripeSubscriptionId: true,
+        paystackSubscriptionCode: true,
+        nextBillingDate: true,
+      },
+    });
+
+    if (!profile) {
+      throw new AppError(404, 'Provider profile not found');
+    }
+
+    // Cancel subscription in payment provider
+    if (profile.paymentProvider === 'STRIPE' && profile.stripeSubscriptionId) {
+      try {
+        await stripe.subscriptions.update(profile.stripeSubscriptionId, {
+          cancel_at_period_end: true,
+          cancellation_details: {
+            comment: data.reason || 'User requested cancellation',
+          },
+        });
+      } catch (error) {
+        console.error('Error cancelling Stripe subscription:', error);
+        throw new AppError(500, 'Failed to cancel subscription');
+      }
+    }
+    // TODO: Implement Paystack subscription cancellation
+
+    // Update database
+    await prisma.providerProfile.update({
+      where: { userId },
+      data: {
+        subscriptionStatus: 'CANCELLED',
+        updatedAt: new Date(),
+      },
+    });
+
+    return {
+      message: 'Subscription cancelled successfully',
+      cancelledAt: new Date().toISOString(),
+      accessUntil: profile.nextBillingDate?.toISOString() || new Date().toISOString(),
+    };
   }
 }
 

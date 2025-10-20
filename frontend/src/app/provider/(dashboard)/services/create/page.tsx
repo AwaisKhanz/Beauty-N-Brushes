@@ -53,7 +53,7 @@ export default function CreateServicePage() {
         priceMax: serviceData.priceMax ? Number(serviceData.priceMax) : 0,
         priceType: serviceData.priceType as 'fixed' | 'range' | 'starting_at',
         durationMinutes: serviceData.durationMinutes,
-        depositType: serviceData.depositType as 'percentage' | 'fixed',
+        depositType: serviceData.depositType as 'PERCENTAGE' | 'FLAT',
         depositAmount: Number(serviceData.depositAmount),
         hashtags: [],
         keywords: [],

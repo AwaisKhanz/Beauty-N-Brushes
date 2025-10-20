@@ -4,7 +4,7 @@
  */
 
 export type PriceType = 'fixed' | 'range' | 'starting_at';
-export type DepositType = 'percentage' | 'fixed';
+export type DepositType = 'PERCENTAGE' | 'FLAT';
 
 // ============================================
 // Request Types
@@ -296,4 +296,156 @@ export interface GetDraftServicesResponse {
 
 export interface DeleteDraftServiceResponse {
   message: string;
+}
+
+// ============================================
+// Public Search Types
+// ============================================
+
+export interface ServiceSearchFilters {
+  // Text search
+  query?: string;
+
+  // Category filters
+  category?: string;
+  subcategory?: string;
+
+  // Location filters
+  city?: string;
+  state?: string;
+  latitude?: number;
+  longitude?: number;
+  radius?: number; // miles
+
+  // Price filters
+  priceMin?: number;
+  priceMax?: number;
+
+  // Other filters
+  rating?: number; // minimum rating
+  mobileService?: boolean;
+  isSalon?: boolean; // true = salon only, false = solo only, undefined = both
+  availability?: string; // ISO date string
+}
+
+export interface ServiceSearchSort {
+  field: 'relevance' | 'price' | 'rating' | 'distance' | 'createdAt';
+  order: 'asc' | 'desc';
+}
+
+export interface SearchServicesRequest {
+  filters?: ServiceSearchFilters;
+  sort?: ServiceSearchSort;
+  page?: number;
+  limit?: number;
+}
+
+export interface PublicServiceResult {
+  id: string;
+  title: string;
+  description: string;
+  priceMin: number;
+  priceMax: number | null;
+  priceType: string;
+  currency: string;
+  durationMinutes: number;
+  category: string;
+  subcategory: string | null;
+  featuredImageUrl: string | null;
+  // Provider info
+  providerId: string;
+  providerName: string;
+  providerSlug: string;
+  providerLogoUrl: string | null;
+  providerCity: string;
+  providerState: string;
+  providerRating: number;
+  providerReviewCount: number;
+  providerIsSalon: boolean;
+  // Distance (if location provided)
+  distance?: number;
+}
+
+export interface SearchServicesResponse {
+  services: PublicServiceResult[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  appliedFilters: ServiceSearchFilters;
+}
+
+export interface FeaturedServicesResponse {
+  services: PublicServiceResult[];
+  total: number;
+}
+
+export interface CategoryWithCount {
+  id: string;
+  name: string;
+  slug: string;
+  icon: string | null;
+  serviceCount: number;
+  subcategories?: {
+    id: string;
+    name: string;
+    slug: string;
+    serviceCount: number;
+  }[];
+}
+
+export interface CategoriesResponse {
+  categories: CategoryWithCount[];
+}
+
+// ============================================
+// Public Provider Profile Types
+// ============================================
+
+export interface PublicProviderProfile {
+  id: string;
+  businessName: string;
+  slug: string;
+  tagline: string | null;
+  description: string | null;
+  logoUrl: string | null;
+  coverPhotoUrl: string | null;
+
+  // Location
+  city: string;
+  state: string;
+  address: string | null;
+
+  // Ratings
+  averageRating: number;
+  totalReviews: number;
+
+  // Settings
+  isSalon: boolean;
+  acceptsNewClients: boolean;
+  mobileServiceAvailable: boolean;
+
+  // Services
+  services: PublicServiceResult[];
+
+  // Portfolio (Instagram media)
+  portfolioImages: {
+    id: string;
+    imageUrl: string;
+    caption: string | null;
+  }[];
+
+  // Reviews
+  reviews: {
+    id: string;
+    clientName: string;
+    rating: number;
+    reviewText: string | null;
+    createdAt: string;
+    serviceTitle: string;
+  }[];
+}
+
+export interface GetPublicProviderProfileResponse {
+  provider: PublicProviderProfile;
 }

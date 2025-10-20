@@ -3,7 +3,6 @@
 import { useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
@@ -68,8 +67,6 @@ export function ServiceMediaUpload({
 
       if (files.length === 0) return;
 
-      console.log(`[ServiceMediaUpload] Selected ${files.length} files`);
-
       // Check if adding these files would exceed the limit
       if (uploadedMedia.length + files.length > maxFiles) {
         toast.error('Too many files', {
@@ -117,15 +114,8 @@ export function ServiceMediaUpload({
       try {
         const formData = new FormData();
         files.forEach((file) => {
-          console.log(
-            `[ServiceMediaUpload] Adding file: ${file.name}, type: ${file.type}, size: ${file.size}`
-          );
           formData.append('files', file);
         });
-
-        console.log(
-          `[ServiceMediaUpload] Uploading to: ${process.env.NEXT_PUBLIC_API_URL}/upload/multiple?type=service`
-        );
 
         setUploadProgress(30);
 
@@ -140,8 +130,6 @@ export function ServiceMediaUpload({
 
         setUploadProgress(60);
 
-        console.log(`[ServiceMediaUpload] Response status: ${response.status}`);
-
         if (!response.ok) {
           const errorData = await response.json().catch(() => null);
           console.error('[ServiceMediaUpload] Upload failed:', errorData);
@@ -149,20 +137,30 @@ export function ServiceMediaUpload({
         }
 
         const result = await response.json();
-        console.log('[ServiceMediaUpload] Upload result:', result);
 
         setUploadProgress(80);
 
         if (result.success && result.data?.files) {
-          const newMedia: UploadedMedia[] = result.data.files.map((file: any, index: number) => ({
-            ...file,
-            mediaType: file.mimeType.startsWith('video/') ? 'video' : 'image',
-            displayOrder: uploadedMedia.length + index,
-            caption: '',
-            isFeatured: uploadedMedia.length === 0 && index === 0, // First upload is featured
-          }));
-
-          console.log(`[ServiceMediaUpload] Successfully uploaded ${newMedia.length} files`);
+          const newMedia: UploadedMedia[] = result.data.files.map(
+            (
+              file: {
+                url: string;
+                thumbnailUrl?: string;
+                mediumUrl?: string;
+                largeUrl?: string;
+                fileName: string;
+                fileSize: number;
+                mimeType: string;
+              },
+              index: number
+            ) => ({
+              ...file,
+              mediaType: file.mimeType.startsWith('video/') ? 'video' : 'image',
+              displayOrder: uploadedMedia.length + index,
+              caption: '',
+              isFeatured: uploadedMedia.length === 0 && index === 0, // First upload is featured
+            })
+          );
 
           const updatedMedia = [...uploadedMedia, ...newMedia];
           setUploadedMedia(updatedMedia);
@@ -176,7 +174,6 @@ export function ServiceMediaUpload({
 
           // If serviceId is provided, save media to backend
           if (serviceId) {
-            console.log(`[ServiceMediaUpload] Saving media to service: ${serviceId}`);
             await saveMediaToService(updatedMedia);
           }
 
@@ -237,8 +234,6 @@ export function ServiceMediaUpload({
         isFeatured: m.isFeatured || false,
       }));
 
-      console.log(`[ServiceMediaUpload] Saving ${mediaUrls.length} media items to service`);
-
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/services/${serviceId}/media`,
         {
@@ -256,8 +251,6 @@ export function ServiceMediaUpload({
         console.error('[ServiceMediaUpload] Save media failed:', errorData);
         throw new Error(errorData?.error?.message || 'Failed to save media');
       }
-
-      console.log('[ServiceMediaUpload] Media saved successfully');
     } catch (error: unknown) {
       console.error('[ServiceMediaUpload] Error saving media:', error);
       toast.error('Failed to save media to service', {
@@ -326,8 +319,6 @@ export function ServiceMediaUpload({
     const mediaToRemove = uploadedMedia[index];
 
     try {
-      console.log(`[ServiceMediaUpload] Deleting file: ${mediaToRemove.url}`);
-
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/upload`, {
         method: 'DELETE',
         credentials: 'include',

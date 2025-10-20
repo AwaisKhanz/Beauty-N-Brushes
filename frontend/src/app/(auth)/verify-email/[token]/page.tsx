@@ -33,7 +33,6 @@ export default function VerifyEmailTokenPage() {
     hasVerified.current = true;
 
     verifyEmailToken();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const verifyEmailToken = async () => {

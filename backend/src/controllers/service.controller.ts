@@ -1,4 +1,4 @@
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { sendSuccess } from '../utils/response';
 import { AppError } from '../middleware/errorHandler';
 import { serviceService } from '../services/service.service';
@@ -354,6 +354,113 @@ export async function getDraftServices(
     if (error instanceof Error && error.message === 'Provider profile not found') {
       return next(new AppError(404, error.message));
     }
+    next(error);
+  }
+}
+
+/**
+ * PUBLIC: Search services with comprehensive filters
+ */
+export async function searchServices(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const {
+      query,
+      category,
+      subcategory,
+      city,
+      state,
+      latitude,
+      longitude,
+      radius,
+      priceMin,
+      priceMax,
+      rating,
+      mobileService,
+      isSalon,
+      availability,
+      sortField = 'relevance',
+      sortOrder = 'desc',
+      page = 1,
+      limit = 20,
+    } = req.query;
+
+    const validSortFields = ['relevance', 'price', 'rating', 'distance', 'createdAt'] as const;
+    type ValidSortField = (typeof validSortFields)[number];
+
+    const sortFieldValue = (sortField as string) || 'relevance';
+    const validatedSortField: ValidSortField = validSortFields.includes(
+      sortFieldValue as ValidSortField
+    )
+      ? (sortFieldValue as ValidSortField)
+      : 'relevance';
+
+    const result = await serviceService.searchServices({
+      filters: {
+        query: query as string,
+        category: category as string,
+        subcategory: subcategory as string,
+        city: city as string,
+        state: state as string,
+        latitude: latitude ? parseFloat(latitude as string) : undefined,
+        longitude: longitude ? parseFloat(longitude as string) : undefined,
+        radius: radius ? parseFloat(radius as string) : undefined,
+        priceMin: priceMin ? parseFloat(priceMin as string) : undefined,
+        priceMax: priceMax ? parseFloat(priceMax as string) : undefined,
+        rating: rating ? parseFloat(rating as string) : undefined,
+        mobileService: mobileService === 'true',
+        isSalon: isSalon === 'true' ? true : isSalon === 'false' ? false : undefined,
+        availability: availability as string,
+      },
+      sort: {
+        field: validatedSortField,
+        order: sortOrder as 'asc' | 'desc',
+      },
+      page: parseInt(page as string),
+      limit: parseInt(limit as string),
+    });
+
+    sendSuccess(res, result);
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * PUBLIC: Get featured services
+ */
+export async function getFeaturedServices(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { limit = 12 } = req.query;
+
+    const result = await serviceService.getFeaturedServices(parseInt(limit as string));
+
+    sendSuccess(res, result);
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * PUBLIC: Get all categories with service counts
+ */
+export async function getCategories(
+  _req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const result = await serviceService.getCategories();
+
+    sendSuccess(res, result);
+  } catch (error) {
     next(error);
   }
 }

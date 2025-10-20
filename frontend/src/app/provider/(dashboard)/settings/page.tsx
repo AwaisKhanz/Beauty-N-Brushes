@@ -1,21 +1,63 @@
 'use client';
 
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Building2, Calendar, Shield, CreditCard, Bell, User, ChevronRight } from 'lucide-react';
+import {
+  Building2,
+  Calendar,
+  Shield,
+  CreditCard,
+  Bell,
+  User,
+  Users,
+  ChevronRight,
+  Palette,
+  MapPin,
+  FileText,
+} from 'lucide-react';
 import Link from 'next/link';
 
 const SETTINGS_SECTIONS = [
   {
     title: 'Business Profile',
-    description: 'Manage your business information, branding, and social links',
+    description: 'Manage your business information and social links',
     icon: Building2,
     href: '/provider/settings/profile',
+  },
+  {
+    title: 'Branding',
+    description: 'Customize your colors, fonts, and logo',
+    icon: Palette,
+    href: '/provider/settings/branding',
+  },
+  {
+    title: 'Location & Contact',
+    description: 'Manage business address and contact information',
+    icon: MapPin,
+    href: '/provider/settings/location',
+  },
+  {
+    title: 'Business Details',
+    description: 'License, timezone, and verification status',
+    icon: FileText,
+    href: '/provider/settings/business-details',
   },
   {
     title: 'Booking Settings',
     description: 'Configure booking windows, buffer times, and availability',
     icon: Calendar,
     href: '/provider/settings/booking',
+  },
+  {
+    title: 'Calendar Integration',
+    description: 'Connect Google Calendar for automatic sync',
+    icon: Calendar,
+    href: '/provider/settings/calendar',
+  },
+  {
+    title: 'Team Management',
+    description: 'Manage salon team members and permissions (Salon only)',
+    icon: Users,
+    href: '/provider/settings/team',
   },
   {
     title: 'Policies',

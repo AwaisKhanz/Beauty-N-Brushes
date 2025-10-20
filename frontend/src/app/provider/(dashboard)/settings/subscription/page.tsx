@@ -23,15 +23,22 @@ import {
   CheckCircle2,
   Clock,
   XCircle,
+  ArrowUpDown,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
+import { PaymentMethodModal } from '@/components/settings/PaymentMethodModal';
+import { ChangeTierModal } from '@/components/settings/ChangeTierModal';
+import { CancelSubscriptionModal } from '@/components/settings/CancelSubscriptionModal';
 import type { SubscriptionInfoResponse, BillingRecord } from '@/shared-types/settings.types';
 
 export default function SubscriptionPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [subscription, setSubscription] = useState<SubscriptionInfoResponse | null>(null);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [changeTierModalOpen, setChangeTierModalOpen] = useState(false);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
 
   useEffect(() => {
     fetchSubscriptionInfo();
@@ -210,7 +217,7 @@ export default function SubscriptionPage() {
                 <CardTitle>Payment Method</CardTitle>
                 <CardDescription>Your default payment method for subscriptions</CardDescription>
               </div>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={() => setPaymentModalOpen(true)}>
                 Update Payment Method
               </Button>
             </div>
@@ -240,6 +247,43 @@ export default function SubscriptionPage() {
                 </AlertDescription>
               </Alert>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Subscription Actions */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Subscription Management</CardTitle>
+            <CardDescription>Change your plan or cancel subscription</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div>
+                <p className="font-medium">Change Subscription Tier</p>
+                <p className="text-sm text-muted-foreground">
+                  {subscription.subscriptionTier === 'solo'
+                    ? 'Upgrade to Salon plan for team features'
+                    : 'Downgrade to Solo plan if you no longer need team features'}
+                </p>
+              </div>
+              <Button variant="outline" onClick={() => setChangeTierModalOpen(true)}>
+                <ArrowUpDown className="mr-2 h-4 w-4" />
+                Change Plan
+              </Button>
+            </div>
+
+            <div className="flex items-center justify-between p-4 border rounded-lg border-destructive/20">
+              <div>
+                <p className="font-medium text-destructive">Cancel Subscription</p>
+                <p className="text-sm text-muted-foreground">
+                  End your subscription. Access continues until{' '}
+                  {formatDate(subscription.nextBillingDate)}
+                </p>
+              </div>
+              <Button variant="destructive" onClick={() => setCancelModalOpen(true)}>
+                Cancel Plan
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -305,6 +349,53 @@ export default function SubscriptionPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Modals */}
+      {subscription && (
+        <>
+          <PaymentMethodModal
+            open={paymentModalOpen}
+            onClose={() => setPaymentModalOpen(false)}
+            onSuccess={() => {
+              setPaymentModalOpen(false);
+              fetchSubscriptionInfo();
+            }}
+            region={
+              subscription.paymentProvider === 'stripe'
+                ? subscription.currency === 'USD'
+                  ? 'NA'
+                  : 'EU'
+                : subscription.currency === 'GHS'
+                  ? 'GH'
+                  : 'NG'
+            }
+            paymentProvider={subscription.paymentProvider}
+          />
+
+          <ChangeTierModal
+            open={changeTierModalOpen}
+            onClose={() => setChangeTierModalOpen(false)}
+            onSuccess={() => {
+              setChangeTierModalOpen(false);
+              fetchSubscriptionInfo();
+            }}
+            currentTier={subscription.subscriptionTier}
+            currency={subscription.currency}
+          />
+
+          <CancelSubscriptionModal
+            open={cancelModalOpen}
+            onClose={() => setCancelModalOpen(false)}
+            onSuccess={(accessUntil) => {
+              setCancelModalOpen(false);
+              alert(`Subscription cancelled. You'll have access until ${formatDate(accessUntil)}`);
+              fetchSubscriptionInfo();
+            }}
+            subscriptionTier={subscription.subscriptionTier}
+            nextBillingDate={subscription.nextBillingDate}
+          />
+        </>
+      )}
     </SettingsLayout>
   );
 }

@@ -37,7 +37,7 @@ import {
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
 import { DraftServicesSection } from '@/components/services/DraftServicesSection';
-import type { GetServicesResponse } from '../../../../../../shared-types';
+import type { GetServicesResponse } from '@/shared-types/service.types';
 
 export default function ServicesPage() {
   const [loading, setLoading] = useState(true);

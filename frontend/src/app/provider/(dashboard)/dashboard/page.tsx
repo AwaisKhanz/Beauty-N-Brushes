@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
-import type { GetDashboardStatsResponse, DashboardBooking } from '../../../../../../shared-types';
+import type { GetDashboardStatsResponse, DashboardBooking } from '@/shared-types/dashboard.types';
 
 export default function ProviderDashboardPage() {
   const [loading, setLoading] = useState(true);

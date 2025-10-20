@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { sendSuccess } from '../utils/response';
 import { AppError } from '../middleware/errorHandler';
 import { prisma } from '../config/database';
+import { googleCalendarService } from '../lib/google-calendar';
 import type { AuthRequest } from '../types';
 import type {
   GetAvailabilityResponse,
@@ -310,6 +311,132 @@ export async function deleteBlockedDate(
     };
 
     sendSuccess(res, response);
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Initiate Google Calendar OAuth flow
+ */
+export async function connectGoogleCalendar(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      throw new AppError(401, 'Unauthorized');
+    }
+
+    const profile = await prisma.providerProfile.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!profile) {
+      throw new AppError(404, 'Provider profile not found');
+    }
+
+    // Use provider ID as state for OAuth callback
+    const authUrl = googleCalendarService.getAuthUrl(userId);
+
+    sendSuccess(res, {
+      authUrl,
+      message: 'Redirect to this URL to connect Google Calendar',
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Handle Google Calendar OAuth callback
+ */
+export async function handleGoogleCalendarCallback(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const { code, state } = req.query;
+
+    if (!code || typeof code !== 'string') {
+      throw new AppError(400, 'Authorization code required');
+    }
+
+    if (!state || typeof state !== 'string') {
+      throw new AppError(400, 'Invalid state parameter');
+    }
+
+    const userId = state;
+
+    // Exchange code for tokens
+    const tokens = await googleCalendarService.exchangeCodeForTokens(code);
+
+    // Save Google Calendar connection to provider profile
+    await prisma.providerProfile.update({
+      where: { userId },
+      data: {
+        googleCalendarConnected: true,
+        googleAccessToken: tokens.accessToken,
+        googleRefreshToken: tokens.refreshToken,
+        googleEmail: tokens.email,
+        googleCalendarLastSync: new Date(),
+      },
+    });
+
+    // Redirect to frontend with success
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    res.redirect(`${frontendUrl}/provider/settings/calendar?connected=true`);
+  } catch (error) {
+    console.error('Google Calendar OAuth error:', error);
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    res.redirect(`${frontendUrl}/provider/settings/calendar?error=connection_failed`);
+  }
+}
+
+/**
+ * Disconnect Google Calendar
+ */
+export async function disconnectGoogleCalendar(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      throw new AppError(401, 'Unauthorized');
+    }
+
+    const profile = await prisma.providerProfile.findUnique({
+      where: { userId },
+      select: { googleCalendarConnected: true },
+    });
+
+    if (!profile) {
+      throw new AppError(404, 'Provider profile not found');
+    }
+
+    if (!profile.googleCalendarConnected) {
+      throw new AppError(400, 'Google Calendar not connected');
+    }
+
+    // Remove Google Calendar connection
+    await prisma.providerProfile.update({
+      where: { userId },
+      data: {
+        googleCalendarConnected: false,
+        googleAccessToken: null,
+        googleRefreshToken: null,
+        googleEmail: null,
+        googleCalendarLastSync: null,
+      },
+    });
+
+    sendSuccess(res, {
+      message: 'Google Calendar disconnected successfully',
+    });
   } catch (error) {
     next(error);
   }
