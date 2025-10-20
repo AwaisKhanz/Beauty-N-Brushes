@@ -493,6 +493,8 @@ Return as JSON array: ["hashtag1", "hashtag2", ...]`;
             slug: true,
             regionCode: true,
             currency: true,
+            instantBookingEnabled: true,
+            advanceBookingDays: true,
             user: {
               select: {
                 avatarUrl: true,
@@ -1052,6 +1054,347 @@ Return as JSON array: ["hashtag1", "hashtag2", ...]`;
         })),
       })),
     };
+  }
+
+  /**
+   * Get related services using AI embeddings from service media
+   */
+  async getRelatedServices(serviceId: string) {
+    try {
+      console.log(`🔍 Finding related services for service: ${serviceId}`);
+
+      // Get current service info
+      const currentService = await prisma.service.findUnique({
+        where: { id: serviceId },
+        include: { category: true },
+      });
+
+      if (!currentService) {
+        console.log('❌ Service not found');
+        return this.getRelatedServicesByCategory(serviceId);
+      }
+
+      console.log(
+        `📋 Current service: "${currentService.title}" (Category: ${currentService.category.name})`
+      );
+
+      // Get ALL media from current service with embeddings
+      const currentServiceMedia = await prisma.$queryRaw<
+        Array<{
+          media_id: string;
+          ai_embedding: string;
+          visual_embedding: string;
+          ai_tags: string[];
+          file_url: string;
+        }>
+      >`
+        SELECT 
+          sm."id" as media_id,
+          sm."aiEmbedding"::text as ai_embedding,
+          sm."visualEmbedding"::text as visual_embedding,
+          sm."aiTags" as ai_tags,
+          sm."fileUrl" as file_url
+        FROM "ServiceMedia" sm
+        WHERE sm."serviceId" = ${serviceId}
+          AND sm."processingStatus" = 'completed'
+          AND sm."aiEmbedding" IS NOT NULL
+          AND sm."visualEmbedding" IS NOT NULL
+      `;
+
+      console.log(
+        `📸 Found ${currentServiceMedia.length} media with embeddings in current service`
+      );
+
+      if (currentServiceMedia.length === 0) {
+        console.log('⚠️ No media with embeddings found, falling back to category matching');
+        return this.getRelatedServicesByCategory(serviceId);
+      }
+
+      // Compare ALL current service media with ALL other services' media
+      console.log('🔄 Comparing with all other services...');
+
+      const allMatches = await prisma.$queryRaw<
+        Array<{
+          service_id: string;
+          service_title: string;
+          category_id: string;
+          media_id: string;
+          media_url: string;
+          media_thumbnail: string;
+          ai_tags: string[];
+          ai_description: string;
+          similarity: number;
+          current_media_id: string;
+        }>
+      >`
+        WITH current_media AS (
+          SELECT 
+            sm."id" as media_id,
+            sm."aiEmbedding"::text as ai_embedding,
+            sm."visualEmbedding"::text as visual_embedding
+          FROM "ServiceMedia" sm
+          WHERE sm."serviceId" = ${serviceId}
+            AND sm."processingStatus" = 'completed'
+            AND sm."aiEmbedding" IS NOT NULL
+            AND sm."visualEmbedding" IS NOT NULL
+        )
+        SELECT 
+          s.id as service_id,
+          s.title as service_title,
+          s."categoryId" as category_id,
+          sm."id" as media_id,
+          sm."fileUrl" as media_url,
+          sm."thumbnailUrl" as media_thumbnail,
+          sm."aiTags" as ai_tags,
+          sm."aiDescription" as ai_description,
+          -- Multi-vector weighted similarity
+          (
+            (1 - (sm."aiEmbedding" <=> current_media.ai_embedding::vector)) * 0.7 +
+            (1 - (sm."visualEmbedding" <=> current_media.visual_embedding::vector)) * 0.3
+          )::float as similarity,
+          current_media.media_id as current_media_id
+        FROM "Service" s
+        INNER JOIN "ServiceMedia" sm ON s.id = sm."serviceId"
+        CROSS JOIN current_media
+        WHERE s.id != ${serviceId}
+          AND s.active = true
+          AND s."categoryId" = ${currentService.categoryId}
+          AND sm."processingStatus" = 'completed'
+          AND sm."aiEmbedding" IS NOT NULL
+          AND sm."visualEmbedding" IS NOT NULL
+        ORDER BY similarity DESC
+      `;
+
+      console.log(`🎯 Found ${allMatches.length} total matches across all media comparisons`);
+
+      if (allMatches.length === 0) {
+        console.log('⚠️ No matches found, falling back to category matching');
+        return this.getRelatedServicesByCategory(serviceId);
+      }
+
+      // Group by service and get the BEST match for each service
+      const serviceMatches = new Map<string, any>();
+
+      for (const match of allMatches) {
+        const serviceId = match.service_id;
+        if (
+          !serviceMatches.has(serviceId) ||
+          serviceMatches.get(serviceId).similarity < match.similarity
+        ) {
+          serviceMatches.set(serviceId, match);
+        }
+      }
+
+      const bestMatches = Array.from(serviceMatches.values())
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, 6);
+
+      console.log(`🏆 Selected top ${bestMatches.length} services with best matches:`);
+      bestMatches.forEach((match, index) => {
+        console.log(
+          `   ${index + 1}. "${match.service_title}" (similarity: ${(match.similarity * 100).toFixed(1)}%)`
+        );
+      });
+
+      const similarServices = bestMatches;
+
+      // Get full service details for the similar services
+      const serviceIds = similarServices.map((s) => s.service_id);
+      const services = await prisma.service.findMany({
+        where: { id: { in: serviceIds } },
+        include: {
+          category: true,
+          subcategory: true,
+          provider: {
+            include: {
+              user: true,
+            },
+          },
+          _count: {
+            select: {
+              bookings: true,
+            },
+          },
+        },
+      });
+
+      // Map the results maintaining the similarity order
+      return similarServices
+        .map((similar) => {
+          const service = services.find((s) => s.id === similar.service_id);
+          if (!service) return null;
+
+          return {
+            id: service.id,
+            title: service.title,
+            description: service.description,
+            priceMin: service.priceMin.toNumber(),
+            priceMax: service.priceMax?.toNumber() || null,
+            priceType: service.priceType,
+            currency: service.currency,
+            durationMinutes: service.durationMinutes,
+            category: service.category,
+            subcategory: service.subcategory,
+            provider: {
+              id: service.provider.id,
+              businessName: service.provider.businessName,
+              slug: service.provider.slug,
+              logoUrl: service.provider.logoUrl,
+              user: {
+                firstName: service.provider.user.firstName,
+                lastName: service.provider.user.lastName,
+              },
+            },
+            featuredImage: {
+              id: similar.media_id,
+              fileUrl: similar.media_url,
+              thumbnailUrl: similar.media_thumbnail,
+            },
+            bookingCount: service._count.bookings,
+          };
+        })
+        .filter(Boolean);
+    } catch (error) {
+      console.error('Error in vector similarity search:', error);
+      // Fallback to category-based matching
+      return this.getRelatedServicesByCategory(serviceId);
+    }
+  }
+
+  /**
+   * Fallback method for category-based matching
+   */
+  private async getRelatedServicesByCategory(serviceId: string) {
+    const currentService = await prisma.service.findUnique({
+      where: { id: serviceId },
+      include: {
+        category: true,
+        subcategory: true,
+        provider: {
+          include: {
+            user: true,
+          },
+        },
+      },
+    });
+
+    if (!currentService) {
+      throw new Error('Service not found');
+    }
+
+    const relatedServices = await prisma.service.findMany({
+      where: {
+        AND: [
+          { id: { not: serviceId } },
+          { active: true },
+          {
+            OR: [
+              { categoryId: currentService.categoryId },
+              ...(currentService.subcategoryId
+                ? [{ subcategoryId: currentService.subcategoryId }]
+                : []),
+              { providerId: currentService.providerId },
+            ],
+          },
+        ],
+      },
+      include: {
+        category: true,
+        subcategory: true,
+        provider: {
+          include: {
+            user: true,
+          },
+        },
+        media: {
+          where: { isFeatured: true },
+          take: 1,
+        },
+        _count: {
+          select: {
+            bookings: true,
+          },
+        },
+      },
+      take: 6,
+      orderBy: [
+        { categoryId: 'asc' },
+        { subcategoryId: 'asc' },
+        { bookings: { _count: 'desc' } },
+        { createdAt: 'desc' },
+      ],
+    });
+
+    return relatedServices.map((service) => ({
+      id: service.id,
+      title: service.title,
+      description: service.description,
+      priceMin: service.priceMin.toNumber(),
+      priceMax: service.priceMax?.toNumber() || null,
+      priceType: service.priceType,
+      currency: service.currency,
+      durationMinutes: service.durationMinutes,
+      category: service.category,
+      subcategory: service.subcategory,
+      provider: {
+        id: service.provider.id,
+        businessName: service.provider.businessName,
+        slug: service.provider.slug,
+        logoUrl: service.provider.logoUrl,
+        user: {
+          firstName: service.provider.user.firstName,
+          lastName: service.provider.user.lastName,
+        },
+      },
+      featuredImage: service.media[0] || null,
+      bookingCount: service._count.bookings,
+    }));
+  }
+
+  /**
+   * Get service reviews
+   */
+  async getServiceReviews(serviceId: string) {
+    // Check if service exists
+    const service = await prisma.service.findUnique({
+      where: { id: serviceId },
+    });
+
+    if (!service) {
+      throw new Error('Service not found');
+    }
+
+    // Get reviews for this service
+    const reviews = await prisma.booking.findMany({
+      where: {
+        serviceId,
+        bookingStatus: 'COMPLETED',
+        review: {
+          isNot: null,
+        },
+      },
+      include: {
+        client: true,
+        review: true,
+      },
+      orderBy: {
+        review: {
+          createdAt: 'desc',
+        },
+      },
+      take: 10,
+    });
+
+    return reviews.map((booking) => ({
+      id: booking.id,
+      rating: booking.review?.overallRating || 0,
+      comment: booking.review?.reviewText || '',
+      createdAt: booking.review?.createdAt || booking.createdAt,
+      client: {
+        name: `${booking.client.firstName} ${booking.client.lastName}`,
+        avatarUrl: booking.client.avatarUrl,
+      },
+    }));
   }
 }
 

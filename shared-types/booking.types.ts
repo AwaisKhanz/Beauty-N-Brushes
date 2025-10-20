@@ -14,6 +14,9 @@ export interface CreateBookingRequest {
   appointmentEndTime?: string; // HH:mm (calculated from service duration)
   specialRequests?: string;
 
+  // Add-ons
+  selectedAddonIds?: string[]; // Array of addon IDs to include
+
   // Salon-specific team member selection
   assignedTeamMemberId?: string; // Specific stylist ID (salon bookings)
   anyAvailableStylist?: boolean; // True if client wants any available stylist
@@ -203,4 +206,20 @@ export interface GetAvailableStylists {
     isAvailable: boolean;
     nextAvailableSlot: string | null;
   }[];
+}
+
+// ================================
+// Available Time Slots Types
+// ================================
+
+export interface TimeSlot {
+  startTime: string; // HH:mm format
+  endTime: string; // HH:mm format
+  available: boolean;
+}
+
+export interface GetAvailableSlotsResponse {
+  message: string;
+  date: string; // YYYY-MM-DD
+  slots: TimeSlot[];
 }

@@ -13,16 +13,20 @@ router.get('/search', serviceController.searchServices);
 router.get('/featured', serviceController.getFeaturedServices);
 router.get('/categories', serviceController.getCategories);
 
+// Public service detail (anyone can view)
+router.get('/:serviceId', serviceController.getServiceById);
+router.get('/:serviceId/related', serviceController.getRelatedServices);
+router.get('/:serviceId/reviews', serviceController.getServiceReviews);
+
 // ============================================
 // PROTECTED ROUTES (Authentication required)
 // ============================================
 
 router.use(authenticate);
 
-// Service routes
+// Provider service management
 router.get('/', serviceController.getProviderServices);
 router.get('/drafts', serviceController.getDraftServices);
-router.get('/:serviceId', serviceController.getServiceById);
 router.post('/', serviceController.createService);
 router.put('/:serviceId', serviceController.updateService);
 

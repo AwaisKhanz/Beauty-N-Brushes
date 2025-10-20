@@ -84,3 +84,29 @@ export interface PaystackAuthorizationData {
   reusable: boolean;
   signature: string;
 }
+
+// ================================
+// Booking Payment Types
+// ================================
+
+export interface InitializeBookingPaymentRequest {
+  bookingId: string;
+}
+
+export interface InitializeBookingPaymentResponse {
+  // Stripe fields (NA/EU)
+  clientSecret?: string;
+  // Paystack fields (GH/NG)
+  authorizationUrl?: string;
+  reference?: string;
+  // Common
+  paymentProvider: 'stripe' | 'paystack';
+  amount: number;
+  currency: string;
+}
+
+export interface ConfirmBookingPaymentRequest {
+  bookingId: string;
+  paymentIntentId?: string; // Stripe
+  reference?: string; // Paystack
+}

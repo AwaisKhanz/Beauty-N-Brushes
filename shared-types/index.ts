@@ -43,6 +43,15 @@ export * from './team.types';
 // Booking Types
 export * from './booking.types';
 
+// Review Types
+export * from './review.types';
+
+// Like Types
+export * from './like.types';
+
+// Favorite Types
+export * from './favorite.types';
+
 // Common Response Type
 export interface ApiResponse<T = unknown> {
   success: boolean;

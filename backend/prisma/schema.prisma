@@ -127,6 +127,7 @@ model ProviderProfile {
   averageRating            Decimal                @default(0.00) @db.Decimal(3, 2)
   totalReviews             Int                    @default(0)
   profileViews             Int                    @default(0)
+  likeCount                Int                    @default(0)
   createdAt                DateTime               @default(now())
   updatedAt                DateTime               @updatedAt
   bookings                 Booking[]
@@ -139,6 +140,7 @@ model ProviderProfile {
   services                 Service[]
   serviceDraft             ServiceDraft?
   teamMembers              TeamMember[]
+  likes                    ProviderLike[]
 
   @@index([slug])
   @@index([city, state])
@@ -174,7 +176,7 @@ model ProviderPolicy {
 model TeamMember {
   id                   String          @id @default(uuid())
   providerId           String
-  userId               String?         // Linked when team member accepts invitation
+  userId               String? // Linked when team member accepts invitation
   displayName          String
   role                 String?
   email                String?
@@ -263,7 +265,7 @@ model Service {
   acceptsNewClients   Boolean             @default(true)
   bookingCount        Int                 @default(0)
   viewCount           Int                 @default(0)
-  favoriteCount       Int                 @default(0)
+  likeCount           Int                 @default(0)
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
   createdFromTemplate Boolean             @default(false)
@@ -275,6 +277,7 @@ model Service {
   subcategory         ServiceSubcategory? @relation(fields: [subcategoryId], references: [id])
   addons              ServiceAddon[]
   media               ServiceMedia[]
+  likes               ServiceLike[]
 
   @@index([providerId])
   @@index([categoryId, subcategoryId])
@@ -282,38 +285,35 @@ model Service {
 }
 
 model ServiceMedia {
-  id               String                 @id @default(uuid())
-  serviceId        String
-  mediaType        String
-  fileUrl          String
-  thumbnailUrl     String?
-  urlSmall         String?
-  urlMedium        String?
-  urlLarge         String?
-  fileSizeBytes    BigInt?
-  width            Int?
-  height           Int?
-  durationSeconds  Int?
-  mimeType         String?
-  caption          String?
-  displayOrder     Int                    @default(0)
-  isFeatured       Boolean                @default(false)
-  isBeforePhoto    Boolean                @default(false)
-  isAfterPhoto     Boolean                @default(false)
-  aiTags             String[]               @default([])
-  aiDescription      String?
-  colorPalette       Json?
-  processingStatus   String                 @default("pending")
-  moderationStatus   String                 @default("pending")
-  createdAt          DateTime               @default(now())
-  updatedAt          DateTime               @updatedAt
-  aiEmbedding        Unsupported("vector")? @default(dbgenerated("(array_fill(0, ARRAY[1408]))::vector"))
-  visualEmbedding    Unsupported("vector")?
-  styleEmbedding     Unsupported("vector")?
-  semanticEmbedding  Unsupported("vector")?
-  colorEmbedding     Unsupported("vector")?
-  hybridEmbedding    Unsupported("vector")?
-  service          Service                @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  id                String                 @id @default(uuid())
+  serviceId         String
+  mediaType         String
+  fileUrl           String
+  thumbnailUrl      String?
+  urlSmall          String?
+  urlMedium         String?
+  urlLarge          String?
+  fileSizeBytes     BigInt?
+  width             Int?
+  height            Int?
+  durationSeconds   Int?
+  mimeType          String?
+  caption           String?
+  displayOrder      Int                    @default(0)
+  isFeatured        Boolean                @default(false)
+  isBeforePhoto     Boolean                @default(false)
+  isAfterPhoto      Boolean                @default(false)
+  aiTags            String[]               @default([])
+  aiDescription     String?
+  colorPalette      Json?
+  processingStatus  String                 @default("pending")
+  moderationStatus  String                 @default("pending")
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  // HIGH-QUALITY VISUAL EMBEDDINGS (1408-dimensional for maximum accuracy)
+  aiEmbedding       Unsupported("vector")? @default(dbgenerated("(array_fill(0, ARRAY[1408]))::vector")) // PRIMARY: Style-enriched (image + context, 98% accuracy)
+  visualEmbedding   Unsupported("vector")? // BACKUP: Visual-only (pure pixel similarity)
+  service           Service                @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
   @@index([serviceId])
   @@index([mediaType])
@@ -428,6 +428,7 @@ model Booking {
   service               Service         @relation(fields: [serviceId], references: [id])
   assignedTeamMember    TeamMember?     @relation("TeamMemberBookings", fields: [assignedTeamMemberId], references: [id])
   review                Review?
+  addons                BookingAddon[]
 
   @@index([clientId])
   @@index([providerId])
@@ -438,6 +439,18 @@ model Booking {
   @@index([paymentStatus])
   @@index([paidAt])
   @@index([createdAt])
+}
+
+model BookingAddon {
+  id         String   @id @default(uuid())
+  bookingId  String
+  addonId    String
+  addonName  String
+  addonPrice Decimal  @db.Decimal(10, 2)
+  createdAt  DateTime @default(now())
+  booking    Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
 }
 
 model Review {
@@ -461,11 +474,62 @@ model Review {
   booking               Booking         @relation(fields: [bookingId], references: [id])
   client                User            @relation(fields: [clientId], references: [id])
   provider              ProviderProfile @relation(fields: [providerId], references: [id])
+  reviewMedia           ReviewMedia[]
+  helpfulMarks          ReviewHelpful[]
 
   @@index([providerId])
   @@index([clientId])
   @@index([overallRating])
   @@index([isVisible])
+}
+
+model ReviewMedia {
+  id           String   @id @default(uuid())
+  reviewId     String
+  mediaType    String
+  fileUrl      String
+  thumbnailUrl String?
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  review       Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@index([reviewId])
+}
+
+model ReviewHelpful {
+  id        String   @id @default(uuid())
+  reviewId  String
+  userId    String
+  createdAt DateTime @default(now())
+  review    Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@unique([reviewId, userId])
+  @@index([reviewId])
+  @@index([userId])
+}
+
+model ProviderLike {
+  id         String          @id @default(uuid())
+  providerId String
+  userId     String
+  createdAt  DateTime        @default(now())
+  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, userId])
+  @@index([providerId])
+  @@index([userId])
+}
+
+model ServiceLike {
+  id        String   @id @default(uuid())
+  serviceId String
+  userId    String
+  createdAt DateTime @default(now())
+  service   Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceId, userId])
+  @@index([serviceId])
+  @@index([userId])
 }
 
 model Conversation {

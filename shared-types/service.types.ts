@@ -150,6 +150,8 @@ export interface Service {
     slug: string;
     regionCode: string;
     currency: string;
+    instantBookingEnabled?: boolean;
+    advanceBookingDays?: number;
     user: {
       avatarUrl?: string;
     };

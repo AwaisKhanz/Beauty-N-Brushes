@@ -136,19 +136,15 @@ export class ProviderService {
    * Get public provider profile by slug or business name
    */
   async getPublicProfile(slugOrBusinessName: string) {
-    console.log('slugOrBusinessName', slugOrBusinessName);
-    // Try to find by slug OR business name in a single query
+    console.log('🔍 Looking for provider by business name:', slugOrBusinessName);
+
+    // Find by business name (case-insensitive)
     const profile = await prisma.providerProfile.findFirst({
       where: {
-        OR: [
-          { slug: slugOrBusinessName },
-          {
-            businessName: {
-              equals: slugOrBusinessName,
-              mode: 'insensitive',
-            },
-          },
-        ],
+        businessName: {
+          equals: slugOrBusinessName,
+          mode: 'insensitive',
+        },
       },
       include: {
         user: {
@@ -176,22 +172,52 @@ export class ProviderService {
     });
 
     if (!profile) {
+      console.log('❌ Provider not found in database');
       throw new Error('Provider not found');
     }
 
-    // Check if profile is active
-    if (profile.user.status !== 'ACTIVE' || profile.verificationStatus !== 'approved') {
+    console.log('✅ Provider found:', profile.businessName, 'Status:', profile.verificationStatus);
+
+    // Check if profile is active and completed (allow pending verification)
+    if (profile.user.status !== 'ACTIVE') {
+      console.log('❌ User status is not ACTIVE:', profile.user.status);
       throw new Error('Provider not found');
     }
 
-    // Get reviews (mock for now - we'll need a reviews table)
-    const reviews: any[] = [];
+    // Allow profiles that are completed, even if verification is pending
+    if (!profile.profileCompleted) {
+      throw new Error('Provider not found');
+    }
+
+    // Get recent reviews (top 5 most recent visible reviews)
+    const reviews = await prisma.review.findMany({
+      where: {
+        providerId: profile.id,
+        isVisible: true,
+      },
+      include: {
+        client: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            avatarUrl: true,
+          },
+        },
+        reviewMedia: {
+          orderBy: { displayOrder: 'asc' },
+          take: 3,
+        },
+      },
+      orderBy: [{ isFeatured: 'desc' }, { createdAt: 'desc' }],
+      take: 5,
+    });
 
     return {
       provider: {
         id: profile.id,
         businessName: profile.businessName,
-        slug: profile.slug,
+        slug: profile.businessName, // Use business name since slug doesn't exist
         tagline: profile.tagline,
         description: profile.description,
         logoUrl: profile.logoUrl,
@@ -201,6 +227,7 @@ export class ProviderService {
         address: profile.addressLine1,
         averageRating: profile.averageRating.toNumber(),
         totalReviews: profile.totalReviews,
+        likeCount: profile.likeCount,
         isSalon: profile.isSalon,
         acceptsNewClients: profile.acceptsNewClients,
         mobileServiceAvailable: profile.mobileServiceAvailable,
@@ -218,7 +245,7 @@ export class ProviderService {
           featuredImageUrl: service.media[0]?.fileUrl || null,
           providerId: profile.id,
           providerName: profile.businessName,
-          providerSlug: profile.slug,
+          providerSlug: profile.businessName, // Use business name since slug doesn't exist
           providerLogoUrl: profile.logoUrl,
           providerCity: profile.city,
           providerState: profile.state,
@@ -227,7 +254,22 @@ export class ProviderService {
           providerIsSalon: profile.isSalon,
         })),
         portfolioImages: [],
-        reviews,
+        reviews: reviews.map((review) => ({
+          id: review.id,
+          clientName: `${review.client.firstName} ${review.client.lastName}`,
+          clientAvatarUrl: review.client.avatarUrl || undefined,
+          overallRating: review.overallRating,
+          reviewText: review.reviewText || undefined,
+          providerResponse: review.providerResponse || undefined,
+          providerResponseDate: review.providerResponseDate?.toISOString() || undefined,
+          helpfulCount: review.helpfulCount,
+          media: review.reviewMedia.map((m) => ({
+            id: m.id,
+            fileUrl: m.fileUrl,
+            thumbnailUrl: m.thumbnailUrl || undefined,
+          })),
+          createdAt: review.createdAt.toISOString(),
+        })),
       },
     };
   }

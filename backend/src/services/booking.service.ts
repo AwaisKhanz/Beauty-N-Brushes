@@ -20,7 +20,7 @@ class BookingService {
    * Create booking with team member assignment support
    */
   async createBooking(userId: string, data: CreateBookingRequest) {
-    // Get service with provider info
+    // Get service with provider info and addons
     const service = await prisma.service.findUnique({
       where: { id: data.serviceId },
       include: {
@@ -32,10 +32,14 @@ class BookingService {
             regionCode: true,
             currency: true,
             paymentProvider: true,
+            instantBookingEnabled: true,
           },
         },
         category: {
           select: { name: true },
+        },
+        addons: {
+          where: { isActive: true },
         },
       },
     });
@@ -48,14 +52,32 @@ class BookingService {
       throw new AppError(400, 'Service is not available for booking');
     }
 
-    // Calculate pricing
-    const servicePrice = Number(service.priceMin);
+    // Calculate pricing (base price + add-ons)
+    let totalServicePrice = Number(service.priceMin);
+
+    // Add selected add-ons to total
+    const selectedAddons = [];
+    if (data.selectedAddonIds && data.selectedAddonIds.length > 0) {
+      for (const addonId of data.selectedAddonIds) {
+        const addon = service.addons.find((a) => a.id === addonId);
+        if (addon) {
+          selectedAddons.push(addon);
+          totalServicePrice += Number(addon.addonPrice);
+        }
+      }
+    }
+
+    // Calculate deposit based on total price
     const depositAmount =
       service.depositType === 'PERCENTAGE'
-        ? (servicePrice * Number(service.depositAmount)) / 100
+        ? (totalServicePrice * Number(service.depositAmount)) / 100
         : Number(service.depositAmount);
 
-    const serviceFee = calculateServiceFee(servicePrice, service.provider.regionCode as RegionCode);
+    // Calculate service fee on deposit amount (charged to client)
+    const serviceFee = calculateServiceFee(
+      depositAmount,
+      service.provider.regionCode as RegionCode
+    );
     const totalAmount = depositAmount + serviceFee;
 
     // Handle team member assignment for salon bookings
@@ -98,6 +120,10 @@ class BookingService {
     const endDate = new Date(startDate.getTime() + service.durationMinutes * 60000);
     const endTime = `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
 
+    // Determine booking type and status based on instant booking setting
+    const bookingType = service.provider.instantBookingEnabled ? 'INSTANT' : 'REQUEST';
+    const bookingStatus = service.provider.instantBookingEnabled ? 'CONFIRMED' : 'PENDING';
+
     // Create booking
     const booking = await prisma.booking.create({
       data: {
@@ -109,15 +135,15 @@ class BookingService {
         appointmentDate: new Date(data.appointmentDate),
         appointmentTime: data.appointmentTime,
         appointmentEndTime: endTime,
-        servicePrice,
+        servicePrice: totalServicePrice,
         depositAmount,
         serviceFee,
         totalAmount,
         currency: service.provider.currency,
         paymentProvider: service.provider.paymentProvider,
-        bookingStatus: 'PENDING',
+        bookingStatus,
         paymentStatus: 'PENDING',
-        bookingType: 'instant', // TODO: Check provider settings
+        bookingType,
         specialRequests: data.specialRequests || null,
       },
       include: {
@@ -161,6 +187,18 @@ class BookingService {
         },
       },
     });
+
+    // Create booking add-ons records
+    if (selectedAddons.length > 0) {
+      await prisma.bookingAddon.createMany({
+        data: selectedAddons.map((addon) => ({
+          bookingId: booking.id,
+          addonId: addon.id,
+          addonName: addon.addonName,
+          addonPrice: Number(addon.addonPrice),
+        })),
+      });
+    }
 
     return booking;
   }
@@ -565,6 +603,122 @@ class BookingService {
   }
 
   /**
+   * Get available time slots for a provider/service on a specific date
+   * Considers: provider availability, existing bookings, blocked dates, service duration
+   */
+  async getAvailableSlots(providerId: string, serviceId: string, date: string) {
+    // 1. Get provider details and availability settings
+    const provider = await prisma.providerProfile.findUnique({
+      where: { id: providerId },
+      include: {
+        availability: true,
+      },
+    });
+
+    if (!provider) {
+      throw new AppError(404, 'Provider not found');
+    }
+
+    // 2. Get service duration
+    const service = await prisma.service.findUnique({
+      where: { id: serviceId },
+      select: { durationMinutes: true, bufferTimeMinutes: true },
+    });
+
+    if (!service) {
+      throw new AppError(404, 'Service not found');
+    }
+
+    const totalDuration = service.durationMinutes + (service.bufferTimeMinutes || 0);
+
+    // 3. Check if date is blocked
+    const requestedDate = new Date(date);
+    const dayOfWeek = requestedDate.getDay();
+
+    const isBlocked = await prisma.providerTimeOff.findFirst({
+      where: {
+        providerId: provider.id,
+        startDate: { lte: requestedDate },
+        endDate: { gte: requestedDate },
+      },
+    });
+
+    if (isBlocked) {
+      return []; // No slots available on blocked dates
+    }
+
+    // 4. Get provider's schedule for this day
+    const daySchedule = provider.availability.find((a) => a.dayOfWeek === dayOfWeek);
+
+    if (!daySchedule || !daySchedule.isAvailable) {
+      return []; // Provider not working on this day
+    }
+
+    // 5. Get existing bookings for this date
+    const existingBookings = await prisma.booking.findMany({
+      where: {
+        providerId: provider.id,
+        appointmentDate: requestedDate,
+        bookingStatus: { in: ['PENDING', 'CONFIRMED'] },
+      },
+      select: {
+        appointmentTime: true,
+        appointmentEndTime: true,
+      },
+    });
+
+    // 6. Generate time slots
+    const slots: Array<{ startTime: string; endTime: string; available: boolean }> = [];
+    let currentTime = daySchedule.startTime;
+    const endTime = daySchedule.endTime;
+
+    while (this.timeToMinutes(currentTime) + totalDuration <= this.timeToMinutes(endTime)) {
+      const slotEndTime = this.addMinutes(currentTime, totalDuration);
+
+      // Check if slot conflicts with existing booking
+      const hasConflict = existingBookings.some((booking) =>
+        this.timesOverlap(
+          currentTime,
+          slotEndTime,
+          booking.appointmentTime,
+          booking.appointmentEndTime
+        )
+      );
+
+      // Check minimum advance notice
+      const slotDateTime = new Date(`${date}T${currentTime}`);
+      const now = new Date();
+      const hoursUntilSlot = (slotDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+      const meetsMinimumNotice = hoursUntilSlot >= (provider.minAdvanceHours || 24);
+
+      // Check if same-day booking allowed
+      const isSameDay = requestedDate.toDateString() === now.toDateString();
+      const sameDayAllowed = provider.sameDayBookingEnabled || !isSameDay;
+
+      if (!hasConflict && meetsMinimumNotice && sameDayAllowed) {
+        slots.push({
+          startTime: currentTime,
+          endTime: slotEndTime,
+          available: true,
+        });
+      }
+
+      // Move to next slot (15 min intervals)
+      currentTime = this.addMinutes(currentTime, 15);
+    }
+
+    return slots;
+  }
+
+  /**
+   * Helper: Convert time string to minutes
+   */
+  private timeToMinutes(time: string): number {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+  }
+
+  /**
    * Get available team members for a booking slot
    */
   async getAvailableStylists(
@@ -691,6 +845,7 @@ class BookingService {
       where: { id: bookingId },
       data: {
         bookingStatus: 'COMPLETED',
+        completedAt: new Date(),
         tipAmount: data.tipAmount || 0,
         internalNotes: data.notes || null,
         updatedAt: new Date(),
@@ -700,6 +855,7 @@ class BookingService {
         provider: true,
         assignedTeamMember: true,
         client: true,
+        review: true,
       },
     });
 

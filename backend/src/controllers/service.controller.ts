@@ -464,3 +464,55 @@ export async function getCategories(
     next(error);
   }
 }
+
+/**
+ * PUBLIC: Get related services for a service
+ */
+export async function getRelatedServices(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { serviceId } = req.params;
+    if (!serviceId) throw new AppError(400, 'Service ID required');
+
+    const relatedServices = await serviceService.getRelatedServices(serviceId);
+
+    sendSuccess(res, {
+      message: 'Related services retrieved',
+      services: relatedServices,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Service not found') {
+      return next(new AppError(404, 'Service not found'));
+    }
+    next(error);
+  }
+}
+
+/**
+ * PUBLIC: Get service reviews
+ */
+export async function getServiceReviews(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { serviceId } = req.params;
+    if (!serviceId) throw new AppError(400, 'Service ID required');
+
+    const reviews = await serviceService.getServiceReviews(serviceId);
+
+    sendSuccess(res, {
+      message: 'Service reviews retrieved',
+      reviews,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Service not found') {
+      return next(new AppError(404, 'Service not found'));
+    }
+    next(error);
+  }
+}

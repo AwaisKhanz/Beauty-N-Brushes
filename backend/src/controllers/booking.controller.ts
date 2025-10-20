@@ -22,6 +22,7 @@ import type {
   AssignTeamMemberRequest,
   AssignTeamMemberResponse,
   GetAvailableStylists,
+  GetAvailableSlotsResponse,
   BookingDetails,
 } from '../../../shared-types';
 import { z } from 'zod';
@@ -211,6 +212,37 @@ export async function assignTeamMember(
         new AppError(400, `Validation failed: ${error.errors.map((e) => e.message).join(', ')}`)
       );
     }
+    next(error);
+  }
+}
+
+/**
+ * Get available time slots for a provider/service on a specific date
+ */
+export async function getAvailableSlots(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { providerId, serviceId, date } = req.query;
+
+    if (!providerId || !date) {
+      throw new AppError(400, 'Provider ID and date required');
+    }
+
+    const slots = await bookingService.getAvailableSlots(
+      providerId as string,
+      serviceId as string,
+      date as string
+    );
+
+    sendSuccess<GetAvailableSlotsResponse>(res, {
+      message: 'Available slots retrieved',
+      date: date as string,
+      slots,
+    });
+  } catch (error) {
     next(error);
   }
 }

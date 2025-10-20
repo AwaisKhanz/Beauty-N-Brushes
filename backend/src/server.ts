@@ -34,6 +34,9 @@ import settingsRoutes from './routes/settings.routes';
 import serviceDraftRoutes from './routes/serviceDraft.routes';
 import teamRoutes from './routes/team.routes';
 import adminRoutes from './routes/admin.routes';
+import reviewRoutes from './routes/review.routes';
+import likeRoutes from './routes/like.routes';
+import favoriteRoutes from './routes/favorite.routes';
 
 const app: Application = express();
 const PORT = process.env.PORT || 8000;
@@ -139,6 +142,9 @@ app.use('/api/v1/settings', settingsRoutes);
 app.use('/api/v1/service-drafts', serviceDraftRoutes);
 app.use('/api/v1/team', teamRoutes);
 app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/reviews', reviewRoutes);
+app.use('/api/v1/likes', likeRoutes);
+app.use('/api/v1/favorites', favoriteRoutes);
 
 // 404 handler
 app.use(notFoundHandler);

@@ -7,7 +7,8 @@ const router = Router();
 // All booking routes require authentication
 router.use(authenticate);
 
-// Salon-specific routes (MUST be before :bookingId route)
+// Availability routes (MUST be before :bookingId route)
+router.get('/available-slots', bookingController.getAvailableSlots);
 router.get('/available-stylists', bookingController.getAvailableStylists);
 
 // Booking CRUD

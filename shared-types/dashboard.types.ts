@@ -46,3 +46,40 @@ export interface GetRecentBookingsResponse {
   bookings: DashboardBooking[];
   message: string;
 }
+
+// ================================
+// Client Dashboard Types
+// ================================
+
+export interface ClientDashboardStats {
+  totalBookings: number;
+  upcomingBookings: number;
+  completedBookings: number;
+  favoriteProviders: number;
+  unreadMessages: number;
+}
+
+export interface ClientDashboardBooking {
+  id: string;
+  providerName: string;
+  businessName: string;
+  service: string;
+  date: string;
+  time: string;
+  status: 'pending' | 'confirmed' | 'completed' | 'cancelled_by_client' | 'cancelled_by_provider';
+  depositAmount: number;
+  totalAmount: number;
+  currency: string;
+  providerSlug: string;
+  providerAvatar: string | null;
+}
+
+export interface GetClientDashboardStatsResponse {
+  stats: ClientDashboardStats;
+  message: string;
+}
+
+export interface GetClientRecentBookingsResponse {
+  bookings: ClientDashboardBooking[];
+  message: string;
+}

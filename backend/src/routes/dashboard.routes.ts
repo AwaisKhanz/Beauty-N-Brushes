@@ -7,10 +7,12 @@ const router = Router();
 // All dashboard routes require authentication
 router.use(authenticate);
 
-// Dashboard statistics
+// Provider Dashboard Routes
 router.get('/stats', dashboardController.getProviderDashboardStats);
-
-// Recent bookings
 router.get('/bookings/recent', dashboardController.getRecentBookings);
+
+// Client Dashboard Routes
+router.get('/client/stats', dashboardController.getClientDashboardStats);
+router.get('/client/bookings/recent', dashboardController.getClientRecentBookings);
 
 export default router;

@@ -64,6 +64,8 @@ import type {
   // Dashboard
   GetDashboardStatsResponse,
   GetRecentBookingsResponse,
+  GetClientDashboardStatsResponse,
+  GetClientRecentBookingsResponse,
   // Calendar
   GetAvailabilityResponse,
   UpdateAvailabilityRequest,
@@ -124,6 +126,29 @@ import type {
   AssignTeamMemberRequest,
   AssignTeamMemberResponse,
   GetAvailableStylists,
+  GetAvailableSlotsResponse,
+  // Payment
+  InitializeBookingPaymentRequest,
+  InitializeBookingPaymentResponse,
+  // Review
+  CreateReviewRequest,
+  CreateReviewResponse,
+  GetReviewsResponse,
+  GetReviewResponse,
+  UpdateReviewRequest,
+  UpdateReviewResponse,
+  DeleteReviewResponse,
+  ProviderResponseRequest,
+  AddProviderResponseResponse,
+  MarkReviewHelpfulResponse,
+  // Like
+  ToggleLikeRequest,
+  ToggleLikeResponse,
+  GetLikesResponse,
+  CheckLikeStatusResponse,
+  // Favorite
+  ToggleFavoriteResponse,
+  GetFavoritesResponse,
 } from '../../../shared-types';
 
 export const api = {
@@ -259,6 +284,12 @@ export const api = {
       apiClient.get<{ data: FeaturedServicesResponse }>('/services/featured', { limit }),
 
     getCategories: () => apiClient.get<{ data: CategoriesResponse }>('/services/categories'),
+
+    getRelated: (serviceId: string) =>
+      apiClient.get<{ data: { services: any[] } }>(`/services/${serviceId}/related`),
+
+    getReviews: (serviceId: string) =>
+      apiClient.get<{ data: { reviews: any[] } }>(`/services/${serviceId}/reviews`),
   },
 
   // ============================================
@@ -308,16 +339,34 @@ export const api = {
       apiClient.get<{ data: VerifyPaystackTransactionResponse['data'] }>(
         `/payment/paystack/verify/${reference}`
       ),
+
+    // Initialize booking payment (Stripe/Paystack)
+    initializeBookingPayment: (data: InitializeBookingPaymentRequest) =>
+      apiClient.post<{ data: InitializeBookingPaymentResponse }>(
+        '/payment/booking/initialize',
+        data
+      ),
   },
 
   // ============================================
   // Dashboard APIs
   // ============================================
   dashboard: {
+    // Provider Dashboard
     getStats: () => apiClient.get<{ data: GetDashboardStatsResponse }>('/dashboard/stats'),
 
     getRecentBookings: () =>
       apiClient.get<{ data: GetRecentBookingsResponse }>('/dashboard/bookings/recent'),
+
+    // Client Dashboard
+    getClientStats: () =>
+      apiClient.get<{ data: GetClientDashboardStatsResponse }>('/dashboard/client/stats'),
+
+    getClientRecentBookings: (limit?: number) =>
+      apiClient.get<{ data: GetClientRecentBookingsResponse }>(
+        '/dashboard/client/bookings/recent',
+        { limit }
+      ),
   },
 
   // ============================================
@@ -487,6 +536,12 @@ export const api = {
         data
       ),
 
+    // Get available time slots for booking
+    getAvailableSlots: (providerId: string, serviceId: string, date: string) =>
+      apiClient.get<{ data: GetAvailableSlotsResponse }>(
+        `/bookings/available-slots?providerId=${providerId}&serviceId=${serviceId}&date=${date}`
+      ),
+
     getAvailableStylists: (params: {
       providerId: string;
       date: string;
@@ -505,5 +560,71 @@ export const api = {
     // Public provider profile (no auth required)
     getPublicProfile: (slug: string) =>
       apiClient.get<{ data: GetPublicProviderProfileResponse }>(`/providers/${slug}/public`),
+  },
+
+  // ============================================
+  // Review APIs
+  // ============================================
+  reviews: {
+    // Create review for completed booking
+    create: (data: CreateReviewRequest) =>
+      apiClient.post<{ data: CreateReviewResponse }>('/reviews', data),
+
+    // Get reviews for a provider (public)
+    getByProvider: (providerId: string, params?: { page?: number; limit?: number }) =>
+      apiClient.get<{ data: GetReviewsResponse }>(
+        `/reviews/provider/${providerId}${params ? `?page=${params.page || 1}&limit=${params.limit || 10}` : ''}`
+      ),
+
+    // Get single review by ID (public)
+    getById: (reviewId: string) =>
+      apiClient.get<{ data: GetReviewResponse }>(`/reviews/${reviewId}`),
+
+    // Update own review
+    update: (reviewId: string, data: UpdateReviewRequest) =>
+      apiClient.put<{ data: UpdateReviewResponse }>(`/reviews/${reviewId}`, data),
+
+    // Delete own review
+    delete: (reviewId: string) =>
+      apiClient.delete<{ data: DeleteReviewResponse }>(`/reviews/${reviewId}`),
+
+    // Provider responds to review
+    addResponse: (reviewId: string, data: ProviderResponseRequest) =>
+      apiClient.post<{ data: AddProviderResponseResponse }>(`/reviews/${reviewId}/response`, data),
+
+    // Toggle helpful mark
+    toggleHelpful: (reviewId: string) =>
+      apiClient.post<{ data: MarkReviewHelpfulResponse }>(`/reviews/${reviewId}/helpful`, {}),
+  },
+
+  // ============================================
+  // Like APIs
+  // ============================================
+  likes: {
+    // Toggle like on provider or service
+    toggle: (data: ToggleLikeRequest) =>
+      apiClient.post<{ data: ToggleLikeResponse }>('/likes', data),
+
+    // Get user's liked items
+    getMyLikes: (params?: { page?: number; limit?: number }) =>
+      apiClient.get<{ data: GetLikesResponse }>(
+        `/likes/my-likes${params ? `?page=${params.page || 1}&limit=${params.limit || 20}` : ''}`
+      ),
+
+    // Check like status for specific target
+    checkStatus: (targetType: 'provider' | 'service', targetId: string) =>
+      apiClient.get<{ data: CheckLikeStatusResponse }>(`/likes/status/${targetType}/${targetId}`),
+  },
+
+  // ============================================
+  // Favorite APIs
+  // ============================================
+  favorites: {
+    // Toggle favorite provider
+    toggle: (providerId: string) =>
+      apiClient.post<{ data: ToggleFavoriteResponse }>('/favorites/toggle', { providerId }),
+
+    // Get all favorite providers
+    getAll: () => apiClient.get<{ data: GetFavoritesResponse }>('/favorites'),
   },
 };

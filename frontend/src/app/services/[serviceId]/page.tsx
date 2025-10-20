@@ -10,6 +10,14 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from '@/components/ui/carousel';
+import type { CarouselApi } from '@/components/ui/carousel';
+import {
   MapPin,
   Clock,
   DollarSign,
@@ -22,10 +30,15 @@ import {
   Sparkles,
 } from 'lucide-react';
 import Header from '@/components/shared/Header';
+import { LoginGate } from '@/components/auth/LoginGate';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
 import { getProviderProfileRoute } from '@/constants';
 import type { Service } from '@/shared-types/service.types';
+import { ImageLightbox } from '@/components/media/ImageLightbox';
+import { RelatedServices } from '@/components/services/RelatedServices';
+import { ServiceReviews } from '@/components/services/ServiceReviews';
+import { BookingModal } from '@/components/booking/BookingModal';
 
 export default function ServiceDetailPage() {
   const params = useParams();
@@ -35,6 +48,21 @@ export default function ServiceDetailPage() {
   const [service, setService] = useState<Service | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [bookingModalOpen, setBookingModalOpen] = useState(false);
+  // Carousel state must be declared before any conditional returns
+  const [carouselApi, setCarouselApi] = useState<CarouselApi | undefined>(undefined);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  useEffect(() => {
+    if (!carouselApi) return;
+    const onSelect = () => setCurrentIndex(carouselApi.selectedScrollSnap());
+    setCurrentIndex(carouselApi.selectedScrollSnap());
+    carouselApi.on('select', onSelect);
+    return () => {
+      carouselApi.off('select', onSelect as any);
+    };
+  }, [carouselApi]);
 
   useEffect(() => {
     const loadService = async () => {
@@ -99,7 +127,8 @@ export default function ServiceDetailPage() {
   }
 
   const featuredImage = service.media.find((m) => m.isFeatured) || service.media[0];
-  const galleryImages = service.media.filter((m) => m.id !== featuredImage?.id).slice(0, 4);
+  const galleryImages = service.media.filter((m) => m.id !== featuredImage?.id);
+  const allImages = [featuredImage, ...galleryImages].filter(Boolean);
 
   return (
     <>
@@ -119,42 +148,80 @@ export default function ServiceDetailPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Main Content */}
             <div className="lg:col-span-2 space-y-6">
-              {/* Image Gallery */}
-              <div className="space-y-4">
-                {/* Featured Image */}
-                {featuredImage && (
-                  <div className="relative h-96 rounded-lg overflow-hidden bg-muted">
-                    <Image
-                      src={featuredImage.fileUrl}
-                      alt={service.title}
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 1024px) 100vw, 66vw"
-                      priority
-                    />
-                  </div>
-                )}
-
-                {/* Gallery Thumbnails */}
-                {galleryImages.length > 0 && (
-                  <div className="grid grid-cols-4 gap-2">
-                    {galleryImages.map((media) => (
-                      <div
-                        key={media.id}
-                        className="relative h-24 rounded-md overflow-hidden bg-muted cursor-pointer hover:opacity-75 transition-opacity"
+              {/* Image Carousel */}
+              <div className="relative">
+                <Carousel
+                  opts={{ align: 'start', loop: true }}
+                  className="w-full"
+                  setApi={setCarouselApi}
+                >
+                  <CarouselContent className="-ml-4">
+                    {allImages.map((media, idx) => (
+                      <CarouselItem key={media!.id || idx} className="pl-4">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLightboxIndex(idx);
+                            setLightboxOpen(true);
+                          }}
+                          className="relative h-96  rounded-xl overflow-hidden bg-muted w-full"
+                          aria-label="Open image preview"
+                        >
+                          <Image
+                            src={media!.fileUrl}
+                            alt={media!.caption || service.title}
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 1024px) 100vw, 66vw"
+                            priority={idx === 0}
+                          />
+                        </button>
+                      </CarouselItem>
+                    ))}
+                  </CarouselContent>
+                  <CarouselPrevious className="left-3 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur hover:bg-background border-primary/20" />
+                  <CarouselNext className="right-3 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur hover:bg-background border-primary/20" />
+                </Carousel>
+                {allImages.length > 1 && (
+                  <div className="mt-3 grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2">
+                    {allImages.slice(0, 12).map((media, idx) => (
+                      <button
+                        key={media!.id || `thumb-${idx}`}
+                        type="button"
+                        onClick={() => {
+                          setLightboxIndex(idx);
+                          setLightboxOpen(true);
+                        }}
+                        className={`relative aspect-video rounded-md overflow-hidden ring-1 transition ${
+                          currentIndex === idx ? 'ring-primary' : 'ring-border'
+                        }`}
+                        aria-label={`View image ${idx + 1}`}
                       >
                         <Image
-                          src={media.fileUrl}
-                          alt={media.caption || service.title}
+                          src={media!.fileUrl}
+                          alt={media!.caption || `${service.title} ${idx + 1}`}
                           fill
                           className="object-cover"
-                          sizes="120px"
+                          sizes="140px"
                         />
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}
               </div>
+
+              {/* Lightbox Dialog */}
+              <ImageLightbox
+                open={lightboxOpen}
+                onOpenChange={setLightboxOpen}
+                images={allImages.map((m) => ({
+                  id: m!.id,
+                  url: m!.fileUrl,
+                  alt: m!.caption || service.title,
+                }))}
+                startIndex={lightboxIndex}
+                title={service.title}
+              />
 
               {/* Service Details */}
               <Card>
@@ -172,9 +239,12 @@ export default function ServiceDetailPage() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="icon">
-                        <Heart className="h-4 w-4" />
-                      </Button>
+                      <LoginGate action="save this service to your favorites">
+                        <Button variant="outline" size="icon">
+                          <Heart className="h-4 w-4" />
+                        </Button>
+                      </LoginGate>
+
                       <Button variant="outline" size="icon">
                         <Share2 className="h-4 w-4" />
                       </Button>
@@ -352,12 +422,22 @@ export default function ServiceDetailPage() {
 
                   <Separator />
 
-                  <Button className="w-full" size="lg" variant="dark">
-                    Book Now
-                  </Button>
+                  <LoginGate action="book this service">
+                    <Button
+                      className="w-full"
+                      size="lg"
+                      variant="dark"
+                      onClick={() => setBookingModalOpen(true)}
+                    >
+                      Book Now
+                    </Button>
+                  </LoginGate>
 
                   <p className="text-xs text-center text-muted-foreground">
-                    Instant booking • Secure payment • Easy cancellation
+                    {service.provider?.instantBookingEnabled
+                      ? 'Instant booking'
+                      : 'Request booking'}{' '}
+                    • Secure payment • Easy cancellation
                   </p>
                 </CardContent>
               </Card>
@@ -386,7 +466,23 @@ export default function ServiceDetailPage() {
               </Card>
             </div>
           </div>
+
+          {/* Related Services & Reviews Section */}
+          <div className="mt-12 space-y-12">
+            {/* Related Services */}
+            <RelatedServices serviceId={serviceId} currentServiceTitle={service.title} />
+
+            {/* Service Reviews */}
+            <ServiceReviews serviceId={serviceId} serviceTitle={service.title} />
+          </div>
         </div>
+
+        {/* Booking Modal */}
+        <BookingModal
+          open={bookingModalOpen}
+          onOpenChange={setBookingModalOpen}
+          service={service}
+        />
       </div>
     </>
   );

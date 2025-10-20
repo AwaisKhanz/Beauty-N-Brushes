@@ -3,6 +3,11 @@ import { sendSuccess } from '../utils/response';
 import { AppError } from '../middleware/errorHandler';
 import { prisma } from '../config/database';
 import type { AuthRequest } from '../types';
+import type {
+  GetClientDashboardStatsResponse,
+  GetClientRecentBookingsResponse,
+  ClientDashboardBooking,
+} from '../../../shared-types';
 
 /**
  * Get provider dashboard statistics
@@ -193,4 +198,147 @@ function calculateOnboardingProgress(profile: any): number {
   const totalSteps = Object.keys(steps).length;
 
   return Math.round((completedSteps / totalSteps) * 100);
+}
+
+// ================================
+// Client Dashboard Controllers
+// ================================
+
+/**
+ * Get client dashboard statistics
+ */
+export async function getClientDashboardStats(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      throw new AppError(401, 'Unauthorized');
+    }
+
+    // Get total bookings count
+    const totalBookings = await prisma.booking.count({
+      where: { clientId: userId },
+    });
+
+    // Get upcoming bookings
+    const upcomingBookings = await prisma.booking.count({
+      where: {
+        clientId: userId,
+        bookingStatus: { in: ['PENDING', 'CONFIRMED'] },
+        appointmentDate: { gte: new Date() },
+      },
+    });
+
+    // Get completed bookings
+    const completedBookings = await prisma.booking.count({
+      where: {
+        clientId: userId,
+        bookingStatus: 'COMPLETED',
+      },
+    });
+
+    // Get favorite providers count
+    const favoriteProviders = await prisma.favorite.count({
+      where: { clientId: userId },
+    });
+
+    // Get unread messages count
+    const unreadMessages = await prisma.message.count({
+      where: {
+        conversation: { clientId: userId },
+        senderId: { not: userId },
+        isRead: false,
+      },
+    });
+
+    sendSuccess<GetClientDashboardStatsResponse>(res, {
+      message: 'Stats retrieved',
+      stats: {
+        totalBookings,
+        upcomingBookings,
+        completedBookings,
+        favoriteProviders,
+        unreadMessages,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Get recent bookings for client
+ */
+export async function getClientRecentBookings(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      throw new AppError(401, 'Unauthorized');
+    }
+
+    const limit = parseInt(req.query.limit as string) || 5;
+
+    // Get recent bookings
+    const recentBookings = await prisma.booking.findMany({
+      where: { clientId: userId },
+      include: {
+        service: {
+          select: {
+            title: true,
+          },
+        },
+        provider: {
+          select: {
+            businessName: true,
+            slug: true,
+            user: {
+              select: {
+                firstName: true,
+                lastName: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: [{ appointmentDate: 'desc' }, { appointmentTime: 'desc' }],
+      take: limit,
+    });
+
+    const bookings: ClientDashboardBooking[] = recentBookings.map((b) => ({
+      id: b.id,
+      providerName: `${b.provider.user.firstName} ${b.provider.user.lastName}`,
+      businessName: b.provider.businessName || '',
+      service: b.service.title,
+      date: b.appointmentDate.toISOString(),
+      time: b.appointmentTime,
+      status: b.bookingStatus as
+        | 'pending'
+        | 'confirmed'
+        | 'completed'
+        | 'cancelled_by_client'
+        | 'cancelled_by_provider',
+      depositAmount: Number(b.depositAmount),
+      totalAmount: Number(b.totalAmount),
+      currency: b.currency,
+      providerSlug: b.provider.slug,
+      providerAvatar: b.provider.user.avatarUrl,
+    }));
+
+    sendSuccess<GetClientRecentBookingsResponse>(res, {
+      message: 'Bookings retrieved',
+      bookings,
+    });
+  } catch (error) {
+    next(error);
+  }
 }
