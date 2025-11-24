@@ -8,16 +8,35 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
-import { Calendar, Clock, MapPin, AlertCircle, Search } from 'lucide-react';
+import {
+  Calendar,
+  Clock,
+  MapPin,
+  AlertCircle,
+  Search,
+  DollarSign,
+  CalendarPlus,
+  RefreshCw,
+} from 'lucide-react';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
 import type { BookingDetails } from '@/shared-types/booking.types';
+import { RescheduleModal } from '@/components/booking/RescheduleModal';
+import { BalancePaymentModal } from '@/components/booking/BalancePaymentModal';
+import { CancelBookingModal } from '@/components/booking/CancelBookingModal';
+import { RebookServiceModal } from '@/components/booking/RebookServiceModal';
+import { exportBookingToCalendar } from '@/lib/calendar-export';
 
 export default function ClientBookingsPage() {
   const [bookings, setBookings] = useState<BookingDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'past'>('all');
+  const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false);
+  const [balancePaymentModalOpen, setBalancePaymentModalOpen] = useState(false);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [rebookModalOpen, setRebookModalOpen] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState<BookingDetails | null>(null);
 
   useEffect(() => {
     fetchBookings();
@@ -36,12 +55,43 @@ export default function ClientBookingsPage() {
     }
   }
 
+  function handleRescheduleClick(booking: BookingDetails) {
+    setSelectedBooking(booking);
+    setRescheduleModalOpen(true);
+  }
+
+  function handleRescheduleSuccess() {
+    fetchBookings(); // Refresh bookings list
+  }
+
+  function handlePayBalanceClick(booking: BookingDetails) {
+    setSelectedBooking(booking);
+    setBalancePaymentModalOpen(true);
+  }
+
+  function handleBalancePaymentSuccess() {
+    fetchBookings(); // Refresh bookings list
+  }
+
+  function handleCancelClick(booking: BookingDetails) {
+    setSelectedBooking(booking);
+    setCancelModalOpen(true);
+  }
+
+  function handleCancelSuccess() {
+    fetchBookings(); // Refresh bookings list
+  }
+
+  function calculateBalanceOwed(booking: BookingDetails): number {
+    return booking.servicePrice - booking.depositAmount;
+  }
+
   const filteredBookings = bookings.filter((b) => {
     if (filter === 'upcoming') {
-      return ['PENDING', 'CONFIRMED'].includes(b.bookingStatus);
+      return ['pending', 'confirmed'].includes(b.bookingStatus);
     }
     if (filter === 'past') {
-      return ['COMPLETED', 'CANCELLED_BY_CLIENT', 'CANCELLED_BY_PROVIDER', 'NO_SHOW'].includes(
+      return ['completed', 'cancelled_by_client', 'cancelled_by_provider', 'no_show'].includes(
         b.bookingStatus
       );
     }
@@ -98,18 +148,18 @@ export default function ClientBookingsPage() {
         </Button>
       </div>
 
-      <Tabs value={filter} onValueChange={(v) => setFilter(v as any)}>
+      <Tabs value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
         <TabsList>
           <TabsTrigger value="all">All ({bookings.length})</TabsTrigger>
           <TabsTrigger value="upcoming">
             Upcoming (
-            {bookings.filter((b) => ['PENDING', 'CONFIRMED'].includes(b.bookingStatus)).length})
+            {bookings.filter((b) => ['pending', 'confirmed'].includes(b.bookingStatus)).length})
           </TabsTrigger>
           <TabsTrigger value="past">
             Past (
             {
               bookings.filter((b) =>
-                ['COMPLETED', 'CANCELLED_BY_CLIENT', 'CANCELLED_BY_PROVIDER', 'NO_SHOW'].includes(
+                ['completed', 'cancelled_by_client', 'cancelled_by_provider', 'no_show'].includes(
                   b.bookingStatus
                 )
               ).length
@@ -120,7 +170,7 @@ export default function ClientBookingsPage() {
 
         <TabsContent value={filter} className="mt-6 space-y-4">
           {filteredBookings.length > 0 ? (
-            filteredBookings.map((booking) => (
+            filteredBookings.map((booking: BookingDetails) => (
               <Card key={booking.id} className="hover:shadow-md transition-shadow">
                 <CardContent className="p-6">
                   <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
@@ -190,16 +240,71 @@ export default function ClientBookingsPage() {
                           <Link href={`/client/bookings/${booking.id}`}>View Details</Link>
                         </Button>
 
-                        {['PENDING', 'CONFIRMED'].includes(booking.bookingStatus) && (
-                          <Button variant="ghost" size="sm">
-                            Cancel
+                        {/* Add to Calendar Button */}
+                        {['pending', 'confirmed'].includes(booking.bookingStatus) && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => exportBookingToCalendar(booking)}
+                          >
+                            <CalendarPlus className="h-4 w-4 mr-1" />
+                            Add to Calendar
                           </Button>
                         )}
 
-                        {booking.bookingStatus.toUpperCase() === 'COMPLETED' && (
-                          <Button variant="default" size="sm" asChild>
-                            <Link href={`/client/bookings/${booking.id}/review`}>Leave Review</Link>
-                          </Button>
+                        {/* Pay Balance Button - Show when deposit paid but balance remains */}
+                        {booking.paymentStatus === 'deposit_paid' &&
+                          calculateBalanceOwed(booking) > 0 &&
+                          ['confirmed'].includes(booking.bookingStatus) && (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => handlePayBalanceClick(booking)}
+                              className="bg-button-dark hover:bg-button-dark/90"
+                            >
+                              <DollarSign className="h-4 w-4 mr-1" />
+                              Pay Balance
+                            </Button>
+                          )}
+
+                        {['pending', 'confirmed'].includes(booking.bookingStatus) && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleRescheduleClick(booking)}
+                            >
+                              Reschedule
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleCancelClick(booking)}
+                            >
+                              Cancel
+                            </Button>
+                          </>
+                        )}
+
+                        {booking.bookingStatus === 'completed' && (
+                          <>
+                            <Button variant="default" size="sm" asChild>
+                              <Link href={`/client/bookings/${booking.id}/review`}>
+                                Leave Review
+                              </Link>
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedBooking(booking);
+                                setRebookModalOpen(true);
+                              }}
+                            >
+                              <RefreshCw className="h-4 w-4 mr-1" />
+                              Rebook
+                            </Button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -228,6 +333,48 @@ export default function ClientBookingsPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Reschedule Modal */}
+      {selectedBooking && (
+        <RescheduleModal
+          open={rescheduleModalOpen}
+          onOpenChange={setRescheduleModalOpen}
+          bookingId={selectedBooking.id}
+          providerId={selectedBooking.provider?.id || ''}
+          serviceId={selectedBooking.service?.id || ''}
+          serviceDuration={selectedBooking.service?.durationMinutes || 60}
+          onSuccess={handleRescheduleSuccess}
+        />
+      )}
+
+      {/* Balance Payment Modal */}
+      {selectedBooking && (
+        <BalancePaymentModal
+          open={balancePaymentModalOpen}
+          onOpenChange={setBalancePaymentModalOpen}
+          booking={selectedBooking}
+          onSuccess={handleBalancePaymentSuccess}
+        />
+      )}
+
+      {/* Cancel Booking Modal */}
+      {selectedBooking && (
+        <CancelBookingModal
+          open={cancelModalOpen}
+          onOpenChange={setCancelModalOpen}
+          booking={selectedBooking}
+          onSuccess={handleCancelSuccess}
+        />
+      )}
+
+      {/* Rebook Service Modal */}
+      {selectedBooking && (
+        <RebookServiceModal
+          open={rebookModalOpen}
+          onOpenChange={setRebookModalOpen}
+          booking={selectedBooking}
+        />
+      )}
     </div>
   );
 }

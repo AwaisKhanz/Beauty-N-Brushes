@@ -185,7 +185,52 @@ export function Step6PaymentSetup({ subscriptionTier, onNext, onBack }: Step6Pay
         <>
           {/* Card Collection Form */}
           {paymentProvider === 'stripe' && selectedRegion && (
-            <Elements stripe={stripePromise}>
+            <Elements
+              stripe={stripePromise}
+              options={{
+                appearance: {
+                  theme: document.documentElement.classList.contains('dark') ? 'night' : 'stripe',
+                  variables: {
+                    colorPrimary: '#B06F64',
+                    colorBackground: document.documentElement.classList.contains('dark')
+                      ? '#1a1a1a'
+                      : '#ffffff',
+                    colorText: document.documentElement.classList.contains('dark')
+                      ? '#ffffff'
+                      : '#2A3F4D',
+                    colorDanger: '#EF4444',
+                    fontFamily: 'system-ui, sans-serif',
+                    borderRadius: '8px',
+                    spacingUnit: '4px',
+                  },
+                  rules: {
+                    '.Input': {
+                      backgroundColor: document.documentElement.classList.contains('dark')
+                        ? '#2a2a2a'
+                        : '#f8f9fa',
+                      border: '1px solid #B06F64',
+                      borderRadius: '8px',
+                      color: document.documentElement.classList.contains('dark')
+                        ? '#ffffff'
+                        : '#2A3F4D',
+                      fontSize: '16px',
+                      padding: '12px',
+                    },
+                    '.Input:focus': {
+                      borderColor: '#B06F64',
+                      boxShadow: '0 0 0 2px rgba(176, 111, 100, 0.2)',
+                    },
+                    '.Label': {
+                      color: document.documentElement.classList.contains('dark')
+                        ? '#ffffff'
+                        : '#2A3F4D',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                    },
+                  },
+                },
+              }}
+            >
               <StripeCardForm
                 regionCode={selectedRegion}
                 subscriptionTier={subscriptionTier}

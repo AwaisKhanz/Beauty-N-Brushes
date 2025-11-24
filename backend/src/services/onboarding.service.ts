@@ -12,7 +12,7 @@ import type {
   AvailabilityScheduleData,
   OnboardingStatus,
 } from '../types/onboarding.types';
-import { SUBSCRIPTION_TIERS, TRIAL_PERIOD_DAYS } from '../../../shared-constants';
+import { SUBSCRIPTION_TIERS, TRIAL_PERIOD_DAYS, REGIONS } from '../../../shared-constants';
 
 export class OnboardingService {
   /**
@@ -228,12 +228,15 @@ export class OnboardingService {
     }
 
     // Get payment provider for region
-    const paymentProvider = getPaymentProvider(regionCode);
+    // getPaymentProvider returns lowercase ('stripe' | 'paystack')
+    // But database enum uses uppercase ('STRIPE' | 'PAYSTACK')
+    const paymentProviderLower = getPaymentProvider(regionCode);
+    const paymentProvider = paymentProviderLower.toUpperCase() as PaymentProvider; // Convert to DB enum format
     const tier = profile.subscriptionTier === 'SOLO' ? 'solo' : 'salon';
 
     let subscriptionResult;
 
-    if (paymentProvider === 'stripe') {
+    if (paymentProviderLower === 'stripe') {
       // TRIAL MODE: Skip Stripe API calls for trial setup
       if (paymentMethodId === 'stripe_trial') {
         // Create trial subscription without payment method
@@ -267,12 +270,15 @@ export class OnboardingService {
       }
 
       // Update provider profile with Stripe details
+      // Get currency for region from REGIONS constant (USD for NA, EUR for EU)
+      const currency = REGIONS[regionCode].currency;
+      
       await prisma.providerProfile.update({
         where: { id: profile.id },
         data: {
-          paymentProvider: 'STRIPE' as PaymentProvider,
+          paymentProvider: paymentProvider, // Already uppercase from conversion above
           regionCode,
-          currency: 'USD',
+          currency,
           stripeCustomerId: subscriptionResult.customerId,
           stripeSubscriptionId: subscriptionResult.subscriptionId,
           paymentMethodId: subscriptionResult.paymentMethodId,
@@ -304,30 +310,41 @@ export class OnboardingService {
               : SUBSCRIPTION_TIERS.SALON.monthlyPriceUSD,
         };
       } else {
-        // Normal Paystack subscription (when payment collection is implemented)
+        // Normal Paystack subscription with authorization code
+        // paymentMethodId is actually the authorization code from Paystack transaction
+        // Authorization codes from Paystack start with 'AUTH_' but we accept any valid code
+        const authorizationCode = paymentMethodId || undefined;
+
         subscriptionResult = await paystackService.createProviderSubscription(
           profile.user.email,
           profile.user.firstName,
           profile.user.lastName,
           tier,
           regionCode,
-          profile.id
+          profile.id,
+          authorizationCode
         );
       }
 
       // Get currency for region
       const currency = regionCode === 'GH' ? 'GHS' : 'NGN';
 
+      // Determine subscription status based on whether subscription was created
+      const subscriptionStatus = subscriptionResult.subscriptionId
+        ? 'ACTIVE' // Subscription created with authorization code
+        : 'TRIAL'; // Trial mode without payment method
+
       // Update provider profile with Paystack details
       await prisma.providerProfile.update({
         where: { id: profile.id },
         data: {
-          paymentProvider: 'PAYSTACK' as PaymentProvider,
+          paymentProvider: paymentProvider, // Already uppercase from conversion above
           regionCode,
           currency,
           paystackCustomerCode: subscriptionResult.customerId,
-          paystackSubscriptionCode: subscriptionResult.subscriptionId || null, // May be empty during trial
-          subscriptionStatus: 'TRIAL',
+          paystackSubscriptionCode: subscriptionResult.subscriptionId || null,
+          paymentMethodId: paymentMethodId || null, // Store authorization code or null
+          subscriptionStatus,
           trialEndDate: subscriptionResult.trialEndDate,
           nextBillingDate: subscriptionResult.nextBillingDate,
           monthlyFee: subscriptionResult.monthlyFee,
@@ -363,7 +380,7 @@ export class OnboardingService {
           cancellationPolicyText: data.cancellationPolicy,
           latePolicyText: data.lateArrivalPolicy,
           refundPolicyText: data.refundPolicy,
-          depositRequired: data.depositRequired,
+          // Deposits are ALWAYS mandatory per requirements
         },
       });
       return policy;
@@ -375,7 +392,7 @@ export class OnboardingService {
           cancellationPolicyText: data.cancellationPolicy,
           latePolicyText: data.lateArrivalPolicy,
           refundPolicyText: data.refundPolicy,
-          depositRequired: data.depositRequired,
+          // Deposits are ALWAYS mandatory per requirements
         },
       });
       return policy;
@@ -511,7 +528,7 @@ export class OnboardingService {
           ? {
               cancellationPolicy: profile.policies.cancellationPolicyText || '',
               lateArrivalPolicy: profile.policies.latePolicyText || '',
-              depositRequired: profile.policies.depositRequired,
+              depositRequired: true, // Always mandatory per requirements
               refundPolicy: profile.policies.refundPolicyText || '',
             }
           : null,

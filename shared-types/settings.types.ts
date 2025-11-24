@@ -16,6 +16,8 @@ export interface UpdateProfileSettingsRequest {
   instagramHandle?: string | null;
   tiktokHandle?: string | null;
   facebookUrl?: string | null;
+  profilePhotoUrl?: string | null;
+  coverPhotoUrl?: string | null;
 }
 
 // ================================
@@ -105,6 +107,8 @@ export interface ProviderSettingsProfile {
   instagramHandle: string | null;
   tiktokHandle: string | null;
   facebookUrl: string | null;
+  profilePhotoUrl: string | null;
+  coverPhotoUrl: string | null;
   instantBookingEnabled: boolean;
   acceptsNewClients: boolean;
   mobileServiceAvailable: boolean;

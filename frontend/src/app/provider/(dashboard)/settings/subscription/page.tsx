@@ -69,7 +69,7 @@ export default function SubscriptionPage() {
         );
       case 'active':
         return (
-          <Badge className="bg-success gap-1">
+          <Badge variant="success" className="gap-1">
             <CheckCircle2 className="h-3 w-3" />
             Active
           </Badge>
@@ -197,9 +197,9 @@ export default function SubscriptionPage() {
             </div>
 
             {subscription.subscriptionStatus === 'trial' && (
-              <Alert className="bg-info/10 border-info/20">
-                <Calendar className="h-4 w-4 text-info" />
-                <AlertDescription className="text-info">
+              <Alert variant="info">
+                <Calendar className="h-4 w-4" />
+                <AlertDescription>
                   You have {daysRemaining} days left in your free trial. You will be charged{' '}
                   {formatCurrency(subscription.monthlyFee, subscription.currency)} after{' '}
                   {formatDate(subscription.trialEndDate)}.

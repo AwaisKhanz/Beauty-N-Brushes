@@ -58,9 +58,13 @@ export const serviceWizardSchema = z.object({
   priceMax: z.coerce.number().default(0),
   durationMinutes: z.coerce.number().min(15, 'Duration must be at least 15 minutes'),
 
-  // Deposit
+  // Deposit (ALWAYS mandatory per requirements)
   depositType: z.enum(['PERCENTAGE', 'FLAT']),
   depositAmount: z.coerce.number().min(1, 'Deposit amount required'),
+
+  // Mobile/Home service configuration
+  mobileServiceAvailable: z.boolean().default(false),
+  homeServiceFee: z.coerce.number().min(0).optional(),
 
   // Media
   media: z

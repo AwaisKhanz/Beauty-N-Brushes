@@ -1,7 +1,30 @@
 /**
- * Payment API types
+ * Payment API Types
+ *
+ * Types for dual payment provider system (Stripe & Paystack) with regional routing.
+ * Supports subscription billing and booking payments.
+ *
+ * @module shared-types/payment
+ *
+ * **Regional Payment Providers:**
+ * - Stripe: North America (NA), Europe (EU)
+ * - Paystack: Ghana (GH), Nigeria (NG)
+ *
+ * **Backend Usage:**
+ * - `backend/src/controllers/payment.controller.ts`
+ * - `backend/src/lib/stripe.ts`
+ * - `backend/src/lib/payment.ts`
+ *
+ * **Frontend Usage:**
+ * - `frontend/src/lib/api.ts` (api.payment)
+ * - `frontend/src/components/provider/StripeCardForm.tsx`
+ * - `frontend/src/components/provider/PaystackCardForm.tsx`
  */
 
+/**
+ * Request to initialize a Paystack transaction for subscription payment
+ * @interface
+ */
 export interface InitializePaystackRequest {
   email: string;
   amount: number;
@@ -109,4 +132,26 @@ export interface ConfirmBookingPaymentRequest {
   bookingId: string;
   paymentIntentId?: string; // Stripe
   reference?: string; // Paystack
+}
+
+// ================================
+// Balance Payment Types
+// ================================
+
+export interface PayBalanceRequest {
+  bookingId: string;
+  paymentMethod?: 'online' | 'cash'; // Default: 'online'
+}
+
+export interface PayBalanceResponse {
+  // For online payments
+  clientSecret?: string; // Stripe
+  authorizationUrl?: string; // Paystack
+  reference?: string; // Paystack
+  // Common
+  paymentProvider?: 'stripe' | 'paystack';
+  amount: number;
+  currency: string;
+  paymentMethod: 'online' | 'cash';
+  message: string;
 }

@@ -60,7 +60,7 @@ export default function ServiceDetailPage() {
     setCurrentIndex(carouselApi.selectedScrollSnap());
     carouselApi.on('select', onSelect);
     return () => {
-      carouselApi.off('select', onSelect as any);
+      carouselApi.off('select', onSelect);
     };
   }, [carouselApi]);
 
@@ -281,17 +281,15 @@ export default function ServiceDetailPage() {
                     </div>
                   </div>
 
-                  {/* Deposit Info */}
-                  {service.depositRequired && (
-                    <div className="bg-accent/10 border border-accent/20 rounded-md p-4">
-                      <p className="text-sm font-medium mb-1">Deposit Required</p>
-                      <p className="text-sm text-muted-foreground">
-                        {service.depositType === 'PERCENTAGE'
-                          ? `${service.depositAmount}% of service price`
-                          : `${service.currency} ${service.depositAmount} flat fee`}
-                      </p>
-                    </div>
-                  )}
+                  {/* Deposit Info - Always Required */}
+                  <div className="bg-accent/10 border border-accent/20 rounded-md p-4">
+                    <p className="text-sm font-medium mb-1">Deposit Required</p>
+                    <p className="text-sm text-muted-foreground">
+                      {service.depositType === 'PERCENTAGE'
+                        ? `${service.depositAmount}% of service price`
+                        : `${service.currency} ${service.depositAmount} flat fee`}
+                    </p>
+                  </div>
 
                   {/* Add-ons */}
                   {service.addons && service.addons.length > 0 && (
@@ -408,16 +406,14 @@ export default function ServiceDetailPage() {
                         {service.priceType === 'range' && ` - ${service.priceMax}`}
                       </span>
                     </div>
-                    {service.depositRequired && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Deposit Required</span>
-                        <span className="font-semibold">
-                          {service.depositType === 'PERCENTAGE'
-                            ? `${service.depositAmount}%`
-                            : `${service.currency} ${service.depositAmount}`}
-                        </span>
-                      </div>
-                    )}
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Deposit Required</span>
+                      <span className="font-semibold">
+                        {service.depositType === 'PERCENTAGE'
+                          ? `${service.depositAmount}%`
+                          : `${service.currency} ${service.depositAmount}`}
+                      </span>
+                    </div>
                   </div>
 
                   <Separator />

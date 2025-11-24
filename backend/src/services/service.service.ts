@@ -71,9 +71,12 @@ export class ServiceService {
           priceMin: data.priceMin,
           priceMax: data.priceMax,
           currency: profile.currency,
-          depositRequired: true, // Always required
+          // Deposits are ALWAYS mandatory per requirements
           depositType: data.depositType,
           depositAmount: data.depositAmount,
+          // Mobile/Home service configuration
+          mobileServiceAvailable: data.mobileServiceAvailable || false,
+          homeServiceFee: data.homeServiceFee || null,
           durationMinutes: data.durationMinutes,
           active: true,
           // Template tracking
@@ -495,6 +498,7 @@ Return as JSON array: ["hashtag1", "hashtag2", ...]`;
             currency: true,
             instantBookingEnabled: true,
             advanceBookingDays: true,
+            isSalon: true,
             user: {
               select: {
                 avatarUrl: true,
@@ -718,7 +722,9 @@ Return as JSON array: ["hashtag1", "hashtag2", ...]`;
       user: {
         status: 'ACTIVE',
       },
-      verificationStatus: 'approved',
+      // Allow pending and approved providers (Requirements: Line 95-98 - Profile live on marketplace after automated review)
+      verificationStatus: { in: ['pending', 'approved', 'verified'] },
+      profileCompleted: true,
       acceptsNewClients: true,
       profilePaused: false,
     };
@@ -939,7 +945,9 @@ Return as JSON array: ["hashtag1", "hashtag2", ...]`;
           user: {
             status: 'ACTIVE',
           },
-          verificationStatus: 'approved',
+          // Allow pending and approved providers (Requirements: Line 95-98)
+          verificationStatus: { in: ['pending', 'approved', 'verified'] },
+          profileCompleted: true,
           acceptsNewClients: true,
           featured: true, // Featured providers
         },
@@ -1013,8 +1021,9 @@ Return as JSON array: ["hashtag1", "hashtag2", ...]`;
                   where: {
                     active: true,
                     provider: {
-                      verificationStatus: 'approved',
+                      verificationStatus: { in: ['pending', 'approved', 'verified'] },
                       acceptsNewClients: true,
+                      profileCompleted: true,
                     },
                   },
                 },
@@ -1028,8 +1037,9 @@ Return as JSON array: ["hashtag1", "hashtag2", ...]`;
               where: {
                 active: true,
                 provider: {
-                  verificationStatus: 'approved',
+                  verificationStatus: { in: ['pending', 'approved', 'verified'] },
                   acceptsNewClients: true,
+                  profileCompleted: true,
                 },
               },
             },

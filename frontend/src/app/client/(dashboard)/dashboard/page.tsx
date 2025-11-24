@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
-import { Calendar, Heart, Search, MessageSquare, AlertCircle, Clock } from 'lucide-react';
+import { Calendar, Heart, Search, MessageSquare, AlertCircle, Clock, Star } from 'lucide-react';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
 import type {
@@ -107,58 +107,78 @@ export default function ClientDashboardPage() {
         </Card>
       </div>
 
-      {/* Upcoming Bookings */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Upcoming Bookings</CardTitle>
-          <CardDescription>Your scheduled appointments</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {recentBookings.length > 0 ? (
-            <div className="space-y-4">
-              {recentBookings.map((booking) => (
-                <div
-                  key={booking.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors"
-                >
-                  <div className="flex-1">
-                    <h4 className="font-medium">{booking.service}</h4>
-                    <p className="text-sm text-muted-foreground">{booking.businessName}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Clock className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(booking.date).toLocaleDateString()} at {booking.time}
-                      </span>
+      {/* Upcoming Bookings & Action Items */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Upcoming Bookings */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Upcoming Bookings</CardTitle>
+            <CardDescription>Your scheduled appointments</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {recentBookings.length > 0 ? (
+              <div className="space-y-4">
+                {recentBookings.slice(0, 3).map((booking) => (
+                  <div
+                    key={booking.id}
+                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors"
+                  >
+                    <div className="flex-1">
+                      <h4 className="font-medium">{booking.service}</h4>
+                      <p className="text-sm text-muted-foreground">{booking.businessName}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Clock className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(booking.date).toLocaleDateString()} at {booking.time}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={booking.status === 'confirmed' ? 'default' : 'secondary'}>
+                        {booking.status}
+                      </Badge>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={booking.status === 'confirmed' ? 'default' : 'secondary'}>
-                      {booking.status}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-              <Button variant="outline" className="w-full mt-4" asChild>
-                <Link href="/client/bookings">View All Bookings</Link>
-              </Button>
-            </div>
-          ) : (
+                ))}
+                <Button variant="outline" className="w-full mt-4" asChild>
+                  <Link href="/client/bookings">View All Bookings</Link>
+                </Button>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p className="text-muted-foreground mb-2">No bookings yet</p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Discover and book beauty services near you
+                </p>
+                <Button className="gap-2" asChild>
+                  <Link href="/search">
+                    <Search className="h-4 w-4" />
+                    Browse Services
+                  </Link>
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Pending Reviews */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Pending Reviews</CardTitle>
+            <CardDescription>Share your experience</CardDescription>
+          </CardHeader>
+          <CardContent>
             <div className="text-center py-8">
-              <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p className="text-muted-foreground mb-2">No bookings yet</p>
-              <p className="text-sm text-muted-foreground mb-4">
-                Discover and book beauty services near you
+              <Star className="h-12 w-12 mx-auto mb-4 opacity-50 text-rating-filled" />
+              <p className="text-sm text-muted-foreground mb-4">No pending reviews at this time</p>
+              <p className="text-xs text-muted-foreground">
+                Complete a booking to leave your first review
               </p>
-              <Button className="gap-2" asChild>
-                <Link href="/search">
-                  <Search className="h-4 w-4" />
-                  Browse Services
-                </Link>
-              </Button>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Quick Actions */}
       <Card>
@@ -167,7 +187,7 @@ export default function ClientDashboardPage() {
           <CardDescription>Manage your beauty appointments</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Button variant="default" className="gap-2" asChild>
               <Link href="/search">
                 <Search className="h-4 w-4" />
@@ -178,6 +198,23 @@ export default function ClientDashboardPage() {
               <Link href="/client/favorites">
                 <Heart className="h-4 w-4" />
                 View Favorites
+              </Link>
+            </Button>
+            <Button variant="outline" className="gap-2" asChild>
+              <Link href="/client/messages">
+                <MessageSquare className="h-4 w-4" />
+                Messages
+                {stats.unreadMessages > 0 && (
+                  <Badge variant="destructive" className="ml-2">
+                    {stats.unreadMessages}
+                  </Badge>
+                )}
+              </Link>
+            </Button>
+            <Button variant="outline" className="gap-2" asChild>
+              <Link href="/client/reviews">
+                <Star className="h-4 w-4" />
+                My Reviews
               </Link>
             </Button>
           </div>

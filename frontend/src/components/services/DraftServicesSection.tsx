@@ -90,17 +90,13 @@ export function DraftServicesSection({ className }: DraftServicesSectionProps) {
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
             Draft Services
-            {drafts.length > 0 && (
-              <Badge variant="secondary" className="bg-warning/20 text-warning">
-                {drafts.length}
-              </Badge>
-            )}
+            {drafts.length > 0 && <Badge variant="warning">{drafts.length}</Badge>}
           </CardTitle>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
               <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
             </Button>
-            <Button onClick={handleCreateNew} size="sm" className="bg-primary hover:bg-primary/90">
+            <Button onClick={handleCreateNew} size="sm">
               <Plus className="h-4 w-4 mr-2" />
               New Service
             </Button>
@@ -116,7 +112,7 @@ export function DraftServicesSection({ className }: DraftServicesSectionProps) {
             <p className="text-muted-foreground mb-4">
               Start creating a new service and it will be saved as a draft automatically.
             </p>
-            <Button size="sm" onClick={handleCreateNew} className="bg-primary hover:bg-primary/90">
+            <Button size="sm" onClick={handleCreateNew}>
               <Plus className="h-2 w-2 " />
               Create Service
             </Button>

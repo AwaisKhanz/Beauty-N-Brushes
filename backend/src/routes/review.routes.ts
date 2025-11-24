@@ -11,9 +11,10 @@ const router = Router();
 
 // Public routes
 router.get('/provider/:providerId', reviewController.getByProvider);
-router.get('/:reviewId', reviewController.getById);
 
 // Protected routes
+router.get('/my-reviews', authenticate, reviewController.getMyReviews);
+router.get('/:reviewId', reviewController.getById);
 router.post('/', authenticate, reviewController.create);
 router.put('/:reviewId', authenticate, reviewController.update);
 router.delete('/:reviewId', authenticate, reviewController.remove);

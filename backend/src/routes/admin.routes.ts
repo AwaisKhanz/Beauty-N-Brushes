@@ -33,10 +33,10 @@ router.get('/media-processor/stats', async (_req: AuthRequest, res: Response) =>
         health: stats.processing > 10 ? 'warning' : 'healthy', // Alert if too many stuck in processing
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to get processing stats',
+      error: error instanceof Error ? error.message : 'Failed to get processing stats',
     });
   }
 });
@@ -60,10 +60,10 @@ router.post('/media-processor/recover', async (_req: AuthRequest, res: Response)
       data: result,
       message: `Recovered ${result.recovered} media items`,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to recover stuck media',
+      error: error instanceof Error ? error.message : 'Failed to recover stuck media',
     });
   }
 });
@@ -82,10 +82,10 @@ router.get('/media-processor/queue', async (_req: AuthRequest, res: Response) =>
       success: true,
       data: queueStatus,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to get queue status',
+      error: error instanceof Error ? error.message : 'Failed to get queue status',
     });
   }
 });
@@ -120,10 +120,10 @@ router.get('/health', async (_req: AuthRequest, res: Response) => {
       success: true,
       data: health,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     res.status(500).json({
       success: false,
-      error: error.message || 'Health check failed',
+      error: error instanceof Error ? error.message : 'Health check failed',
       status: 'unhealthy',
     });
   }

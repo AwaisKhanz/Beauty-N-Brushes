@@ -9,11 +9,15 @@ export interface FavoriteProvider {
   businessName: string;
   slug: string;
   logoUrl: string | null;
+  coverImageUrl: string | null;
+  tagline: string | null;
   averageRating: number;
   totalReviews: number;
   city: string;
   state: string;
   specializations: string[];
+  servicesCount: number;
+  instantBooking: boolean;
   addedAt: string;
 }
 

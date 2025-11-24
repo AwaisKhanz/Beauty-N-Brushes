@@ -50,8 +50,8 @@ export const NAV_LINKS = {
       icon: 'BarChart3',
     },
     {
-      name: 'Earnings',
-      href: '/provider/earnings',
+      name: 'Finance',
+      href: '/provider/finance',
       icon: 'CreditCard',
     },
     {
@@ -78,9 +78,29 @@ export const NAV_LINKS = {
       icon: 'Heart',
     },
     {
+      href: '/client/saved-searches',
+      label: 'Saved Searches',
+      icon: 'Bookmark',
+    },
+    {
       href: '/client/messages',
       label: 'Messages',
       icon: 'MessageSquare',
+    },
+    {
+      href: '/client/reviews',
+      label: 'My Reviews',
+      icon: 'Star',
+    },
+    {
+      href: '/client/profile',
+      label: 'Profile',
+      icon: 'User',
+    },
+    {
+      href: '/client/settings',
+      label: 'Settings',
+      icon: 'Settings',
     },
   ],
 

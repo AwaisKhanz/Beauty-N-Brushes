@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import Image from 'next/image';
 import { SettingsLayout } from '@/components/settings/SettingsLayout';
 import {
   Form,
@@ -18,7 +19,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-import { CheckCircle2, AlertCircle, Upload, Palette } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { CheckCircle2, AlertCircle, Upload, Palette, ImageIcon, X } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -28,6 +30,7 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { api } from '@/lib/api';
+import { uploadService } from '@/lib/upload';
 import { extractErrorMessage } from '@/lib/error-utils';
 import type { UpdateBrandingRequest } from '@/shared-types/settings.types';
 
@@ -87,6 +90,9 @@ export default function BrandingSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [existingLogoUrl, setExistingLogoUrl] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   const form = useForm<BrandingFormValues>({
     resolver: zodResolver(brandingSchema),
@@ -120,6 +126,11 @@ export default function BrandingSettingsPage() {
         brandFontHeading: branding.brandFontHeading || '',
         brandFontBody: branding.brandFontBody || '',
       });
+
+      // Set existing logo URL
+      if (branding.logoUrl) {
+        setExistingLogoUrl(branding.logoUrl);
+      }
     } catch (err: unknown) {
       setError(extractErrorMessage(err) || 'Failed to load branding settings');
     } finally {
@@ -130,11 +141,30 @@ export default function BrandingSettingsPage() {
   async function onSubmit(values: BrandingFormValues) {
     try {
       setSaving(true);
+      setUploadingLogo(true);
       setError('');
       setSuccess('');
 
+      // Upload logo if new file is selected
+      let logoUrl = existingLogoUrl;
+
+      if (logoFile) {
+        try {
+          const uploadResult = await uploadService.uploadFile(logoFile, 'logo');
+          logoUrl = uploadResult.url;
+        } catch (uploadError) {
+          setError(extractErrorMessage(uploadError) || 'Failed to upload logo');
+          setSaving(false);
+          setUploadingLogo(false);
+          return;
+        }
+      }
+
+      // Use uploaded logo URL or form URL (form URL takes precedence if manually entered)
+      const finalLogoUrl = values.logoUrl || logoUrl;
+
       const data: UpdateBrandingRequest = {
-        logoUrl: values.logoUrl || null,
+        logoUrl: finalLogoUrl || null,
         brandColorPrimary: values.brandColorPrimary || null,
         brandColorSecondary: values.brandColorSecondary || null,
         brandColorAccent: values.brandColorAccent || null,
@@ -143,6 +173,13 @@ export default function BrandingSettingsPage() {
       };
 
       await api.settings.updateBranding(data);
+      
+      // Update existing logo URL if uploaded
+      if (logoUrl) setExistingLogoUrl(logoUrl);
+      
+      // Clear file selection
+      setLogoFile(null);
+
       setSuccess('Branding settings updated successfully');
 
       // Clear success message after 3 seconds
@@ -151,6 +188,13 @@ export default function BrandingSettingsPage() {
       setError(extractErrorMessage(err) || 'Failed to update branding settings');
     } finally {
       setSaving(false);
+      setUploadingLogo(false);
+    }
+  }
+
+  function handleFileSelect(file: File | null) {
+    if (file && file.type.startsWith('image/')) {
+      setLogoFile(file);
     }
   }
 
@@ -187,9 +231,9 @@ export default function BrandingSettingsPage() {
       )}
 
       {success && (
-        <Alert className="mb-6 border-success bg-success/10">
-          <CheckCircle2 className="h-4 w-4 text-success" />
-          <AlertDescription className="text-success">{success}</AlertDescription>
+        <Alert variant="success" className="mb-6">
+          <CheckCircle2 className="h-4 w-4" />
+          <AlertDescription>{success}</AlertDescription>
         </Alert>
       )}
 
@@ -214,25 +258,84 @@ export default function BrandingSettingsPage() {
           </Card>
 
           {/* Logo Upload */}
-          <FormField
-            control={form.control}
-            name="logoUrl"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Logo URL</FormLabel>
-                <FormControl>
-                  <div className="flex gap-2">
-                    <Input placeholder="https://example.com/logo.png" {...field} />
-                    <Button type="button" variant="outline" size="icon">
-                      <Upload className="h-4 w-4" />
-                    </Button>
+          <Card>
+            <CardContent className="pt-6">
+              <FormLabel className="text-base font-semibold mb-4 block">Logo</FormLabel>
+              <div className="space-y-4">
+                <div className="flex items-center gap-6">
+                  <div className="relative h-20 w-20 rounded-lg bg-muted flex items-center justify-center overflow-hidden border-2 border-border">
+                    {logoFile ? (
+                      <Image
+                        src={URL.createObjectURL(logoFile)}
+                        alt="Logo preview"
+                        fill
+                        className="object-cover"
+                      />
+                    ) : existingLogoUrl ? (
+                      <Image
+                        src={existingLogoUrl}
+                        alt="Logo"
+                        fill
+                        className="object-cover"
+                      />
+                    ) : (
+                      <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                    )}
                   </div>
-                </FormControl>
-                <FormDescription>Enter the URL to your logo image</FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+
+                  <div className="flex-1 space-y-2">
+                    <Label htmlFor="logo-upload" className="cursor-pointer">
+                      <div className="border-2 border-dashed border-border rounded-lg p-4 text-center hover:border-primary/50 transition-colors">
+                        <Upload className="h-5 w-5 mx-auto mb-2 text-muted-foreground" />
+                        <p className="text-sm font-medium">
+                          {logoFile || existingLogoUrl ? 'Change logo' : 'Upload logo'}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">PNG, JPG up to 5MB</p>
+                      </div>
+                    </Label>
+                    <Input
+                      id="logo-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handleFileSelect(e.target.files?.[0] || null)}
+                    />
+
+                    {(logoFile || existingLogoUrl) && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setLogoFile(null);
+                          setExistingLogoUrl(null);
+                        }}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="logoUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Or enter logo URL</FormLabel>
+                      <FormControl>
+                        <Input placeholder="https://example.com/logo.png" {...field} />
+                      </FormControl>
+                      <FormDescription>Alternatively, enter a URL to your logo image</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Color Palette */}
           <div className="space-y-4">
@@ -389,8 +492,8 @@ export default function BrandingSettingsPage() {
 
           {/* Submit Button */}
           <div className="flex justify-end">
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Saving...' : 'Save Changes'}
+            <Button type="submit" disabled={saving || uploadingLogo}>
+              {saving || uploadingLogo ? 'Saving...' : 'Save Changes'}
             </Button>
           </div>
         </form>

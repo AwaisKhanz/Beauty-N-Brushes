@@ -92,9 +92,7 @@ export function DraftServiceCard({ draft, onDelete }: DraftServiceCardProps) {
               {draft.title}
             </CardTitle>
             <div className="flex items-center gap-2 mt-1">
-              <Badge variant="secondary" className="bg-warning/20 text-warning border-warning/30">
-                Draft
-              </Badge>
+              <Badge variant="warning">Draft</Badge>
               <span className="text-sm text-muted-foreground">
                 {draft.category}
                 {draft.subcategory && ` • ${draft.subcategory}`}

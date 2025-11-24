@@ -49,7 +49,7 @@ export function LoginGate({
   action = 'continue',
   children,
   triggerButton,
-  onLoginSuccess,
+  onLoginSuccess: _onLoginSuccess,
 }: LoginGateProps) {
   const { isAuthenticated } = useAuth();
   const router = useRouter();

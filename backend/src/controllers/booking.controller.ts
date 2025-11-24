@@ -17,10 +17,16 @@ import type {
   UpdateBookingResponse,
   CancelBookingRequest,
   CancelBookingResponse,
+  RescheduleBookingRequest,
+  RescheduleBookingResponse,
   CompleteBookingRequest,
   CompleteBookingResponse,
   AssignTeamMemberRequest,
   AssignTeamMemberResponse,
+  RequestRescheduleRequest,
+  RequestRescheduleResponse,
+  RespondToRescheduleRequest,
+  RespondToRescheduleResponse,
   GetAvailableStylists,
   GetAvailableSlotsResponse,
   BookingDetails,
@@ -43,7 +49,14 @@ export async function createBooking(
       serviceId: z.string().uuid(),
       appointmentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
       appointmentTime: z.string().regex(/^\d{2}:\d{2}$/, 'Invalid time format (HH:mm)'),
+      // Contact information (Required per requirements)
+      contactEmail: z.string().email('Valid email required'),
+      contactPhone: z.string().min(10, 'Valid phone number required'),
       specialRequests: z.string().max(1000).optional(),
+      referencePhotoUrls: z.array(z.string().url()).optional(),
+      selectedAddonIds: z.array(z.string().uuid()).optional(),
+      // Home service request
+      homeServiceRequested: z.boolean().optional(),
       // Team member selection for salon bookings
       assignedTeamMemberId: z.string().uuid().optional(),
       anyAvailableStylist: z.boolean().optional(),
@@ -175,6 +188,32 @@ export async function updateBooking(
         new AppError(400, `Validation failed: ${error.errors.map((e) => e.message).join(', ')}`)
       );
     }
+    next(error);
+  }
+}
+
+/**
+ * Confirm a booking (Provider only)
+ */
+export async function confirmBooking(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    const { bookingId } = req.params;
+
+    if (!userId) throw new AppError(401, 'Unauthorized');
+    if (!bookingId) throw new AppError(400, 'Booking ID required');
+
+    const booking = await bookingService.confirmBooking(userId, bookingId);
+
+    sendSuccess<UpdateBookingResponse>(res, {
+      message: 'Booking confirmed successfully',
+      booking: booking as unknown as BookingDetails,
+    });
+  } catch (error) {
     next(error);
   }
 }
@@ -318,6 +357,131 @@ export async function cancelBooking(
 }
 
 /**
+ * Reschedule booking
+ */
+export async function rescheduleBooking(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    const { bookingId } = req.params;
+
+    if (!userId) throw new AppError(401, 'Unauthorized');
+    if (!bookingId) throw new AppError(400, 'Booking ID required');
+
+    const schema = z.object({
+      newDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
+      newTime: z.string().regex(/^\d{2}:\d{2}$/, 'Invalid time format (HH:mm)'),
+      reason: z.string().max(500).optional(),
+    });
+
+    const data = schema.parse(req.body) as RescheduleBookingRequest;
+
+    const booking = await bookingService.rescheduleBooking(userId, bookingId, data);
+
+    sendSuccess<RescheduleBookingResponse>(res, {
+      message: 'Booking rescheduled successfully',
+      booking: booking as unknown as BookingDetails,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return next(
+        new AppError(400, `Validation failed: ${error.errors.map((e) => e.message).join(', ')}`)
+      );
+    }
+    next(error);
+  }
+}
+
+/**
+ * Request reschedule (provider only)
+ */
+export async function requestReschedule(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    const { bookingId } = req.params;
+
+    if (!userId) throw new AppError(401, 'Unauthorized');
+    if (!bookingId) throw new AppError(400, 'Booking ID required');
+
+    const schema = z.object({
+      newDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
+      newTime: z.string().regex(/^\d{2}:\d{2}$/, 'Invalid time format (HH:mm)'),
+      reason: z.string().min(1, 'Reason is required').max(500),
+    });
+
+    const data = schema.parse(req.body) as RequestRescheduleRequest;
+
+    const rescheduleRequest = await bookingService.requestReschedule(userId, bookingId, data);
+
+    sendSuccess<RequestRescheduleResponse>(res, {
+      message: 'Reschedule request sent successfully',
+      rescheduleRequest: {
+        id: rescheduleRequest.id,
+        bookingId: rescheduleRequest.bookingId,
+        newDate: rescheduleRequest.newDate.toISOString().split('T')[0],
+        newTime: rescheduleRequest.newTime,
+        reason: rescheduleRequest.reason,
+        status: rescheduleRequest.status as 'pending' | 'approved' | 'denied',
+        requestedAt: rescheduleRequest.requestedAt.toISOString(),
+        respondedAt: rescheduleRequest.respondedAt?.toISOString() || null,
+      },
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return next(
+        new AppError(400, `Validation failed: ${error.errors.map((e) => e.message).join(', ')}`)
+      );
+    }
+    next(error);
+  }
+}
+
+/**
+ * Respond to reschedule request (client only)
+ */
+export async function respondToRescheduleRequest(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    const { requestId } = req.params;
+
+    if (!userId) throw new AppError(401, 'Unauthorized');
+    if (!requestId) throw new AppError(400, 'Request ID required');
+
+    const schema = z.object({
+      approved: z.boolean(),
+      reason: z.string().max(500).optional(),
+    });
+
+    const data = schema.parse(req.body) as RespondToRescheduleRequest;
+
+    const booking = await bookingService.respondToRescheduleRequest(userId, requestId, data);
+
+    sendSuccess<RespondToRescheduleResponse>(res, {
+      message: data.approved ? 'Reschedule request approved' : 'Reschedule request denied',
+      booking: booking as unknown as BookingDetails,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return next(
+        new AppError(400, `Validation failed: ${error.errors.map((e) => e.message).join(', ')}`)
+      );
+    }
+    next(error);
+  }
+}
+
+/**
  * Complete booking
  */
 export async function completeBooking(
@@ -335,6 +499,7 @@ export async function completeBooking(
     const schema = z.object({
       tipAmount: z.number().min(0).optional(),
       notes: z.string().max(1000).optional(),
+      balancePaymentMethod: z.enum(['online', 'cash', 'card_at_venue']).optional(),
     });
 
     const data = schema.parse(req.body) as CompleteBookingRequest;
@@ -343,6 +508,49 @@ export async function completeBooking(
 
     sendSuccess<CompleteBookingResponse>(res, {
       message: 'Booking completed successfully',
+      booking: booking as unknown as BookingDetails,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return next(
+        new AppError(400, `Validation failed: ${error.errors.map((e) => e.message).join(', ')}`)
+      );
+    }
+    next(error);
+  }
+}
+
+/**
+ * Mark booking as no-show
+ */
+export async function markNoShow(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+    const { bookingId } = req.params;
+
+    if (!userId) throw new AppError(401, 'Unauthorized');
+    if (!bookingId) throw new AppError(400, 'Booking ID required');
+
+    const schema = z.object({
+      notes: z.string().max(500).optional(),
+    });
+
+    const data = schema.parse(req.body);
+
+    const booking = await bookingService.markNoShow(
+      userId,
+      userRole || 'CLIENT',
+      bookingId,
+      data.notes
+    );
+
+    sendSuccess<UpdateBookingResponse>(res, {
+      message: 'Booking marked as no-show',
       booking: booking as unknown as BookingDetails,
     });
   } catch (error) {

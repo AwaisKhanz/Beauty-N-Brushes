@@ -295,7 +295,7 @@ export function MediaUploadStep({ form }: MediaUploadStepProps) {
                   onDragOver={(e) => handleDragOver(e, index)}
                   onDragEnd={handleDragEnd}
                   className={`group relative border rounded-lg overflow-hidden cursor-move transition-all ${
-                    media.isFeatured ? 'ring-2 ring-yellow-400' : ''
+                    media.isFeatured ? 'ring-2 ring-warning' : ''
                   } ${draggedItem === index ? 'opacity-50' : ''}`}
                 >
                   {/* Drag Handle */}
@@ -320,7 +320,7 @@ export function MediaUploadStep({ form }: MediaUploadStepProps) {
 
                     {/* Featured Badge */}
                     {media.isFeatured && (
-                      <Badge className="absolute top-2 right-2 bg-warning text-warning-foreground">
+                      <Badge variant="warning" className="absolute top-2 right-2">
                         <Star className="h-3 w-3 mr-1" />
                         Featured
                       </Badge>

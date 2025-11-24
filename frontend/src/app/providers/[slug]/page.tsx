@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import Header from '@/components/shared/Header';
 import { LoginGate } from '@/components/auth/LoginGate';
+import { ChatbotWidget } from '@/components/shared/ChatbotWidget';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
 import type { PublicProviderProfile } from '@/shared-types/service.types';
@@ -389,7 +390,7 @@ export default function ProviderProfilePage() {
                     <CardContent className="pt-6">
                       {provider.reviews && provider.reviews.length > 0 ? (
                         <div className="space-y-6">
-                          {provider.reviews.map((review: any) => (
+                          {provider.reviews.map((review) => (
                             <div
                               key={review.id}
                               className="pb-6 border-b border-border/50 last:border-0 last:pb-0"
@@ -411,16 +412,13 @@ export default function ProviderProfilePage() {
                                         <Star
                                           key={i}
                                           className={`h-4 w-4 ${
-                                            i < review.rating
+                                            i < review.overallRating
                                               ? 'fill-accent text-accent'
                                               : 'text-muted-foreground/30'
                                           }`}
                                         />
                                       ))}
                                     </div>
-                                    <Badge variant="outline" className="text-xs">
-                                      {review.serviceTitle}
-                                    </Badge>
                                   </div>
                                   {review.reviewText && (
                                     <p className="text-sm text-muted-foreground leading-relaxed">
@@ -514,7 +512,7 @@ export default function ProviderProfilePage() {
                     asChild
                   >
                     <a href="#" target="_blank" rel="noopener noreferrer">
-                      <Instagram className="h-4 w-4 text-pink-600" />
+                      <Instagram className="h-4 w-4 text-accent" />
                       <span className="text-sm">Instagram</span>
                     </a>
                   </Button>
@@ -525,7 +523,7 @@ export default function ProviderProfilePage() {
                     asChild
                   >
                     <a href="#" target="_blank" rel="noopener noreferrer">
-                      <Facebook className="h-4 w-4 text-blue-600" />
+                      <Facebook className="h-4 w-4 text-info" />
                       <span className="text-sm">Facebook</span>
                     </a>
                   </Button>
@@ -547,15 +545,15 @@ export default function ProviderProfilePage() {
               <Card className="border-accent/20 bg-gradient-to-br from-accent/10 to-primary/5">
                 <CardContent className="pt-6 space-y-3">
                   <div className="flex items-center gap-2 text-sm">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <CheckCircle className="h-4 w-4 text-success" />
                     <span className="text-muted-foreground">Verified Professional</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <CheckCircle className="h-4 w-4 text-success" />
                     <span className="text-muted-foreground">Secure Booking</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <CheckCircle className="h-4 w-4 text-success" />
                     <span className="text-muted-foreground">Satisfaction Guaranteed</span>
                   </div>
                 </CardContent>
@@ -563,6 +561,15 @@ export default function ProviderProfilePage() {
             </div>
           </div>
         </div>
+
+        {/* AI Chatbot Widget */}
+        {provider && (
+          <ChatbotWidget
+            context="provider_profile"
+            providerId={provider.id}
+            providerName={provider.businessName}
+          />
+        )}
       </div>
     </>
   );

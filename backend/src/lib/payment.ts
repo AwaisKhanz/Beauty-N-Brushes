@@ -86,27 +86,35 @@ export class StripeService {
       throw new Error(`Stripe price ID not configured for ${tier} tier`);
     }
 
-    // Create customer
+    // Attach payment method to customer first (required by Stripe)
+    // First create customer
     const customer = await this.stripe.customers.create({
       email,
       name: `${firstName} ${lastName}`,
-      payment_method: paymentMethodId,
-      invoice_settings: {
-        default_payment_method: paymentMethodId,
-      },
       metadata: {
         providerId,
         tier,
       },
     });
 
+    // Attach payment method to customer
+    await this.stripe.paymentMethods.attach(paymentMethodId, {
+      customer: customer.id,
+    });
+
+    // Set as default payment method
+    await this.stripe.customers.update(customer.id, {
+      invoice_settings: {
+        default_payment_method: paymentMethodId,
+      },
+    });
+
     // Create subscription with trial period from shared constants
-    // TESTING: Trial commented out for payment testing
+    // Payment method is already attached and set as default, so subscription will charge after trial
     const subscription = await this.stripe.subscriptions.create({
       customer: customer.id,
       items: [{ price: priceId }],
       trial_period_days: TRIAL_PERIOD_DAYS,
-      payment_behavior: 'default_incomplete',
       expand: ['latest_invoice.payment_intent'],
       metadata: {
         providerId,
@@ -173,6 +181,7 @@ export class PaystackService {
 
   /**
    * Create provider subscription
+   * This method now properly creates a Paystack subscription with authorization code
    */
   async createProviderSubscription(
     email: string,
@@ -180,7 +189,8 @@ export class PaystackService {
     lastName: string,
     tier: SubscriptionTier,
     regionCode: RegionCode,
-    providerId: string
+    providerId: string,
+    authorizationCode?: string // Authorization code from payment transaction
   ): Promise<SubscriptionResult> {
     // Determine monthly fee in local currency from shared constants
     const baseMonthlyFee =
@@ -194,7 +204,8 @@ export class PaystackService {
       baseMonthlyFee * (EXCHANGE_RATES[currency as keyof typeof EXCHANGE_RATES] || 1)
     );
 
-    // Create customer
+    // Create or get customer
+    let customerCode: string;
     const customerResponse = await fetch(`${this.baseUrl}/customer`, {
       method: 'POST',
       headers: {
@@ -213,59 +224,144 @@ export class PaystackService {
     });
 
     if (!customerResponse.ok) {
-      throw new Error('Failed to create Paystack customer');
+      const errorData = (await customerResponse.json()) as { message?: string };
+      // Customer might already exist, try to fetch by email
+      const existingCustomerResponse = await fetch(
+        `${this.baseUrl}/customer?email=${encodeURIComponent(email)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${this.secretKey}`,
+          },
+        }
+      );
+
+      if (!existingCustomerResponse.ok) {
+        throw new Error(errorData.message || 'Failed to create Paystack customer');
+      }
+
+      const existingCustomerData = (await existingCustomerResponse.json()) as {
+        status: boolean;
+        data?: Array<{ customer_code: string }>;
+      };
+
+      if (
+        existingCustomerData.status &&
+        existingCustomerData.data &&
+        existingCustomerData.data.length > 0
+      ) {
+        customerCode = existingCustomerData.data[0].customer_code;
+      } else {
+        throw new Error(errorData.message || 'Failed to create Paystack customer');
+      }
+    } else {
+      // Customer created successfully
+      const customerData = (await customerResponse.json()) as {
+        status: boolean;
+        data?: { customer_code: string };
+        message?: string;
+      };
+
+      if (customerData.status && customerData.data) {
+        customerCode = customerData.data.customer_code;
+      } else {
+        throw new Error(customerData.message || 'Failed to create Paystack customer');
+      }
     }
 
-    const customerData = (await customerResponse.json()) as {
-      data: { customer_code: string };
-    };
-
-    // Create subscription plan
+    // Create or verify subscription plan exists
     const planCode = `bnb_${tier}_${currency.toLowerCase()}`;
-    const planResponse = await fetch(`${this.baseUrl}/plan`, {
-      method: 'POST',
+
+    // Check if plan exists
+    const planCheckResponse = await fetch(`${this.baseUrl}/plan/${planCode}`, {
       headers: {
         Authorization: `Bearer ${this.secretKey}`,
-        'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        name: `Beauty N Brushes ${tier === 'solo' ? 'Solo' : 'Salon'} - ${currency}`,
-        amount: monthlyFee * 100, // Convert to kobo/pesewas
-        interval: 'monthly',
-        currency,
-        plan_code: planCode,
-      }),
     });
 
-    // Plan might already exist, which is okay
-    const planData = planResponse.ok
-      ? ((await planResponse.json()) as { data: { plan_code: string } })
-      : { data: { plan_code: planCode } };
+    if (!planCheckResponse.ok) {
+      // Plan doesn't exist, create it
+      const planResponse = await fetch(`${this.baseUrl}/plan`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.secretKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: `Beauty N Brushes ${tier === 'solo' ? 'Solo' : 'Salon'} - ${currency}`,
+          amount: monthlyFee * 100, // Convert to kobo/pesewas
+          interval: 'monthly',
+          currency,
+          plan_code: planCode,
+        }),
+      });
+
+      if (!planResponse.ok) {
+        const errorData = (await planResponse.json()) as { message?: string };
+        throw new Error(errorData.message || 'Failed to create Paystack plan');
+      }
+
+      // Verify plan was created successfully
+      const planData = (await planResponse.json()) as {
+        status: boolean;
+        data?: { plan_code: string };
+        message?: string;
+      };
+
+      if (!planData.status || !planData.data) {
+        throw new Error(planData.message || 'Failed to create Paystack plan');
+      }
+    }
 
     // Calculate trial end date from shared constants
-    // TESTING: Trial commented out for payment testing
-    // const trialEndDate = new Date();
-    // trialEndDate.setDate(trialEndDate.getDate() + TRIAL_PERIOD_DAYS);
-    const trialEndDate = new Date(); // TESTING: Set to now for immediate billing
+    const trialEndDate = new Date();
+    trialEndDate.setDate(trialEndDate.getDate() + TRIAL_PERIOD_DAYS);
 
-    // For Paystack trial without payment method, we don't create subscription yet
-    // Instead, we'll create it when they add payment method (via payment link)
-    // For now, just return the customer and plan info
+    // If authorization code is provided, create subscription immediately
+    // Otherwise, return customer and plan info for later subscription creation
+    let subscriptionCode = '';
+    let nextBillingDate = trialEndDate;
 
-    // TESTING NOTE: To test Paystack payments immediately:
-    // 1. Collect payment method via Paystack inline/popup first
-    // 2. Get the authorization code from the transaction
-    // 3. Create subscription with: customer, plan, and start_date (set to now)
-    // For now, this returns empty subscription (trial mode)
+    if (authorizationCode) {
+      // Create subscription with authorization code
+      const subscriptionResponse = await fetch(`${this.baseUrl}/subscription`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.secretKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customer: customerCode,
+          plan: planCode,
+          authorization: authorizationCode,
+          start_date: trialEndDate.toISOString(), // Start billing after trial
+        }),
+      });
 
-    // Store the plan code in customer metadata for later subscription creation
+      if (!subscriptionResponse.ok) {
+        const errorData = (await subscriptionResponse.json()) as { message?: string };
+        throw new Error(errorData.message || 'Failed to create Paystack subscription');
+      }
+
+      const subscriptionData = (await subscriptionResponse.json()) as {
+        status: boolean;
+        data?: { subscription_code: string; next_payment_date: string };
+        message?: string;
+      };
+
+      if (subscriptionData.status && subscriptionData.data) {
+        subscriptionCode = subscriptionData.data.subscription_code;
+        nextBillingDate = new Date(subscriptionData.data.next_payment_date);
+      } else {
+        throw new Error(subscriptionData.message || 'Failed to create Paystack subscription');
+      }
+    }
+
     return {
-      customerId: customerData.data.customer_code,
-      subscriptionId: '', // Will be created when payment method is added
-      planCode: planData.data.plan_code, // Store plan for later
+      customerId: customerCode,
+      subscriptionId: subscriptionCode,
+      planCode,
       trialEndDate,
-      // nextBillingDate: trialEndDate,
-      nextBillingDate: new Date(), // TESTING: Immediate billing
+      nextBillingDate,
       monthlyFee,
     };
   }
@@ -274,7 +370,7 @@ export class PaystackService {
    * Cancel subscription
    */
   async cancelSubscription(subscriptionCode: string): Promise<void> {
-    await fetch(`${this.baseUrl}/subscription/disable`, {
+    const response = await fetch(`${this.baseUrl}/subscription/disable`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${this.secretKey}`,
@@ -282,9 +378,14 @@ export class PaystackService {
       },
       body: JSON.stringify({
         code: subscriptionCode,
-        token: subscriptionCode,
+        token: subscriptionCode, // Token is required for email subscriptions; for API subscriptions, use subscription code
       }),
     });
+
+    if (!response.ok) {
+      const errorData = (await response.json()) as { message?: string };
+      throw new Error(errorData.message || 'Failed to cancel Paystack subscription');
+    }
   }
 }
 

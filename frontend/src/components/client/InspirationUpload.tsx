@@ -130,9 +130,7 @@ export function InspirationUpload({ onMatchesFound }: InspirationUploadProps) {
             </div>
             <div>
               <CardTitle className="text-2xl">Upload Your Inspiration</CardTitle>
-              <CardDescription className="text-sm">
-                Drag & drop or click to browse
-              </CardDescription>
+              <CardDescription className="text-sm">Drag & drop or click to browse</CardDescription>
             </div>
           </div>
           {previewUrl && !isProcessing && (
@@ -143,7 +141,7 @@ export function InspirationUpload({ onMatchesFound }: InspirationUploadProps) {
           )}
         </div>
       </CardHeader>
-      
+
       <CardContent className="space-y-6">
         {/* Upload Area */}
         {!previewUrl ? (
@@ -158,7 +156,7 @@ export function InspirationUpload({ onMatchesFound }: InspirationUploadProps) {
               onChange={handleFileSelect}
               className="hidden"
             />
-            
+
             {/* Icon */}
             <div className="relative inline-block mb-4">
               <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
@@ -194,7 +192,7 @@ export function InspirationUpload({ onMatchesFound }: InspirationUploadProps) {
                 height={400}
                 className="max-w-full max-h-full object-contain"
               />
-              
+
               {/* Processing Overlay */}
               {isProcessing && (
                 <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center">
@@ -216,7 +214,7 @@ export function InspirationUpload({ onMatchesFound }: InspirationUploadProps) {
               {/* Success Badge */}
               {analysis && !isProcessing && (
                 <div className="absolute top-4 right-4">
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-full bg-green-500/90 text-white text-sm font-medium backdrop-blur">
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-full bg-success/90 text-success-foreground text-sm font-medium backdrop-blur">
                     <Check className="h-4 w-4" />
                     Analyzed
                   </div>
@@ -237,7 +235,7 @@ export function InspirationUpload({ onMatchesFound }: InspirationUploadProps) {
 
             {/* Analysis Results Mini Preview */}
             {analysis && !isProcessing && (
-              <Alert className="border-primary/30 bg-primary/5">
+              <Alert variant="info">
                 <Sparkles className="h-4 w-4 text-primary" />
                 <AlertDescription>
                   <div className="flex items-center justify-between">
@@ -247,9 +245,7 @@ export function InspirationUpload({ onMatchesFound }: InspirationUploadProps) {
                         Detected {analysis.tags?.length || 0} style features
                       </p>
                     </div>
-                    <Badge variant="secondary" className="bg-primary/10 text-primary">
-                      {analysis.tags?.slice(0, 3).join(', ')}...
-                    </Badge>
+                    <Badge variant="outline">{analysis.tags?.slice(0, 3).join(', ')}...</Badge>
                   </div>
                 </AlertDescription>
               </Alert>
@@ -289,7 +285,7 @@ export function InspirationUpload({ onMatchesFound }: InspirationUploadProps) {
                   </>
                 )}
               </Button>
-              
+
               {!isProcessing && (
                 <Button variant="outline" onClick={handleClear} size="lg" className="h-12">
                   <X className="h-4 w-4" />

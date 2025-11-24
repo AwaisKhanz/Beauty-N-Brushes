@@ -15,6 +15,14 @@ import { Step5Policies } from '@/components/onboarding/steps/Step5Policies';
 import { Step6PaymentSetup } from '@/components/onboarding/steps/Step6PaymentSetup';
 import { Step8Availability } from '@/components/onboarding/steps/Step8Availability';
 import { ONBOARDING_STEPS, ONBOARDING_STORAGE_KEY, ROUTES } from '@/constants';
+import type {
+  CreateAccountTypeRequest,
+  UpdateBusinessDetailsRequest,
+  SaveProfileMediaRequest,
+  UpdateBrandCustomizationRequest,
+  SavePoliciesRequest,
+  SetupAvailabilityRequest,
+} from '../../../../../../shared-types';
 
 const STEPS: Step[] = ONBOARDING_STEPS.map((step) => ({ ...step }));
 
@@ -181,36 +189,39 @@ export default function OnboardingPage() {
     }
   };
 
-  const handleNext = async (stepId: number, data: any) => {
+  const handleNext = async (stepId: number, data: unknown) => {
     setIsSaving(true);
     try {
       // Call appropriate API based on step
       switch (stepId) {
         case 1:
-          await api.onboarding.createAccountType(data);
-          setDefaultValues((prev) => ({ ...prev, accountType: data.accountType }));
+          await api.onboarding.createAccountType(data as CreateAccountTypeRequest);
+          setDefaultValues((prev) => ({
+            ...prev,
+            accountType: (data as CreateAccountTypeRequest).accountType,
+          }));
           break;
         case 2:
-          await api.onboarding.updateBusinessDetails(data);
-          setDefaultValues((prev) => ({ ...prev, ...data }));
+          await api.onboarding.updateBusinessDetails(data as UpdateBusinessDetailsRequest);
+          setDefaultValues((prev) => ({ ...prev, ...(data as UpdateBusinessDetailsRequest) }));
           break;
         case 3:
-          await api.onboarding.saveProfileMedia(data);
-          setDefaultValues((prev) => ({ ...prev, ...data }));
+          await api.onboarding.saveProfileMedia(data as SaveProfileMediaRequest);
+          setDefaultValues((prev) => ({ ...prev, ...(data as SaveProfileMediaRequest) }));
           break;
         case 4:
-          await api.onboarding.updateBrandCustomization(data);
-          setDefaultValues((prev) => ({ ...prev, ...data }));
+          await api.onboarding.updateBrandCustomization(data as UpdateBrandCustomizationRequest);
+          setDefaultValues((prev) => ({ ...prev, ...(data as UpdateBrandCustomizationRequest) }));
           break;
         case 5:
-          await api.onboarding.savePolicies(data);
-          setDefaultValues((prev) => ({ ...prev, policies: data }));
+          await api.onboarding.savePolicies(data as SavePoliciesRequest);
+          setDefaultValues((prev) => ({ ...prev, policies: data as SavePoliciesRequest }));
           break;
         case 6:
           // Payment handled by child component
           break;
         case 7:
-          await api.onboarding.setupAvailability(data);
+          await api.onboarding.setupAvailability(data as SetupAvailabilityRequest);
           // Complete onboarding
           await api.onboarding.complete();
           localStorage.removeItem(ONBOARDING_STORAGE_KEY);

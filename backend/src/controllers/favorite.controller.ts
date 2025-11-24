@@ -111,28 +111,38 @@ export async function getFavorites(
             businessName: true,
             slug: true,
             logoUrl: true,
+            coverPhotoUrl: true,
+            tagline: true,
             averageRating: true,
             totalReviews: true,
             city: true,
             state: true,
             serviceSpecializations: true,
+            instantBookingEnabled: true,
+            _count: {
+              select: { services: true },
+            },
           },
         },
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    const favoritesData: FavoriteProvider[] = favorites.map((f: any) => ({
+    const favoritesData: FavoriteProvider[] = favorites.map((f) => ({
       id: f.id,
       providerId: f.provider.id,
       businessName: f.provider.businessName || '',
       slug: f.provider.slug,
       logoUrl: f.provider.logoUrl,
+      coverImageUrl: f.provider.coverPhotoUrl,
+      tagline: f.provider.tagline,
       averageRating: Number(f.provider.averageRating),
       totalReviews: f.provider.totalReviews,
       city: f.provider.city,
       state: f.provider.state,
       specializations: f.provider.serviceSpecializations,
+      servicesCount: f.provider._count.services,
+      instantBooking: f.provider.instantBookingEnabled,
       addedAt: f.createdAt.toISOString(),
     }));
 

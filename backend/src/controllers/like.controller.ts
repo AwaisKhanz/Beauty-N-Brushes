@@ -14,6 +14,7 @@ import type {
   GetLikesResponse,
   CheckLikeStatusResponse,
 } from '../../../shared-types';
+import { z } from 'zod';
 
 /**
  * Toggle like (provider or service)
@@ -26,22 +27,21 @@ export async function toggle(req: AuthRequest, res: Response, next: NextFunction
       throw new AppError(401, 'Unauthorized');
     }
 
-    const { targetId, targetType }: ToggleLikeRequest = req.body;
+    const schema = z.object({
+      targetId: z.string().uuid('Valid target ID is required'),
+      targetType: z.enum(['provider', 'service'], {
+        errorMap: () => ({ message: 'Target type must be "provider" or "service"' }),
+      }),
+    });
 
-    if (!targetId || !targetType) {
-      throw new AppError(400, 'Missing required fields');
-    }
-
-    if (targetType !== 'provider' && targetType !== 'service') {
-      throw new AppError(400, 'Invalid target type. Must be "provider" or "service"');
-    }
+    const data = schema.parse(req.body) as ToggleLikeRequest;
 
     let result: { liked: boolean; likeCount: number };
 
-    if (targetType === 'provider') {
-      result = await likeService.toggleProviderLike(userId, targetId);
+    if (data.targetType === 'provider') {
+      result = await likeService.toggleProviderLike(userId, data.targetId);
     } else {
-      result = await likeService.toggleServiceLike(userId, targetId);
+      result = await likeService.toggleServiceLike(userId, data.targetId);
     }
 
     sendSuccess<ToggleLikeResponse>(res, {
@@ -50,6 +50,11 @@ export async function toggle(req: AuthRequest, res: Response, next: NextFunction
       likeCount: result.likeCount,
     });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return next(
+        new AppError(400, `Validation failed: ${error.errors.map((e) => e.message).join(', ')}`)
+      );
+    }
     next(error);
   }
 }

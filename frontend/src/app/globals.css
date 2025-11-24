@@ -53,6 +53,10 @@
     --info: 221 83% 53%; /* Blue for info states */
     --info-foreground: 0 0% 100%;
 
+    /* Rating Colors */
+    --rating-filled: 45 100% 50%; /* Yellow for filled stars */
+    --rating-empty: 0 0% 80%; /* Gray for empty stars */
+
     /* Border */
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
@@ -105,6 +109,10 @@
 
     --info: 221 83% 53%;
     --info-foreground: 0 0% 100%;
+
+    /* Rating Colors (Dark Mode) */
+    --rating-filled: 45 100% 60%; /* Slightly brighter yellow for dark mode */
+    --rating-empty: 0 0% 40%; /* Darker gray for dark mode */
 
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;

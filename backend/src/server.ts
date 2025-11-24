@@ -37,6 +37,12 @@ import adminRoutes from './routes/admin.routes';
 import reviewRoutes from './routes/review.routes';
 import likeRoutes from './routes/like.routes';
 import favoriteRoutes from './routes/favorite.routes';
+import messageRoutes from './routes/message.routes';
+import savedSearchRoutes from './routes/savedSearch.routes';
+import financeRoutes from './routes/finance.routes';
+import analyticsRoutes from './routes/analytics.routes';
+import clientManagementRoutes from './routes/client-management.routes';
+import locationRoutes from './routes/location.routes';
 
 const app: Application = express();
 const PORT = process.env.PORT || 8000;
@@ -139,12 +145,18 @@ app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/calendar', calendarRoutes);
 app.use('/api/v1/inspiration', inspirationRoutes);
 app.use('/api/v1/settings', settingsRoutes);
+app.use('/api/v1/locations', locationRoutes);
 app.use('/api/v1/service-drafts', serviceDraftRoutes);
 app.use('/api/v1/team', teamRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/reviews', reviewRoutes);
 app.use('/api/v1/likes', likeRoutes);
 app.use('/api/v1/favorites', favoriteRoutes);
+app.use('/api/v1/messages', messageRoutes);
+app.use('/api/v1/saved-searches', savedSearchRoutes);
+app.use('/api/v1/finance', financeRoutes);
+app.use('/api/v1/analytics', analyticsRoutes);
+app.use('/api/v1/clients', clientManagementRoutes);
 
 // 404 handler
 app.use(notFoundHandler);

@@ -54,14 +54,16 @@ export function FilterSidebar({
   ).length;
 
   return (
-    <Card className="h-fit">
-      <CardHeader className="pb-3">
+    <Card className="h-fit border-primary/10 shadow-sm">
+      <CardHeader className="pb-3 bg-gradient-to-br from-primary/5 to-accent/5 border-b border-primary/10">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            <CardTitle>Filters</CardTitle>
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Filter className="h-5 w-5 text-primary" />
+            </div>
+            <CardTitle className="text-foreground">Filters</CardTitle>
             {activeFilterCount > 0 && (
-              <Badge variant="secondary" className="ml-2">
+              <Badge variant="default" className="ml-2">
                 {activeFilterCount}
               </Badge>
             )}
@@ -74,7 +76,7 @@ export function FilterSidebar({
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-6 pt-6">
         {/* Category Filter */}
         {categories.length > 0 && (
           <div className="space-y-3">

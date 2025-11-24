@@ -21,6 +21,7 @@ import type {
   AddProviderResponseResponse,
   MarkReviewHelpfulResponse,
 } from '../../../shared-types';
+import { z } from 'zod';
 
 /**
  * Create a new review
@@ -33,11 +34,20 @@ export async function create(req: AuthRequest, res: Response, next: NextFunction
       throw new AppError(401, 'Unauthorized');
     }
 
-    const data: CreateReviewRequest = req.body;
+    const schema = z.object({
+      bookingId: z.string().uuid('Valid booking ID is required'),
+      overallRating: z
+        .number()
+        .min(1, 'Rating must be at least 1')
+        .max(5, 'Rating must be at most 5'),
+      qualityRating: z.number().min(1).max(5).optional(),
+      timelinessRating: z.number().min(1).max(5).optional(),
+      professionalismRating: z.number().min(1).max(5).optional(),
+      reviewText: z.string().max(2000, 'Review text must be under 2000 characters').optional(),
+      mediaFiles: z.array(z.string().url()).optional(),
+    });
 
-    if (!data.bookingId || !data.overallRating) {
-      throw new AppError(400, 'Missing required fields');
-    }
+    const data = schema.parse(req.body) as CreateReviewRequest;
 
     const review = await reviewService.createReview(userId, data);
 
@@ -50,6 +60,11 @@ export async function create(req: AuthRequest, res: Response, next: NextFunction
       201
     );
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return next(
+        new AppError(400, `Validation failed: ${error.errors.map((e) => e.message).join(', ')}`)
+      );
+    }
     next(error);
   }
 }
@@ -76,6 +91,35 @@ export async function getByProvider(
     const result = await reviewService.getReviewsByProvider(providerId, page, limit, userId);
 
     sendSuccess<GetReviewsResponse>(res, result);
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Get reviews created by current user
+ * GET /api/v1/reviews/my-reviews
+ */
+export async function getMyReviews(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new AppError(401, 'Unauthorized');
+    }
+
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+
+    const result = await reviewService.getReviewsByClient(userId, page, limit);
+
+    sendSuccess(res, {
+      message: 'Reviews retrieved successfully',
+      ...result,
+    });
   } catch (error) {
     next(error);
   }
@@ -117,11 +161,20 @@ export async function update(req: AuthRequest, res: Response, next: NextFunction
     }
 
     const { reviewId } = req.params;
-    const data: UpdateReviewRequest = req.body;
 
     if (!reviewId) {
       throw new AppError(400, 'Review ID required');
     }
+
+    const schema = z.object({
+      reviewText: z.string().max(2000).optional(),
+      overallRating: z.number().min(1).max(5).optional(),
+      qualityRating: z.number().min(1).max(5).optional(),
+      timelinessRating: z.number().min(1).max(5).optional(),
+      professionalismRating: z.number().min(1).max(5).optional(),
+    });
+
+    const data = schema.parse(req.body) as UpdateReviewRequest;
 
     const review = await reviewService.updateReview(reviewId, userId, data);
 
@@ -130,6 +183,11 @@ export async function update(req: AuthRequest, res: Response, next: NextFunction
       review,
     });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return next(
+        new AppError(400, `Validation failed: ${error.errors.map((e) => e.message).join(', ')}`)
+      );
+    }
     next(error);
   }
 }
@@ -187,20 +245,24 @@ export async function addResponse(
     }
 
     const { reviewId } = req.params;
-    const { providerResponse }: ProviderResponseRequest = req.body;
 
     if (!reviewId) {
       throw new AppError(400, 'Review ID required');
     }
 
-    if (!providerResponse) {
-      throw new AppError(400, 'Response text required');
-    }
+    const schema = z.object({
+      providerResponse: z
+        .string()
+        .min(1, 'Response text is required')
+        .max(1000, 'Response must be under 1000 characters'),
+    });
+
+    const data = schema.parse(req.body) as ProviderResponseRequest;
 
     const review = await reviewService.addProviderResponse(
       reviewId,
       providerProfile.id,
-      providerResponse
+      data.providerResponse
     );
 
     sendSuccess<AddProviderResponseResponse>(res, {
@@ -208,6 +270,11 @@ export async function addResponse(
       review,
     });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return next(
+        new AppError(400, `Validation failed: ${error.errors.map((e) => e.message).join(', ')}`)
+      );
+    }
     next(error);
   }
 }

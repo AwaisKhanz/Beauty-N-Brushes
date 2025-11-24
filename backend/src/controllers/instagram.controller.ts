@@ -4,6 +4,12 @@ import { AppError } from '../middleware/errorHandler';
 import { instagramService } from '../lib/instagram';
 import { prisma } from '../config/database';
 import type { AuthRequest } from '../types';
+import type {
+  ConnectInstagramResponse,
+  ImportInstagramMediaResponse,
+  DisconnectInstagramResponse,
+  InstagramMedia,
+} from '../../../shared-types';
 
 /**
  * Initiate Instagram OAuth flow
@@ -23,7 +29,7 @@ export async function connectInstagram(
     // Use userId as state to verify callback
     const authUrl = instagramService.getAuthorizationUrl(userId);
 
-    sendSuccess(res, {
+    sendSuccess<ConnectInstagramResponse>(res, {
       authUrl,
       message: 'Redirect user to Instagram authorization',
     });
@@ -72,7 +78,36 @@ export async function handleCallback(
       throw new AppError(404, 'Provider profile not found');
     }
 
-    // Save Instagram connection to provider profile
+    // Create or update Instagram connection
+    const existingConnection = await prisma.instagramConnection.findUnique({
+      where: { providerId: profile.id },
+    });
+
+    if (existingConnection) {
+      await prisma.instagramConnection.update({
+        where: { id: existingConnection.id },
+        data: {
+          instagramUserId: authResponse.user_id.toString(),
+          instagramUsername: authResponse.username || 'unknown',
+          accessToken: longLivedToken.access_token,
+          tokenExpiresAt: expiryDate,
+          syncStatus: 'connected',
+        },
+      });
+    } else {
+      await prisma.instagramConnection.create({
+        data: {
+          providerId: profile.id,
+          instagramUserId: authResponse.user_id.toString(),
+          instagramUsername: authResponse.username || 'unknown',
+          accessToken: longLivedToken.access_token,
+          tokenExpiresAt: expiryDate,
+          syncStatus: 'connected',
+        },
+      });
+    }
+
+    // Also update legacy fields in ProviderProfile for backward compatibility
     await prisma.providerProfile.update({
       where: { id: profile.id },
       data: {
@@ -84,7 +119,7 @@ export async function handleCallback(
 
     // Redirect to success page
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    res.redirect(`${frontendUrl}/onboarding/profile-media?instagram=connected`);
+    res.redirect(`${frontendUrl}/provider/settings/profile?instagram=connected`);
   } catch (error) {
     if (error instanceof Error) {
       console.error('Instagram OAuth error:', error.message);
@@ -98,9 +133,139 @@ export async function handleCallback(
 }
 
 /**
- * Import Instagram media
+ * Get Instagram media (fetch from Instagram, don't save yet)
+ */
+export async function getMedia(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      throw new AppError(401, 'Unauthorized');
+    }
+
+    const profile = await prisma.providerProfile.findUnique({
+      where: { userId },
+      include: {
+        instagramConnection: true,
+      },
+    });
+
+    if (!profile) {
+      throw new AppError(404, 'Provider profile not found');
+    }
+
+    const connection = profile.instagramConnection;
+
+    if (!connection) {
+      throw new AppError(400, 'Instagram not connected');
+    }
+
+    // Check if token is expired
+    if (connection.tokenExpiresAt < new Date()) {
+      throw new AppError(400, 'Instagram token expired. Please reconnect.');
+    }
+
+    // Fetch media from Instagram
+    const media = await instagramService.getUserMedia(connection.accessToken, 25);
+
+    // Filter images and videos
+    const validMedia = media.filter(
+      (item) => item.media_type === 'IMAGE' || item.media_type === 'VIDEO'
+    ) as InstagramMedia[];
+
+    sendSuccess<ImportInstagramMediaResponse>(res, {
+      message: 'Instagram media fetched successfully',
+      media: validMedia,
+      total: validMedia.length,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Import selected Instagram media to platform
  */
 export async function importMedia(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      throw new AppError(401, 'Unauthorized');
+    }
+
+    const { mediaIds } = req.body;
+
+    if (!mediaIds || !Array.isArray(mediaIds) || mediaIds.length === 0) {
+      throw new AppError(400, 'Media IDs required');
+    }
+
+    const profile = await prisma.providerProfile.findUnique({
+      where: { userId },
+      include: {
+        instagramConnection: true,
+      },
+    });
+
+    if (!profile || !profile.instagramConnection) {
+      throw new AppError(404, 'Instagram not connected');
+    }
+
+    const connection = profile.instagramConnection;
+
+    // Fetch media details from Instagram
+    const media = await instagramService.getUserMedia(connection.accessToken, 50);
+    const selectedMedia = media.filter((m) => mediaIds.includes(m.id));
+
+    // Import media to database
+    const imported = await Promise.all(
+      selectedMedia.map(async (item) => {
+        // Check if already imported
+        const existing = await prisma.instagramMediaImport.findUnique({
+          where: { instagramMediaId: item.id },
+        });
+
+        if (existing) {
+          return existing;
+        }
+
+        return prisma.instagramMediaImport.create({
+          data: {
+            connectionId: connection.id,
+            providerId: profile.id,
+            instagramMediaId: item.id,
+            mediaUrl: item.media_url,
+            mediaType: item.media_type.toLowerCase(),
+            thumbnailUrl: item.thumbnail_url,
+            caption: item.caption,
+          },
+        });
+      })
+    );
+
+    // Update last sync time
+    await prisma.instagramConnection.update({
+      where: { id: connection.id },
+      data: { lastSyncAt: new Date() },
+    });
+
+    sendSuccess(res, {
+      message: 'Media imported successfully',
+      imported: imported.length,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Get imported Instagram media from database
+ */
+export async function getImportedMedia(
   req: AuthRequest,
   res: Response,
   next: NextFunction
@@ -120,25 +285,98 @@ export async function importMedia(
       throw new AppError(404, 'Provider profile not found');
     }
 
-    if (!profile.instagramAccessToken) {
-      throw new AppError(400, 'Instagram not connected');
-    }
-
-    // Check if token is expired
-    if (profile.instagramTokenExpiry && profile.instagramTokenExpiry < new Date()) {
-      throw new AppError(400, 'Instagram token expired. Please reconnect.');
-    }
-
-    // Fetch media from Instagram
-    const media = await instagramService.getUserMedia(profile.instagramAccessToken, 25);
-
-    // Filter only images
-    const imageMedia = media.filter((item) => item.media_type === 'IMAGE');
+    const importedMedia = await prisma.instagramMediaImport.findMany({
+      where: { providerId: profile.id },
+      orderBy: { importedAt: 'desc' },
+      include: {
+        service: {
+          select: {
+            id: true,
+            title: true,
+          },
+        },
+      },
+    });
 
     sendSuccess(res, {
-      message: 'Instagram media fetched successfully',
-      media: imageMedia,
-      total: imageMedia.length,
+      message: 'Imported media retrieved successfully',
+      media: importedMedia.map((m) => ({
+        id: m.id,
+        instagramMediaId: m.instagramMediaId,
+        mediaUrl: m.mediaUrl,
+        mediaType: m.mediaType,
+        thumbnailUrl: m.thumbnailUrl,
+        caption: m.caption,
+        linkedToServiceId: m.linkedToServiceId,
+        linkedToPortfolio: m.linkedToPortfolio,
+        service: m.service ? { id: m.service.id, title: m.service.title } : null,
+        importedAt: m.importedAt.toISOString(),
+      })),
+      total: importedMedia.length,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Link Instagram media to service
+ */
+export async function linkMediaToService(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      throw new AppError(401, 'Unauthorized');
+    }
+
+    const { mediaId, serviceId } = req.body;
+
+    if (!mediaId || !serviceId) {
+      throw new AppError(400, 'Media ID and Service ID required');
+    }
+
+    const profile = await prisma.providerProfile.findUnique({
+      where: { userId },
+    });
+
+    if (!profile) {
+      throw new AppError(404, 'Provider profile not found');
+    }
+
+    // Verify media and service belong to provider
+    const [media, service] = await Promise.all([
+      prisma.instagramMediaImport.findUnique({
+        where: { id: mediaId },
+      }),
+      prisma.service.findUnique({
+        where: { id: serviceId },
+      }),
+    ]);
+
+    if (!media || media.providerId !== profile.id) {
+      throw new AppError(404, 'Media not found or access denied');
+    }
+
+    if (!service || service.providerId !== profile.id) {
+      throw new AppError(404, 'Service not found or access denied');
+    }
+
+    // Link media to service
+    await prisma.instagramMediaImport.update({
+      where: { id: mediaId },
+      data: {
+        linkedToServiceId: serviceId,
+        linkedToPortfolio: true,
+      },
+    });
+
+    sendSuccess(res, {
+      message: 'Media linked to service successfully',
     });
   } catch (error) {
     next(error);
@@ -168,7 +406,12 @@ export async function disconnectInstagram(
       throw new AppError(404, 'Provider profile not found');
     }
 
-    // Remove Instagram connection
+    // Delete Instagram connection (cascade will delete media imports)
+    await prisma.instagramConnection.deleteMany({
+      where: { providerId: profile.id },
+    });
+
+    // Also clear legacy fields in ProviderProfile
     await prisma.providerProfile.update({
       where: { id: profile.id },
       data: {
@@ -178,7 +421,7 @@ export async function disconnectInstagram(
       },
     });
 
-    sendSuccess(res, {
+    sendSuccess<DisconnectInstagramResponse>(res, {
       message: 'Instagram disconnected successfully',
     });
   } catch (error) {

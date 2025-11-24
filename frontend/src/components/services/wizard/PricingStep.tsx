@@ -427,6 +427,70 @@ export function PricingStep({ form }: PricingStepProps) {
         </CardContent>
       </Card>
 
+      {/* Mobile/Home Service Configuration */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <DollarSign className="h-5 w-5" />
+            Mobile Service Options
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-start space-x-3">
+            <FormField
+              control={form.control}
+              name="mobileServiceAvailable"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                  <FormControl>
+                    <input
+                      type="checkbox"
+                      checked={field.value}
+                      onChange={field.onChange}
+                      className="mt-1"
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel>Offer mobile/home service</FormLabel>
+                    <FormDescription>
+                      Allow clients to book this service at their location
+                    </FormDescription>
+                  </div>
+                </FormItem>
+              )}
+            />
+          </div>
+
+          {form.watch('mobileServiceAvailable') && (
+            <FormField
+              control={form.control}
+              name="homeServiceFee"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Additional fee for home service</FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="number"
+                        placeholder="25"
+                        className="pl-10"
+                        {...field}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
+                      />
+                    </div>
+                  </FormControl>
+                  <FormDescription>
+                    Additional cost for traveling to client's location
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+        </CardContent>
+      </Card>
+
       {/* Pricing Tips */}
       <Card className="bg-warning/10 border-warning/20">
         <CardContent className="p-4">

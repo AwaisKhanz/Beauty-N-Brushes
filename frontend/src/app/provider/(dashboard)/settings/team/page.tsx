@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { SettingsLayout } from '@/components/settings/SettingsLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -63,10 +64,12 @@ export default function TeamManagementPage() {
       setCurrentCount(response.data.currentCount);
     } catch (err: unknown) {
       const errorMsg = extractErrorMessage(err) || 'Failed to load team members';
-      
+
       // Check if it's a "not a salon" error
       if (errorMsg.includes('only available for salon accounts')) {
-        setError('This feature is only available for salon accounts. Please upgrade your subscription tier.');
+        setError(
+          'This feature is only available for salon accounts. Please upgrade your subscription tier.'
+        );
       } else {
         setError(errorMsg);
       }
@@ -76,7 +79,11 @@ export default function TeamManagementPage() {
   }
 
   async function handleDelete(memberId: string, displayName: string) {
-    if (!confirm(`Are you sure you want to remove ${displayName} from your team? This action cannot be undone.`)) {
+    if (
+      !confirm(
+        `Are you sure you want to remove ${displayName} from your team? This action cannot be undone.`
+      )
+    ) {
       return;
     }
 
@@ -92,7 +99,7 @@ export default function TeamManagementPage() {
     switch (status) {
       case 'active':
         return (
-          <Badge className="bg-success gap-1">
+          <Badge variant="success" className="gap-1">
             <CheckCircle2 className="h-3 w-3" />
             Active
           </Badge>
@@ -241,10 +248,12 @@ export default function TeamManagementPage() {
                       <TableCell>
                         <div className="flex items-center gap-3">
                           {member.user?.avatarUrl ? (
-                            <img
+                            <Image
                               src={member.user.avatarUrl}
                               alt={member.displayName}
-                              className="h-10 w-10 rounded-full object-cover"
+                              width={40}
+                              height={40}
+                              className="rounded-full object-cover"
                             />
                           ) : (
                             <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
@@ -256,14 +265,10 @@ export default function TeamManagementPage() {
                           <div>
                             <p className="font-medium">{member.displayName}</p>
                             {member.user && (
-                              <p className="text-sm text-muted-foreground">
-                                {member.user.email}
-                              </p>
+                              <p className="text-sm text-muted-foreground">{member.user.email}</p>
                             )}
                             {member.invitedEmail && member.status === 'pending' && (
-                              <p className="text-sm text-muted-foreground">
-                                {member.invitedEmail}
-                              </p>
+                              <p className="text-sm text-muted-foreground">{member.invitedEmail}</p>
                             )}
                           </div>
                         </div>
@@ -330,8 +335,8 @@ export default function TeamManagementPage() {
               <Alert className="mt-4">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  You've reached your team member limit ({limit}). Contact support to increase
-                  your limit.
+                  You've reached your team member limit ({limit}). Contact support to increase your
+                  limit.
                 </AlertDescription>
               </Alert>
             )}
@@ -367,4 +372,3 @@ export default function TeamManagementPage() {
     </SettingsLayout>
   );
 }
-

@@ -4,7 +4,6 @@ import React, { createContext, useContext, useEffect, useState, useRef } from 'r
 import { useRouter, usePathname } from 'next/navigation';
 import { api } from '@/lib/api';
 import type {
-  User,
   AuthUser,
   LoginRequest,
   RegisterRequest,
@@ -13,7 +12,7 @@ import type {
 } from '@/types';
 
 interface AuthContextType {
-  user: User | null;
+  user: AuthUser | null;
   loading: boolean;
   isAuthenticated: boolean;
   login: (data: LoginRequest) => Promise<AuthUser>;
@@ -39,7 +38,7 @@ const PUBLIC_ROUTES = [
 ];
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
@@ -67,7 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setLoading(true);
       const response = await api.auth.me();
-      setUser(response.data.user as User);
+      setUser(response.data.user as AuthUser);
     } catch (error) {
       // Silent fail - user is not authenticated, which is fine
       // This could be due to expired tokens, no tokens, or network issues
@@ -82,7 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const response = await api.auth.login(data);
       const { user: authUser } = response.data;
 
-      setUser(authUser as User);
+      setUser(authUser as AuthUser);
 
       return authUser;
     } catch (error) {
@@ -96,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const response = await api.auth.register(data);
       const { user: authUser } = response.data;
 
-      setUser(authUser as User);
+      setUser(authUser as AuthUser);
 
       return authUser;
     } catch (error) {

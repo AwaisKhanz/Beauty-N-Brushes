@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import Image from 'next/image';
 import { SettingsLayout } from '@/components/settings/SettingsLayout';
+import { InstagramMediaImport } from '@/components/provider/InstagramMediaImport';
 import {
   Form,
   FormControl,
@@ -21,8 +23,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, AlertCircle, Instagram, Link as LinkIcon } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { CheckCircle2, AlertCircle, Instagram, Link as LinkIcon, Camera, Upload, X, ImageIcon } from 'lucide-react';
 import { api } from '@/lib/api';
+import { uploadService } from '@/lib/upload';
 import { extractErrorMessage } from '@/lib/error-utils';
 import type { UpdateProfileSettingsRequest } from '@/shared-types/settings.types';
 
@@ -47,6 +51,13 @@ export default function ProfileSettingsPage() {
   const [instagramConnected, setInstagramConnected] = useState(false);
   const [instagramUsername, setInstagramUsername] = useState<string | null>(null);
   const [disconnecting, setDisconnecting] = useState(false);
+
+  // Photo upload states
+  const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
+  const [coverPhotoFile, setCoverPhotoFile] = useState<File | null>(null);
+  const [existingProfilePhotoUrl, setExistingProfilePhotoUrl] = useState<string | null>(null);
+  const [existingCoverPhotoUrl, setExistingCoverPhotoUrl] = useState<string | null>(null);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -139,6 +150,14 @@ export default function ProfileSettingsPage() {
         tiktokHandle: profile.tiktokHandle || '',
         facebookUrl: profile.facebookUrl || '',
       });
+
+      // Set existing photo URLs
+      if (profile.profilePhotoUrl) {
+        setExistingProfilePhotoUrl(profile.profilePhotoUrl);
+      }
+      if (profile.coverPhotoUrl) {
+        setExistingCoverPhotoUrl(profile.coverPhotoUrl);
+      }
     } catch (err: unknown) {
       setError(extractErrorMessage(err) || 'Failed to load profile settings');
     } finally {
@@ -149,8 +168,37 @@ export default function ProfileSettingsPage() {
   async function onSubmit(values: ProfileFormValues) {
     try {
       setSaving(true);
+      setUploadingPhotos(true);
       setError('');
       setSuccess('');
+
+      // Upload photos if new files are selected
+      let profilePhotoUrl = existingProfilePhotoUrl;
+      let coverPhotoUrl = existingCoverPhotoUrl;
+
+      if (profilePhotoFile) {
+        try {
+          const uploadResult = await uploadService.uploadFile(profilePhotoFile, 'profile');
+          profilePhotoUrl = uploadResult.url;
+        } catch (uploadError) {
+          setError(extractErrorMessage(uploadError) || 'Failed to upload profile photo');
+          setSaving(false);
+          setUploadingPhotos(false);
+          return;
+        }
+      }
+
+      if (coverPhotoFile) {
+        try {
+          const uploadResult = await uploadService.uploadFile(coverPhotoFile, 'cover');
+          coverPhotoUrl = uploadResult.url;
+        } catch (uploadError) {
+          setError(extractErrorMessage(uploadError) || 'Failed to upload cover photo');
+          setSaving(false);
+          setUploadingPhotos(false);
+          return;
+        }
+      }
 
       const data: UpdateProfileSettingsRequest = {
         businessName: values.businessName,
@@ -161,9 +209,20 @@ export default function ProfileSettingsPage() {
         instagramHandle: values.instagramHandle || null,
         tiktokHandle: values.tiktokHandle || null,
         facebookUrl: values.facebookUrl || null,
+        profilePhotoUrl: profilePhotoUrl || null,
+        coverPhotoUrl: coverPhotoUrl || null,
       };
 
       await api.settings.updateProfile(data);
+      
+      // Update existing URLs if uploaded
+      if (profilePhotoUrl) setExistingProfilePhotoUrl(profilePhotoUrl);
+      if (coverPhotoUrl) setExistingCoverPhotoUrl(coverPhotoUrl);
+      
+      // Clear file selections
+      setProfilePhotoFile(null);
+      setCoverPhotoFile(null);
+
       setSuccess('Profile settings updated successfully');
 
       // Clear success message after 3 seconds
@@ -172,6 +231,13 @@ export default function ProfileSettingsPage() {
       setError(extractErrorMessage(err) || 'Failed to update profile settings');
     } finally {
       setSaving(false);
+      setUploadingPhotos(false);
+    }
+  }
+
+  function handleFileSelect(file: File | null, setter: (file: File | null) => void) {
+    if (file && file.type.startsWith('image/')) {
+      setter(file);
     }
   }
 
@@ -206,14 +272,152 @@ export default function ProfileSettingsPage() {
       )}
 
       {success && (
-        <Alert className="mb-6 border-success bg-success/10">
-          <CheckCircle2 className="h-4 w-4 text-success" />
-          <AlertDescription className="text-success">{success}</AlertDescription>
+        <Alert variant="success" className="mb-6">
+          <CheckCircle2 className="h-4 w-4" />
+          <AlertDescription>{success}</AlertDescription>
         </Alert>
       )}
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          {/* Profile Photo */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Camera className="h-5 w-5" />
+                Profile Photo
+              </CardTitle>
+              <CardDescription>Your main profile picture visible to clients</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-6">
+                <div className="relative h-24 w-24 rounded-full bg-muted flex items-center justify-center overflow-hidden border-2 border-border">
+                  {profilePhotoFile ? (
+                    <Image
+                      src={URL.createObjectURL(profilePhotoFile)}
+                      alt="Profile preview"
+                      fill
+                      className="object-cover"
+                    />
+                  ) : existingProfilePhotoUrl ? (
+                    <Image
+                      src={existingProfilePhotoUrl}
+                      alt="Profile"
+                      fill
+                      className="object-cover"
+                    />
+                  ) : (
+                    <Camera className="h-8 w-8 text-muted-foreground" />
+                  )}
+                </div>
+
+                <div className="flex-1 space-y-2">
+                  <Label htmlFor="profile-photo" className="cursor-pointer">
+                    <div className="border-2 border-dashed border-border rounded-lg p-4 text-center hover:border-primary/50 transition-colors">
+                      <Upload className="h-5 w-5 mx-auto mb-2 text-muted-foreground" />
+                      <p className="text-sm font-medium">
+                        {profilePhotoFile || existingProfilePhotoUrl ? 'Change profile photo' : 'Upload profile photo'}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">PNG, JPG up to 5MB</p>
+                    </div>
+                  </Label>
+                  <Input
+                    id="profile-photo"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleFileSelect(e.target.files?.[0] || null, setProfilePhotoFile)}
+                  />
+
+                  {(profilePhotoFile || existingProfilePhotoUrl) && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setProfilePhotoFile(null);
+                        setExistingProfilePhotoUrl(null);
+                      }}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      Remove
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Cover Photo */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ImageIcon className="h-5 w-5" />
+                Cover Photo
+              </CardTitle>
+              <CardDescription>A banner image for your profile (optional)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="relative h-32 w-full rounded-lg bg-muted flex items-center justify-center overflow-hidden border-2 border-border">
+                  {coverPhotoFile ? (
+                    <Image
+                      src={URL.createObjectURL(coverPhotoFile)}
+                      alt="Cover preview"
+                      fill
+                      className="object-cover"
+                    />
+                  ) : existingCoverPhotoUrl ? (
+                    <Image
+                      src={existingCoverPhotoUrl}
+                      alt="Cover"
+                      fill
+                      className="object-cover"
+                    />
+                  ) : (
+                    <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  <Label htmlFor="cover-photo" className="cursor-pointer flex-1">
+                    <div className="border-2 border-dashed border-border rounded-lg p-4 text-center hover:border-primary/50 transition-colors">
+                      <Upload className="h-5 w-5 mx-auto mb-2 text-muted-foreground" />
+                      <p className="text-sm font-medium">
+                        {coverPhotoFile || existingCoverPhotoUrl ? 'Change cover photo' : 'Upload cover photo'}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">PNG, JPG up to 10MB</p>
+                    </div>
+                  </Label>
+                  <Input
+                    id="cover-photo"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleFileSelect(e.target.files?.[0] || null, setCoverPhotoFile)}
+                  />
+                </div>
+
+                {(coverPhotoFile || existingCoverPhotoUrl) && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setCoverPhotoFile(null);
+                      setExistingCoverPhotoUrl(null);
+                    }}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    Remove
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Business Name */}
           <FormField
             control={form.control}
@@ -350,8 +554,8 @@ export default function ProfileSettingsPage() {
 
           {/* Submit Button */}
           <div className="flex justify-end">
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Saving...' : 'Save Changes'}
+            <Button type="submit" disabled={saving || uploadingPhotos}>
+              {saving || uploadingPhotos ? 'Saving...' : 'Save Changes'}
             </Button>
           </div>
         </form>
@@ -371,7 +575,7 @@ export default function ProfileSettingsPage() {
               </CardDescription>
             </div>
             {instagramConnected ? (
-              <Badge className="bg-success gap-1">
+              <Badge variant="success" className="gap-1">
                 <CheckCircle2 className="h-3 w-3" />
                 Connected
               </Badge>
@@ -417,6 +621,11 @@ export default function ProfileSettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Instagram Media Import */}
+      {instagramConnected && (
+        <InstagramMediaImport onImportComplete={() => checkInstagramConnection()} />
+      )}
     </SettingsLayout>
   );
 }

@@ -2,6 +2,9 @@ import { Response, NextFunction } from 'express';
 import { sendSuccess } from '../utils/response';
 import { settingsService } from '../services/settings.service';
 import { AppError } from '../middleware/errorHandler';
+import { stripe } from '../lib/stripe';
+import { prisma } from '../config/database';
+import { z } from 'zod';
 import type { AuthRequest } from '../types';
 import type {
   ProviderSettingsResponse,
@@ -26,7 +29,6 @@ import type {
   CancelSubscriptionRequest,
   CancelSubscriptionResponse,
 } from '../../../shared-types';
-import { z } from 'zod';
 
 /**
  * Get profile settings
@@ -72,6 +74,8 @@ export async function updateProfileSettings(
       instagramHandle: z.string().max(100).optional().nullable(),
       tiktokHandle: z.string().max(100).optional().nullable(),
       facebookUrl: z.string().url().optional().nullable(),
+      profilePhotoUrl: z.string().url().optional().nullable(),
+      coverPhotoUrl: z.string().url().optional().nullable(),
     });
 
     const data = schema.parse(req.body) as UpdateProfileSettingsRequest;
@@ -250,7 +254,92 @@ export async function getSubscriptionInfo(
 }
 
 /**
+ * Create SetupIntent for provider payment method
+ * POST /api/v1/settings/payment-method/setup-intent
+ */
+export async function createSetupIntent(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new AppError(401, 'Unauthorized');
+    }
+
+    const profile = await prisma.providerProfile.findUnique({
+      where: { userId },
+      select: {
+        id: true,
+        paymentProvider: true,
+        stripeCustomerId: true,
+        regionCode: true,
+        user: {
+          select: {
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+
+    if (!profile) {
+      throw new AppError(404, 'Provider profile not found');
+    }
+
+    const regionCode = profile.regionCode as 'NA' | 'EU' | 'GH' | 'NG';
+    const isStripe = regionCode === 'NA' || regionCode === 'EU';
+
+    if (!isStripe) {
+      throw new AppError(400, 'SetupIntent only available for Stripe regions');
+    }
+
+    let stripeCustomerId = profile.stripeCustomerId;
+
+    // Check if customer ID is a trial placeholder (starts with 'trial_customer_')
+    const isTrialPlaceholder = stripeCustomerId?.startsWith('trial_customer_');
+
+    // Create real Stripe customer if doesn't exist or is a trial placeholder
+    if (!stripeCustomerId || isTrialPlaceholder) {
+      const customer = await stripe.customers.create({
+        email: profile.user.email,
+        name: `${profile.user.firstName} ${profile.user.lastName}`,
+        metadata: {
+          providerId: profile.id,
+          userId: userId,
+          type: 'provider',
+        },
+      });
+      stripeCustomerId = customer.id;
+
+      // Update profile with real customer ID
+      await prisma.providerProfile.update({
+        where: { id: profile.id },
+        data: { stripeCustomerId },
+      });
+    }
+
+    // Create SetupIntent
+    const setupIntent = await stripe.setupIntents.create({
+      customer: stripeCustomerId,
+      payment_method_types: ['card'],
+      usage: 'off_session',
+    });
+
+    sendSuccess(res, {
+      message: 'SetupIntent created successfully',
+      clientSecret: setupIntent.client_secret || '',
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * Update payment method
+ * POST /api/v1/settings/payment-method
  */
 export async function updatePaymentMethod(
   req: AuthRequest,

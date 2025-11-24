@@ -7,10 +7,13 @@ import { aiService } from '../lib/ai';
 import { MatchingEngine } from '../lib/matching-engine';
 import type { AuthRequest } from '../types';
 import type {
+  AnalyzeInspirationRequest,
   AnalyzeInspirationResponse,
+  MatchInspirationRequest,
   MatchInspirationResponse,
   SearchMode,
 } from '../../../shared-types';
+import { z } from 'zod';
 
 /**
  * ============================================
@@ -70,11 +73,12 @@ export async function analyzeInspiration(
       throw new AppError(401, 'Unauthorized');
     }
 
-    const { imageUrl, notes } = req.body;
+    const schema = z.object({
+      imageUrl: z.string().url('Valid image URL is required'),
+      notes: z.string().max(500).optional(),
+    });
 
-    if (!imageUrl) {
-      throw new AppError(400, 'Image URL required');
-    }
+    const { imageUrl, notes } = schema.parse(req.body) as AnalyzeInspirationRequest;
 
     // TWO-STAGE AI ANALYSIS (matching provider flow)
     console.log('🤖 Analyzing inspiration image:', imageUrl);
@@ -139,6 +143,11 @@ export async function analyzeInspiration(
       200
     );
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return next(
+        new AppError(400, `Validation failed: ${error.errors.map((e) => e.message).join(', ')}`)
+      );
+    }
     console.error('❌ Analyze inspiration error:', error);
     next(error);
   }
@@ -159,11 +168,26 @@ export async function matchInspiration(
       throw new AppError(401, 'Unauthorized');
     }
 
-    const { embedding, tags, location, maxResults = 20, searchMode = 'balanced' } = req.body;
+    const schema = z.object({
+      embedding: z.array(z.number(), { required_error: 'Embedding is required' }).min(1),
+      tags: z.array(z.string()).optional(),
+      location: z
+        .object({
+          city: z.string().optional(),
+          state: z.string().optional(),
+        })
+        .optional(),
+      maxResults: z.number().int().min(1).max(50).optional(),
+      searchMode: z.enum(['balanced', 'visual', 'semantic', 'style', 'color']).optional(),
+    });
 
-    if (!embedding || !Array.isArray(embedding)) {
-      throw new AppError(400, 'Embedding required');
-    }
+    const {
+      embedding,
+      tags,
+      location,
+      maxResults = 20,
+      searchMode = 'balanced',
+    } = schema.parse(req.body) as MatchInspirationRequest;
 
     console.log('🔍 Starting multi-vector hybrid search...');
     console.log(`   Search Mode: ${searchMode}`);
@@ -353,6 +377,11 @@ export async function matchInspiration(
       totalMatches: rankedMatches.length,
     });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return next(
+        new AppError(400, `Validation failed: ${error.errors.map((e) => e.message).join(', ')}`)
+      );
+    }
     console.error('❌ Match inspiration error:', error);
     next(error);
   }

@@ -3,6 +3,13 @@ import { sendSuccess } from '../utils/response';
 import { AppError } from '../middleware/errorHandler';
 import { providerService } from '../services/provider.service';
 import type { AuthRequest } from '../types';
+import type {
+  PauseProfileRequest,
+  PauseProfileResponse,
+  ResumeProfileResponse,
+  GetPublicProviderProfileResponse,
+} from '../../../shared-types';
+import { z } from 'zod';
 
 /**
  * Pause provider profile
@@ -19,15 +26,29 @@ export async function pauseProfile(
       throw new AppError(401, 'Unauthorized');
     }
 
-    const { reason } = req.body;
+    const schema = z.object({
+      reason: z.string().optional(),
+    });
 
-    const profile = await providerService.pauseProfile(userId, reason);
+    const data = schema.parse(req.body) as PauseProfileRequest;
 
-    sendSuccess(res, {
+    const profile = await providerService.pauseProfile(userId, data.reason);
+
+    sendSuccess<PauseProfileResponse>(res, {
       message: 'Profile paused successfully. New bookings are now disabled.',
-      profile,
+      profile: {
+        id: profile.id,
+        isPaused: profile.profilePaused || false,
+        pausedAt: profile.pausedAt?.toISOString() || new Date().toISOString(),
+        pauseReason: profile.pauseReason || undefined,
+      },
     });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return next(
+        new AppError(400, `Validation failed: ${error.errors.map((e) => e.message).join(', ')}`)
+      );
+    }
     if (error instanceof Error) {
       if (error.message === 'Provider profile not found') {
         return next(new AppError(404, error.message));
@@ -57,9 +78,13 @@ export async function resumeProfile(
 
     const profile = await providerService.resumeProfile(userId);
 
-    sendSuccess(res, {
+    sendSuccess<ResumeProfileResponse>(res, {
       message: 'Profile resumed successfully. You can now accept new bookings.',
-      profile,
+      profile: {
+        id: profile.id,
+        isPaused: profile.profilePaused || false,
+        resumedAt: new Date().toISOString(),
+      },
     });
   } catch (error) {
     if (error instanceof Error) {
@@ -160,7 +185,7 @@ export async function getPublicProfile(
 
     const result = await providerService.getPublicProfile(slug);
 
-    sendSuccess(res, result);
+    sendSuccess<GetPublicProviderProfileResponse>(res, result);
   } catch (error) {
     if (error instanceof Error && error.message === 'Provider not found') {
       return next(new AppError(404, 'Provider not found'));

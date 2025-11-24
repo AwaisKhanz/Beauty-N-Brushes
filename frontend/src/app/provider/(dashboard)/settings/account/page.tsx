@@ -161,9 +161,9 @@ export default function AccountPage() {
       )}
 
       {success && (
-        <Alert className="mb-6 border-success bg-success/10">
-          <CheckCircle2 className="h-4 w-4 text-success" />
-          <AlertDescription className="text-success">{success}</AlertDescription>
+        <Alert variant="success" className="mb-6">
+          <CheckCircle2 className="h-4 w-4" />
+          <AlertDescription>{success}</AlertDescription>
         </Alert>
       )}
 

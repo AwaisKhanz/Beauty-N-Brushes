@@ -7,7 +7,11 @@ import type { AuthRequest } from '../types';
 /**
  * Upload single file (image, document, etc.)
  */
-export async function uploadFile(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+export async function uploadFile(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
     const file = req.file;
 
@@ -61,10 +65,17 @@ export async function uploadFile(req: AuthRequest, res: Response, next: NextFunc
         result = await storageService.uploadServiceMedia(file.buffer, file.originalname);
         break;
 
+      case 'reference':
+        if (!storageService.validateImageFile(file.mimetype)) {
+          throw new AppError(400, 'Invalid file format. Only images allowed for reference photos.');
+        }
+        result = await storageService.uploadServiceMedia(file.buffer, file.originalname);
+        break;
+
       default:
         throw new AppError(
           400,
-          'Invalid upload type. Use: profile, logo, cover, service, or inspiration'
+          'Invalid upload type. Use: profile, logo, cover, service, inspiration, or reference'
         );
     }
 
@@ -145,7 +156,11 @@ export async function uploadMultipleFiles(
 /**
  * Delete file by URL
  */
-export async function deleteFile(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+export async function deleteFile(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
     const { fileUrl } = req.body;
 

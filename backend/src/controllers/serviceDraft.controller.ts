@@ -5,6 +5,7 @@ import { serviceDraftService } from '../services/serviceDraft.service';
 import { prisma } from '../config/database';
 import type { AuthRequest } from '../types';
 import type { SaveDraftRequest, SaveDraftResponse, GetDraftResponse } from '../../../shared-types';
+import { z } from 'zod';
 
 export async function saveDraft(
   req: AuthRequest,
@@ -25,7 +26,12 @@ export async function saveDraft(
       throw new AppError(404, 'Provider profile not found');
     }
 
-    const data: SaveDraftRequest = req.body;
+    const schema = z.object({
+      draftData: z.object({}).passthrough(), // Accept any structure for draft data
+      currentStep: z.number().int().min(1).max(8),
+    });
+
+    const data = schema.parse(req.body) as SaveDraftRequest;
     const draft = await serviceDraftService.save(provider.id, data);
 
     sendSuccess<SaveDraftResponse>(res, {
@@ -33,6 +39,11 @@ export async function saveDraft(
       draft,
     });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return next(
+        new AppError(400, `Validation failed: ${error.errors.map((e) => e.message).join(', ')}`)
+      );
+    }
     next(error);
   }
 }

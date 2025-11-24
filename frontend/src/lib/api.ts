@@ -9,6 +9,7 @@ import type {
   LoginRequest,
   RegisterRequest,
   AuthResponse,
+  AuthUser,
   // Onboarding
   CreateAccountTypeRequest,
   CreateAccountTypeResponse,
@@ -29,6 +30,7 @@ import type {
   OnboardingStatusResponse,
   CompleteOnboardingResponse,
   // Service
+  Service,
   CreateServiceRequest,
   CreateServiceResponse,
   GetServiceResponse,
@@ -103,6 +105,15 @@ import type {
   ChangeTierResponse,
   CancelSubscriptionRequest,
   CancelSubscriptionResponse,
+  // Location
+  CreateLocationRequest,
+  UpdateLocationRequest as UpdateLocationRequestType,
+  CreateLocationResponse,
+  UpdateLocationResponse,
+  GetLocationResponse,
+  GetLocationsResponse,
+  DeleteLocationResponse,
+  ProviderLocation,
   // Team
   InviteTeamMemberRequest,
   InviteTeamMemberResponse,
@@ -121,6 +132,8 @@ import type {
   UpdateBookingResponse,
   CancelBookingRequest,
   CancelBookingResponse,
+  RescheduleBookingRequest,
+  RescheduleBookingResponse,
   CompleteBookingRequest,
   CompleteBookingResponse,
   AssignTeamMemberRequest,
@@ -130,10 +143,19 @@ import type {
   // Payment
   InitializeBookingPaymentRequest,
   InitializeBookingPaymentResponse,
+  PayBalanceRequest,
+  PayBalanceResponse,
+  PayTipRequest,
+  RequestRescheduleRequest,
+  RequestRescheduleResponse,
+  RespondToRescheduleRequest,
+  RespondToRescheduleResponse,
   // Review
+  Review,
   CreateReviewRequest,
   CreateReviewResponse,
   GetReviewsResponse,
+  GetMyReviewsResponse,
   GetReviewResponse,
   UpdateReviewRequest,
   UpdateReviewResponse,
@@ -149,6 +171,54 @@ import type {
   // Favorite
   ToggleFavoriteResponse,
   GetFavoritesResponse,
+  // Saved Search
+  CreateSavedSearchRequest,
+  CreateSavedSearchResponse,
+  GetSavedSearchesResponse,
+  GetSavedSearchResponse,
+  UpdateSavedSearchRequest,
+  UpdateSavedSearchResponse,
+  DeleteSavedSearchResponse,
+  // Message
+  CreateMessageRequest,
+  CreateMessageResponse,
+  GetConversationsResponse,
+  GetMessagesResponse,
+  MarkAsReadResponse,
+  UpdateConversationResponse,
+  // AI Messaging
+  GenerateMessageDraftRequest,
+  GenerateMessageDraftResponse,
+  ChatbotQueryRequest,
+  ChatbotQueryResponse,
+  // Finance
+  GetFinanceSummaryResponse,
+  GetEarningsBreakdownResponse,
+  GetPayoutHistoryResponse,
+  GetBookingFinancialsResponse,
+  CreatePayoutResponse,
+  // Analytics
+  GetAnalyticsSummaryResponse,
+  GetBookingTrendsResponse,
+  GetServicePerformanceResponse,
+  GetClientDemographicsResponse,
+  GetRevenueBreakdownResponse,
+  // Instagram
+  ConnectInstagramResponse,
+  ImportInstagramMediaResponse,
+  GetImportedMediaResponse,
+  SaveImportedMediaRequest,
+  SaveImportedMediaResponse,
+  LinkMediaToServiceRequest,
+  LinkMediaToServiceResponse,
+  DisconnectInstagramResponse,
+  // Client Management
+  GetClientsResponse,
+  GetClientDetailResponse,
+  CreateClientNoteRequest,
+  CreateClientNoteResponse,
+  UpdateClientNoteRequest,
+  UpdateClientNoteResponse,
 } from '../../../shared-types';
 
 export const api = {
@@ -286,10 +356,10 @@ export const api = {
     getCategories: () => apiClient.get<{ data: CategoriesResponse }>('/services/categories'),
 
     getRelated: (serviceId: string) =>
-      apiClient.get<{ data: { services: any[] } }>(`/services/${serviceId}/related`),
+      apiClient.get<{ data: { services: Service[] } }>(`/services/${serviceId}/related`),
 
     getReviews: (serviceId: string) =>
-      apiClient.get<{ data: { reviews: any[] } }>(`/services/${serviceId}/reviews`),
+      apiClient.get<{ data: { reviews: Review[] } }>(`/services/${serviceId}/reviews`),
   },
 
   // ============================================
@@ -346,6 +416,94 @@ export const api = {
         '/payment/booking/initialize',
         data
       ),
+
+    // Pay balance for booking
+    payBalance: (data: PayBalanceRequest) =>
+      apiClient.post<{ data: PayBalanceResponse }>('/payment/booking/pay-balance', data),
+
+    // Pay tip for completed booking
+    payTip: (data: PayTipRequest) =>
+      apiClient.post<{ data: { message: string; tipAmount: number; currency: string } }>(
+        '/payment/booking/pay-tip',
+        data
+      ),
+  },
+
+  // ============================================
+  // User Profile APIs
+  // ============================================
+    users: {
+      getPaymentMethods: () =>
+        apiClient.get<{
+          data: {
+            paymentMethods: Array<{
+              id: string;
+              last4: string | null;
+              brand: string | null;
+              type: 'stripe' | 'paystack';
+            }>;
+            regionCode?: string | null;
+          };
+        }>('/users/payment-methods'),
+      createSetupIntent: () =>
+        apiClient.post<{
+          data: {
+            message: string;
+            clientSecret: string;
+          };
+        }>('/users/payment-methods/setup-intent', {}),
+      initializePaystackPaymentMethod: () =>
+        apiClient.post<{
+          data: {
+            message: string;
+            authorizationUrl: string;
+            reference: string;
+          };
+        }>('/users/payment-methods/initialize-paystack', {}),
+    addPaymentMethod: (data: { paymentMethodId: string }) =>
+      apiClient.post<{
+        data: {
+          message: string;
+          paymentMethod: {
+            id: string;
+            last4: string | null;
+            brand: string | null;
+            type: 'stripe' | 'paystack';
+          };
+        };
+      }>('/users/payment-methods', data),
+    updateProfile: (data: {
+      firstName?: string;
+      lastName?: string;
+      phone?: string;
+      bio?: string;
+      avatarUrl?: string;
+      hairType?: string;
+      hairTexture?: string;
+      hairPreferences?: string;
+    }) => apiClient.put<{ data: { message: string; user: AuthUser } }>('/users/profile', data),
+
+    updatePassword: (data: { currentPassword: string; newPassword: string }) =>
+      apiClient.put<{ data: { message: string } }>('/users/password', data),
+
+    updateRegion: (data: { regionCode: 'NA' | 'EU' | 'GH' | 'NG' }) =>
+      apiClient.put<{
+        data: {
+          message: string;
+          regionCode: string;
+          currency: string;
+        };
+      }>('/users/region', data),
+
+    updateNotifications: (data: {
+      emailNotificationsEnabled?: boolean;
+      smsNotificationsEnabled?: boolean;
+    }) =>
+      apiClient.put<{ data: { message: string; user: AuthUser } }>('/users/notifications', data),
+
+    deactivate: () => apiClient.post<{ data: { message: string } }>('/users/deactivate', {}),
+
+    delete: () => apiClient.delete<{ data: { message: string } }>('/users/me'),
   },
 
   // ============================================
@@ -430,6 +588,13 @@ export const api = {
     getSubscription: () =>
       apiClient.get<{ data: SubscriptionInfoResponse }>('/settings/subscription'),
 
+    createSetupIntent: () =>
+      apiClient.post<{
+        data: {
+          message: string;
+          clientSecret: string;
+        };
+      }>('/settings/payment-method/setup-intent', {}),
     updatePaymentMethod: (data: UpdatePaymentMethodRequest) =>
       apiClient.post<{ data: { message: string } }>('/settings/payment-method', data),
 
@@ -475,6 +640,30 @@ export const api = {
 
     cancelSubscription: (data: CancelSubscriptionRequest) =>
       apiClient.post<{ data: CancelSubscriptionResponse }>('/settings/subscription/cancel', data),
+  },
+
+  // ============================================
+  // Location Management APIs
+  // ============================================
+  locations: {
+    // Get all locations
+    getAll: () => apiClient.get<{ data: GetLocationsResponse }>('/locations'),
+
+    // Get location by ID
+    getById: (locationId: string) =>
+      apiClient.get<{ data: GetLocationResponse }>(`/locations/${locationId}`),
+
+    // Create location
+    create: (data: CreateLocationRequest) =>
+      apiClient.post<{ data: CreateLocationResponse }>('/locations', data),
+
+    // Update location
+    update: (locationId: string, data: UpdateLocationRequestType) =>
+      apiClient.put<{ data: UpdateLocationResponse }>(`/locations/${locationId}`, data),
+
+    // Delete location
+    delete: (locationId: string) =>
+      apiClient.delete<{ data: DeleteLocationResponse }>(`/locations/${locationId}`),
   },
 
   // Google Calendar Integration
@@ -523,11 +712,23 @@ export const api = {
     update: (bookingId: string, data: UpdateBookingRequest) =>
       apiClient.put<{ data: UpdateBookingResponse }>(`/bookings/${bookingId}`, data),
 
+    confirm: (bookingId: string) =>
+      apiClient.post<{ data: UpdateBookingResponse }>(`/bookings/${bookingId}/confirm`),
+
     cancel: (bookingId: string, data: CancelBookingRequest) =>
       apiClient.post<{ data: CancelBookingResponse }>(`/bookings/${bookingId}/cancel`, data),
 
+    reschedule: (bookingId: string, data: RescheduleBookingRequest) =>
+      apiClient.post<{ data: RescheduleBookingResponse }>(
+        `/bookings/${bookingId}/reschedule`,
+        data
+      ),
+
     complete: (bookingId: string, data: CompleteBookingRequest) =>
       apiClient.post<{ data: CompleteBookingResponse }>(`/bookings/${bookingId}/complete`, data),
+
+    markNoShow: (bookingId: string, notes?: string) =>
+      apiClient.post<{ data: UpdateBookingResponse }>(`/bookings/${bookingId}/no-show`, { notes }),
 
     // Salon-specific: Team member assignment
     assignTeamMember: (bookingId: string, data: AssignTeamMemberRequest) =>
@@ -551,6 +752,20 @@ export const api = {
       apiClient.get<{ data: GetAvailableStylists }>(
         `/bookings/available-stylists?providerId=${params.providerId}&date=${params.date}&time=${params.time}&duration=${params.duration}`
       ),
+
+    // Request reschedule (provider only)
+    requestReschedule: (bookingId: string, data: RequestRescheduleRequest) =>
+      apiClient.post<{ data: RequestRescheduleResponse }>(
+        `/bookings/${bookingId}/request-reschedule`,
+        data
+      ),
+
+    // Respond to reschedule request (client only)
+    respondToRescheduleRequest: (requestId: string, data: RespondToRescheduleRequest) =>
+      apiClient.post<{ data: RespondToRescheduleResponse }>(
+        `/bookings/reschedule-requests/${requestId}/respond`,
+        data
+      ),
   },
 
   // ============================================
@@ -569,6 +784,12 @@ export const api = {
     // Create review for completed booking
     create: (data: CreateReviewRequest) =>
       apiClient.post<{ data: CreateReviewResponse }>('/reviews', data),
+
+    // Get reviews created by current user
+    getMyReviews: (params?: { page?: number; limit?: number }) =>
+      apiClient.get<{ data: GetMyReviewsResponse }>(
+        `/reviews/my-reviews${params ? `?page=${params.page || 1}&limit=${params.limit || 10}` : ''}`
+      ),
 
     // Get reviews for a provider (public)
     getByProvider: (providerId: string, params?: { page?: number; limit?: number }) =>
@@ -626,5 +847,195 @@ export const api = {
 
     // Get all favorite providers
     getAll: () => apiClient.get<{ data: GetFavoritesResponse }>('/favorites'),
+  },
+
+  // ============================================
+  // Saved Search APIs
+  // ============================================
+  savedSearches: {
+    // Create a new saved search
+    create: (data: CreateSavedSearchRequest) =>
+      apiClient.post<{ data: CreateSavedSearchResponse }>('/saved-searches', data),
+
+    // Get all saved searches
+    getAll: () => apiClient.get<{ data: GetSavedSearchesResponse }>('/saved-searches'),
+
+    // Get single saved search
+    getById: (searchId: string) =>
+      apiClient.get<{ data: GetSavedSearchResponse }>(`/saved-searches/${searchId}`),
+
+    // Update saved search
+    update: (searchId: string, data: UpdateSavedSearchRequest) =>
+      apiClient.put<{ data: UpdateSavedSearchResponse }>(`/saved-searches/${searchId}`, data),
+
+    // Delete saved search
+    delete: (searchId: string) =>
+      apiClient.delete<{ data: DeleteSavedSearchResponse }>(`/saved-searches/${searchId}`),
+  },
+
+  // ============================================
+  // Message APIs
+  // ============================================
+  messages: {
+    // Send a message
+    send: (data: CreateMessageRequest) =>
+      apiClient.post<{ data: CreateMessageResponse }>('/messages/send', data),
+
+    // Get conversations
+    getConversations: (params?: { page?: number; limit?: number; status?: string }) =>
+      apiClient.get<{ data: GetConversationsResponse }>('/messages/conversations', params),
+
+    // Get messages in a conversation
+    getMessages: (conversationId: string, params?: { page?: number; limit?: number }) =>
+      apiClient.get<{ data: GetMessagesResponse }>(
+        `/messages/conversations/${conversationId}/messages`,
+        params
+      ),
+
+    // Mark messages as read
+    markAsRead: (conversationId: string) =>
+      apiClient.post<{ data: MarkAsReadResponse }>('/messages/mark-read', {
+        conversationId,
+      }),
+
+    // Update conversation status
+    updateConversation: (conversationId: string, status: 'active' | 'archived' | 'blocked') =>
+      apiClient.put<{ data: UpdateConversationResponse }>(
+        `/messages/conversations/${conversationId}`,
+        { status }
+      ),
+
+    // AI-powered message draft generation
+    generateDraft: (data: GenerateMessageDraftRequest) =>
+      apiClient.post<{ data: GenerateMessageDraftResponse }>('/messages/ai/generate-draft', data),
+
+    // AI chatbot query
+    chatbot: (data: ChatbotQueryRequest) =>
+      apiClient.post<{ data: ChatbotQueryResponse }>('/messages/ai/chatbot', data),
+  },
+
+  // ============================================
+  // Finance APIs
+  // ============================================
+  finance: {
+    // Get finance summary
+    getSummary: (params?: { startDate?: string; endDate?: string }) =>
+      apiClient.get<{ data: GetFinanceSummaryResponse }>('/finance/summary', params),
+
+    // Get earnings breakdown
+    getEarningsBreakdown: (params: {
+      startDate: string;
+      endDate: string;
+      interval?: 'day' | 'week' | 'month';
+    }) => apiClient.get<{ data: GetEarningsBreakdownResponse }>('/finance/earnings', params),
+
+    // Get payout history
+    getPayouts: (params?: {
+      page?: number;
+      limit?: number;
+      status?: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+    }) => apiClient.get<{ data: GetPayoutHistoryResponse }>('/finance/payouts', params),
+
+    // Get booking financials
+    getBookings: (params?: {
+      page?: number;
+      limit?: number;
+      startDate?: string;
+      endDate?: string;
+      paymentStatus?: string;
+      bookingStatus?: string;
+    }) => apiClient.get<{ data: GetBookingFinancialsResponse }>('/finance/bookings', params),
+
+    // Create payout request
+    createPayout: (data: { amount: number; bookingIds: string[] }) =>
+      apiClient.post<{ data: CreatePayoutResponse }>('/finance/payouts', data),
+  },
+
+  // ============================================
+  // Analytics APIs
+  // ============================================
+  analytics: {
+    // Get analytics summary
+    getSummary: (params?: { startDate?: string; endDate?: string }) =>
+      apiClient.get<{ data: GetAnalyticsSummaryResponse }>('/analytics/summary', params),
+
+    // Get booking trends
+    getTrends: (params: {
+      startDate: string;
+      endDate: string;
+      interval?: 'day' | 'week' | 'month';
+    }) => apiClient.get<{ data: GetBookingTrendsResponse }>('/analytics/trends', params),
+
+    // Get service performance
+    getServices: (params?: {
+      startDate?: string;
+      endDate?: string;
+      sortBy?: 'bookings' | 'revenue' | 'rating';
+      limit?: number;
+    }) => apiClient.get<{ data: GetServicePerformanceResponse }>('/analytics/services', params),
+
+    // Get client demographics
+    getClients: (params?: { startDate?: string; endDate?: string }) =>
+      apiClient.get<{ data: GetClientDemographicsResponse }>('/analytics/clients', params),
+
+    // Get revenue breakdown
+    getRevenue: (params?: { startDate?: string; endDate?: string }) =>
+      apiClient.get<{ data: GetRevenueBreakdownResponse }>('/analytics/revenue', params),
+  },
+
+  // ============================================
+  // Instagram APIs
+  // ============================================
+  instagram: {
+    // Initiate Instagram OAuth connection
+    connect: () => apiClient.get<{ data: ConnectInstagramResponse }>('/instagram/connect'),
+
+    // Get media from Instagram (not yet imported)
+    getMedia: () => apiClient.get<{ data: ImportInstagramMediaResponse }>('/instagram/media'),
+
+    // Get imported media from database
+    getImported: () => apiClient.get<{ data: GetImportedMediaResponse }>('/instagram/imported'),
+
+    // Import selected media to platform
+    import: (data: SaveImportedMediaRequest) =>
+      apiClient.post<{ data: SaveImportedMediaResponse }>('/instagram/import', data),
+
+    // Link media to service
+    linkToService: (data: LinkMediaToServiceRequest) =>
+      apiClient.post<{ data: LinkMediaToServiceResponse }>('/instagram/link-to-service', data),
+
+    // Disconnect Instagram
+    disconnect: () =>
+      apiClient.post<{ data: DisconnectInstagramResponse }>('/instagram/disconnect'),
+  },
+
+  // ============================================
+  // Client Management APIs
+  // ============================================
+  clients: {
+    // Get all clients
+    getAll: (params?: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      sortBy?: 'name' | 'bookings' | 'lastBooking' | 'totalSpent';
+      sortOrder?: 'asc' | 'desc';
+    }) => apiClient.get<{ data: GetClientsResponse }>('/clients', params),
+
+    // Get client detail
+    getById: (clientId: string) =>
+      apiClient.get<{ data: GetClientDetailResponse }>(`/clients/${clientId}`),
+
+    // Create client note
+    createNote: (data: CreateClientNoteRequest) =>
+      apiClient.post<{ data: CreateClientNoteResponse }>('/clients/notes', data),
+
+    // Update client note
+    updateNote: (noteId: string, data: UpdateClientNoteRequest) =>
+      apiClient.put<{ data: UpdateClientNoteResponse }>(`/clients/notes/${noteId}`, data),
+
+    // Delete client note
+    deleteNote: (noteId: string) =>
+      apiClient.delete<{ data: { message: string } }>(`/clients/notes/${noteId}`),
   },
 };

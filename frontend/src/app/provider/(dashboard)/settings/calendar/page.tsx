@@ -151,9 +151,9 @@ export default function CalendarIntegrationPage() {
       )}
 
       {success && (
-        <Alert className="mb-6 border-success bg-success/10">
-          <CheckCircle2 className="h-4 w-4 text-success" />
-          <AlertDescription className="text-success">{success}</AlertDescription>
+        <Alert variant="success" className="mb-6">
+          <CheckCircle2 className="h-4 w-4" />
+          <AlertDescription>{success}</AlertDescription>
         </Alert>
       )}
 
@@ -170,7 +170,7 @@ export default function CalendarIntegrationPage() {
                 <CardDescription>Two-way sync for your bookings</CardDescription>
               </div>
               {connected ? (
-                <Badge className="bg-success gap-1">
+                <Badge variant="success" className="gap-1">
                   <CheckCircle2 className="h-3 w-3" />
                   Connected
                 </Badge>

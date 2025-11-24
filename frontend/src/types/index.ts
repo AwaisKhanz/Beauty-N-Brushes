@@ -24,11 +24,10 @@ export interface PaginationMeta {
 }
 
 // ================================
-// Auth Types (re-exported from shared)
+// Shared Types Re-exports
 // ================================
 
-import type { UserRole } from '@/shared-types/auth.types';
-
+// Auth Types
 export type {
   UserRole,
   AuthUser,
@@ -38,62 +37,71 @@ export type {
   TokenPayload,
   ForgotPasswordRequest,
   ResetPasswordRequest,
-} from '@/shared-types/auth.types';
+} from '../../../shared-types/auth.types';
 
-// ================================
-// User Types
-// ================================
-
-export interface User {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  role: UserRole;
-  avatarUrl?: string;
-  emailVerified: boolean;
-  createdAt: string;
-}
-
-// ================================
-// Provider Types
-// ================================
-
-export interface ProviderProfile {
-  id: string;
-  userId: string;
-  businessName: string;
-  slug: string;
-  tagline?: string;
-  description?: string;
-  city: string;
-  state: string;
-  zipCode: string;
-  logoUrl?: string;
-  coverPhotoUrl?: string;
-  averageRating: number;
-  totalReviews: number;
-  instagramHandle?: string;
-  isSalon: boolean;
-}
-
-// ================================
 // Service Types
+export type {
+  Service,
+  ServiceMedia,
+  ServiceAddon,
+  CreateServiceRequest,
+  CreateServiceResponse,
+  GetServiceResponse,
+  GetServicesResponse,
+  SearchServicesRequest,
+  SearchServicesResponse,
+} from '../../../shared-types/service.types';
+
+// Booking Types
+export type {
+  BookingDetails,
+  CreateBookingRequest,
+  CreateBookingResponse,
+  GetBookingResponse,
+  GetBookingsResponse,
+  BookingStatus,
+  PaymentStatus,
+} from '../../../shared-types/booking.types';
+
+// Review Types
+export type {
+  Review,
+  ReviewWithRelations,
+  CreateReviewRequest,
+  CreateReviewResponse,
+  GetReviewsResponse,
+  GetMyReviewsResponse,
+} from '../../../shared-types/review.types';
+
+// Onboarding Types
+export type {
+  OnboardingStatusResponse,
+  AccountType,
+  RegionCode,
+  PaymentProvider,
+} from '../../../shared-types/onboarding.types';
+
+// ================================
+// Message Types (re-exported from shared)
 // ================================
 
-export interface Service {
-  id: string;
-  providerId: string;
-  title: string;
-  description: string;
-  priceMin: number;
-  priceMax?: number;
-  priceType: 'fixed' | 'range' | 'starting_at';
-  currency: string;
-  durationMinutes: number;
-  categoryId: string;
-  active: boolean;
-}
+export type {
+  Conversation,
+  Message,
+  CreateMessageRequest,
+  CreateMessageResponse,
+  GetConversationsResponse,
+  GetMessagesResponse,
+  MarkAsReadResponse,
+  UpdateConversationResponse,
+} from '../../../shared-types/message.types';
+
+// ================================
+// Frontend-Specific Helper Types
+// ================================
+
+// Note: User, Service, Booking, Review types are now imported from shared-types above
+// Only keep frontend-specific UI types here
 
 export interface ServiceCategory {
   id: string;
@@ -103,106 +111,6 @@ export interface ServiceCategory {
   iconName?: string;
 }
 
-// ================================
-// Booking Types
-// ================================
-
-export interface Booking {
-  id: string;
-  clientId: string;
-  providerId: string;
-  serviceId: string;
-  appointmentDate: string;
-  appointmentTime: string;
-  bookingStatus: BookingStatus;
-  paymentStatus: PaymentStatus;
-  totalAmount: number;
-  depositAmount: number;
-  currency: string;
-}
-
-export type BookingStatus =
-  | 'PENDING'
-  | 'CONFIRMED'
-  | 'CANCELLED_BY_CLIENT'
-  | 'CANCELLED_BY_PROVIDER'
-  | 'COMPLETED'
-  | 'NO_SHOW';
-
-export type PaymentStatus =
-  | 'PENDING'
-  | 'DEPOSIT_PAID'
-  | 'FULLY_PAID'
-  | 'REFUNDED'
-  | 'PARTIALLY_REFUNDED';
-
-// ================================
-// Review Types
-// ================================
-
-export interface Review {
-  id: string;
-  bookingId: string;
-  clientId: string;
-  providerId: string;
-  overallRating: number;
-  qualityRating?: number;
-  timelinessRating?: number;
-  professionalismRating?: number;
-  reviewText?: string;
-  createdAt: string;
-}
-
-// ================================
-// Onboarding Types
-// ================================
-
-export interface OnboardingStatus {
-  hasProfile: boolean;
-  completed: boolean;
-  steps: {
-    accountType: boolean;
-    businessDetails: boolean;
-    profileMedia: boolean;
-    brandCustomization: boolean;
-    policies: boolean;
-    paymentSetup: boolean;
-    availabilitySet: boolean;
-  };
-  profile?: {
-    isSalon: boolean;
-    businessName?: string | null;
-    description?: string | null;
-    tagline?: string | null;
-    addressLine1?: string | null;
-    addressLine2?: string | null;
-    city?: string | null;
-    state?: string | null;
-    zipCode?: string | null;
-    country?: string | null;
-    businessPhone?: string | null;
-    instagramHandle?: string | null;
-    websiteUrl?: string | null;
-    brandColorPrimary?: string | null;
-    brandColorSecondary?: string | null;
-    brandColorAccent?: string | null;
-    brandFontHeading?: string | null;
-    brandFontBody?: string | null;
-    logoUrl?: string | null;
-    coverPhotoUrl?: string | null;
-    avatarUrl?: string | null;
-    policies?: Record<string, unknown>;
-    subscriptionTier?: string | null;
-  };
-}
-
-// ================================
-// Payment Types
-// ================================
-
-export type RegionCode = 'NA' | 'EU' | 'GH' | 'NG';
-export type PaymentProvider = 'stripe' | 'paystack';
-
 export interface PaystackResponse {
   reference: string;
   status: string;
@@ -210,6 +118,18 @@ export interface PaystackResponse {
   transaction: string;
   trxref: string;
   message?: string;
+  authorization?: {
+    authorization_code: string;
+    bin?: string;
+    last4?: string;
+    exp_month?: string;
+    exp_year?: string;
+    card_type?: string;
+    bank?: string;
+    country_code?: string;
+    brand?: string;
+    reusable?: boolean;
+  };
 }
 
 export interface WindowWithPaystack extends Window {
@@ -220,6 +140,7 @@ export interface WindowWithPaystack extends Window {
       amount: number;
       currency: string;
       ref: string;
+      metadata?: Record<string, unknown>;
       onClose: () => void;
       callback: (response: PaystackResponse) => void;
     }) => {

@@ -1,9 +1,13 @@
 /**
- * Payment Types
+ * Backend Payment Service Types
+ *
+ * Note: PaymentProvider and RegionCode are imported from shared-types
+ * These types are backend-specific service layer types
  */
 
-export type PaymentProvider = 'stripe' | 'paystack';
-export type RegionCode = 'NA' | 'EU' | 'GH' | 'NG';
+// Re-export shared payment types
+export type { PaymentProvider, RegionCode } from '../../../shared-types/onboarding.types';
+
 export type SubscriptionTier = 'solo' | 'salon';
 
 export interface RegionalServiceFee {

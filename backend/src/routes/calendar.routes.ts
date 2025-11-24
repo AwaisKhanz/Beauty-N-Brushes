@@ -20,5 +20,6 @@ router.delete('/blocked-dates/:blockedDateId', calendarController.deleteBlockedD
 router.post('/google/connect', calendarController.connectGoogleCalendar);
 router.get('/google/callback', calendarController.handleGoogleCalendarCallback);
 router.post('/google/disconnect', calendarController.disconnectGoogleCalendar);
+router.post('/google/sync', calendarController.syncExternalEvents);
 
 export default router;

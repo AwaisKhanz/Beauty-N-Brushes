@@ -33,11 +33,12 @@ export default function PaymentCallbackPage() {
             throw new Error('Payment was not successful');
           }
 
-          // Payment successful, create subscription with authorization
+          // Payment successful, create subscription with authorization code
+          // Pass authorization code to setupPayment - it will create subscription
           await api.onboarding.setupPayment({
             regionCode: region as 'NA' | 'EU' | 'GH' | 'NG',
             subscriptionTier: tier as 'solo' | 'salon',
-            paymentMethodId: verifyResponse.data.authorization.authorization_code,
+            paymentMethodId: verifyResponse.data.authorization.authorization_code, // Authorization code from Paystack
           });
 
           setStatus('success');

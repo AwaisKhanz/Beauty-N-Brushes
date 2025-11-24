@@ -16,6 +16,7 @@ export interface DashboardStats {
 
 export interface DashboardProfile {
   businessName: string | null;
+  slug: string | null;
   profileCompleted: boolean;
   isPaused: boolean;
   subscriptionStatus: string | null;

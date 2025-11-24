@@ -18,7 +18,7 @@ export interface AuthRequest extends Request {
 export interface AuthenticatedRequest<
   TBody = unknown,
   TParams = Record<string, string>,
-  TQuery = Record<string, unknown>
+  TQuery = Record<string, unknown>,
 > extends Request<TParams, unknown, TBody, TQuery> {
   user: {
     id: string;

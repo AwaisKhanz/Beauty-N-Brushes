@@ -1,15 +1,41 @@
 /**
  * Shared Service Types
- * Used by both frontend and backend
+ *
+ * Comprehensive types for service creation, management, and public discovery.
+ * Includes support for service add-ons, deposits, AI-generated content, and visual search.
+ *
+ * @module shared-types/service
+ *
+ * **Backend Usage:**
+ * - `backend/src/controllers/service.controller.ts`
+ * - `backend/src/services/service.service.ts`
+ *
+ * **Frontend Usage:**
+ * - `frontend/src/lib/api.ts` (api.services)
+ * - `frontend/src/components/services/`
+ * - `frontend/src/app/services/`
  */
 
+/**
+ * Service pricing type
+ * @enum {string}
+ */
 export type PriceType = 'fixed' | 'range' | 'starting_at';
+
+/**
+ * Deposit calculation type (service-level, NOT policy-level)
+ * @enum {string}
+ */
 export type DepositType = 'PERCENTAGE' | 'FLAT';
 
 // ============================================
 // Request Types
 // ============================================
 
+/**
+ * Input structure for creating/updating service add-ons
+ * @interface
+ */
 export interface ServiceAddonInput {
   name: string;
   description?: string;
@@ -28,6 +54,9 @@ export interface CreateServiceRequest {
   durationMinutes: number;
   depositType: DepositType;
   depositAmount: number;
+  // Mobile/Home service configuration
+  mobileServiceAvailable?: boolean;
+  homeServiceFee?: number;
   addons?: ServiceAddonInput[];
   // Template tracking
   createdFromTemplate?: boolean;
@@ -121,9 +150,12 @@ export interface Service {
   priceMin: number;
   priceMax?: number;
   currency: string;
-  depositRequired: boolean;
+  // Deposits are ALWAYS mandatory per requirements
   depositType: DepositType;
   depositAmount: number;
+  // Mobile/Home service configuration
+  mobileServiceAvailable: boolean;
+  homeServiceFee?: number;
   durationMinutes: number;
   active: boolean;
   // Template tracking
@@ -152,6 +184,7 @@ export interface Service {
     currency: string;
     instantBookingEnabled?: boolean;
     advanceBookingDays?: number;
+    isSalon?: boolean;
     user: {
       avatarUrl?: string;
     };
@@ -441,10 +474,18 @@ export interface PublicProviderProfile {
   reviews: {
     id: string;
     clientName: string;
-    rating: number;
-    reviewText: string | null;
+    clientAvatarUrl?: string;
+    overallRating: number;
+    reviewText?: string;
+    providerResponse?: string;
+    providerResponseDate?: string;
+    helpfulCount: number;
+    media: {
+      id: string;
+      fileUrl: string;
+      thumbnailUrl?: string;
+    }[];
     createdAt: string;
-    serviceTitle: string;
   }[];
 }
 

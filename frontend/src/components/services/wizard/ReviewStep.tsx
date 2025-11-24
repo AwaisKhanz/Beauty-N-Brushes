@@ -80,7 +80,7 @@ export function ReviewStep({ form, onNext: _onNext, isEdit }: ReviewStepProps) {
                   </span>
                 </div>
               </div>
-              <Badge className="absolute top-4 right-4 bg-white text-black font-medium">
+              <Badge variant="secondary" className="absolute top-4 right-4 font-medium">
                 Preview
               </Badge>
             </div>
@@ -135,7 +135,7 @@ export function ReviewStep({ form, onNext: _onNext, isEdit }: ReviewStepProps) {
                           className="object-cover"
                         />
                         {media.isFeatured && (
-                          <Star className="absolute top-2 right-2 h-4 w-4 text-yellow-500 fill-current" />
+                          <Star className="absolute top-2 right-2 h-4 w-4 text-rating-filled fill-current" />
                         )}
                       </div>
                     ))}
@@ -400,12 +400,12 @@ export function ReviewStep({ form, onNext: _onNext, isEdit }: ReviewStepProps) {
         <Card className="bg-gradient-to-r from-warning/10 to-warning/20 border-warning/20">
           <CardContent className="p-6">
             <div className="flex items-start gap-4">
-              <div className="p-2 bg-yellow-100 rounded-full">
-                <AlertCircle className="h-5 w-5 text-yellow-600" />
+              <div className="p-2 bg-warning/10 rounded-full">
+                <AlertCircle className="h-5 w-5 text-warning" />
               </div>
               <div>
-                <h4 className="font-semibold text-yellow-800 mb-1">No media uploaded</h4>
-                <p className="text-sm text-yellow-700">
+                <h4 className="font-semibold text-warning-foreground mb-1">No media uploaded</h4>
+                <p className="text-sm text-warning-foreground">
                   Services with photos get 10x more bookings. Consider adding at least one image.
                 </p>
               </div>

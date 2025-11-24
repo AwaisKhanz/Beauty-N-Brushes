@@ -97,7 +97,9 @@ export async function getProviderDashboardStats(
       onboardingProgress,
       profile: {
         businessName: profile.businessName,
+        slug: profile.slug,
         profileCompleted: profile.profileCompleted,
+        isPaused: profile.profilePaused,
         subscriptionStatus: profile.subscriptionStatus,
         subscriptionTier: profile.subscriptionTier,
       },
@@ -182,12 +184,25 @@ export async function getRecentBookings(
 /**
  * Calculate onboarding progress percentage
  */
-function calculateOnboardingProgress(profile: any): number {
+function calculateOnboardingProgress(profile: {
+  isSalon: boolean;
+  businessName: string | null;
+  addressLine1: string | null;
+  city: string | null;
+  profilePhotoUrl?: string | null;
+  brandColorPrimary?: string | null;
+  brandColorSecondary?: string | null;
+  policiesId?: string | null;
+  stripeCustomerId?: string | null;
+  paystackCustomerCode?: string | null;
+  _count?: { services: number };
+  availabilityId?: string | null;
+}): number {
   const steps = {
     accountType: !!profile.isSalon || profile.isSalon === false,
-    businessDetails: !!(profile.businessName && profile.address && profile.city),
+    businessDetails: !!(profile.businessName && profile.addressLine1 && profile.city),
     profileMedia: !!profile.profilePhotoUrl,
-    brandCustomization: !!(profile.primaryColor && profile.secondaryColor),
+    brandCustomization: !!(profile.brandColorPrimary && profile.brandColorSecondary),
     policies: !!profile.policiesId,
     paymentSetup: !!(profile.stripeCustomerId || profile.paystackCustomerCode),
     servicesCreated: profile._count && profile._count.services > 0,

@@ -67,6 +67,14 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
         await handlePaymentMethodAttached(event.data.object as Stripe.PaymentMethod);
         break;
 
+      case 'payment_intent.succeeded':
+        await handleBookingPaymentSucceeded(event.data.object as Stripe.PaymentIntent);
+        break;
+
+      case 'payment_intent.payment_failed':
+        await handleBookingPaymentFailed(event.data.object as Stripe.PaymentIntent);
+        break;
+
       default:
         logger.info(`Unhandled Stripe event type: ${event.type}`);
     }
@@ -312,6 +320,189 @@ async function handlePaymentMethodAttached(paymentMethod: Stripe.PaymentMethod):
 }
 
 /**
+ * Handle booking deposit payment succeeded (Stripe)
+ */
+async function handleBookingPaymentSucceeded(paymentIntent: Stripe.PaymentIntent): Promise<void> {
+  logger.info(`Booking payment succeeded: ${paymentIntent.id}`);
+
+  const metadata = paymentIntent.metadata;
+  const type = metadata?.type;
+
+  if (type === 'booking_deposit') {
+    const bookingId = metadata?.bookingId;
+    if (!bookingId) return;
+
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        client: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            stripeCustomerId: true,
+            paymentMethodId: true,
+          },
+        },
+        service: { select: { title: true, durationMinutes: true } },
+        provider: {
+          select: {
+            businessName: true,
+            addressLine1: true,
+            city: true,
+            state: true,
+            instantBookingEnabled: true,
+          },
+        },
+      },
+    });
+
+    if (!booking) return;
+
+    // Save client payment method if payment was successful
+    if (paymentIntent.payment_method) {
+      try {
+        let stripeCustomerId = booking.client.stripeCustomerId;
+
+        // Create or retrieve Stripe customer for client
+        if (!stripeCustomerId) {
+          const customer = await stripe.customers.create({
+            email: booking.client.email,
+            name: `${booking.client.firstName} ${booking.client.lastName}`,
+            metadata: {
+              userId: booking.client.id,
+              type: 'client',
+            },
+          });
+          stripeCustomerId = customer.id;
+        }
+
+        // Attach payment method to customer
+        const paymentMethodId =
+          typeof paymentIntent.payment_method === 'string'
+            ? paymentIntent.payment_method
+            : paymentIntent.payment_method.id;
+
+        await stripe.paymentMethods.attach(paymentMethodId, {
+          customer: stripeCustomerId,
+        });
+
+        // Set as default payment method
+        await stripe.customers.update(stripeCustomerId, {
+          invoice_settings: {
+            default_payment_method: paymentMethodId,
+          },
+        });
+
+        // Get payment method details
+        const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+
+        // Update client with payment method info
+        await prisma.user.update({
+          where: { id: booking.client.id },
+          data: {
+            stripeCustomerId,
+            paymentMethodId,
+            last4Digits: paymentMethod.card?.last4 || null,
+            cardBrand: paymentMethod.card?.brand || null,
+            updatedAt: new Date(),
+          },
+        });
+
+        logger.info(`Saved payment method for client ${booking.client.id}`);
+      } catch (error) {
+        // Log error but don't fail the booking update
+        logger.error(`Error saving client payment method: ${error}`);
+      }
+    }
+
+    // Update booking payment status
+    await prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        paymentStatus: 'DEPOSIT_PAID',
+        paidAt: new Date(),
+        paymentMethod: paymentIntent.payment_method_types[0] || 'card',
+        // Auto-confirm if instant booking enabled
+        bookingStatus: booking.provider.instantBookingEnabled ? 'CONFIRMED' : 'PENDING',
+        updatedAt: new Date(),
+      },
+    });
+
+    // Send confirmation email
+    await emailService.sendBookingConfirmationEmail(booking.client.email, {
+      clientName: `${booking.client.firstName} ${booking.client.lastName}`,
+      serviceName: booking.service.title,
+      providerName: booking.provider.businessName,
+      appointmentDateTime: `${booking.appointmentDate.toLocaleDateString()} at ${booking.appointmentTime}`,
+      duration: `${booking.service.durationMinutes || 60} minutes`,
+      location: `${booking.provider.addressLine1 || ''}, ${booking.provider.city}, ${booking.provider.state}`,
+      totalAmount: `${booking.currency} ${booking.servicePrice.toString()}`,
+      cancellationPolicy: "Please review the provider's cancellation policy",
+      bookingDetailsUrl: `${env.FRONTEND_URL}/client/bookings/${booking.id}`,
+    });
+
+    logger.info(`Booking ${bookingId} payment confirmed and status updated`);
+  } else if (type === 'balance_payment') {
+    const bookingId = metadata?.bookingId;
+    if (!bookingId) return;
+
+    // Update booking to fully paid
+    await prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        paymentStatus: 'FULLY_PAID',
+        updatedAt: new Date(),
+      },
+    });
+
+    logger.info(`Booking ${bookingId} balance paid`);
+  }
+}
+
+/**
+ * Handle booking payment failed (Stripe)
+ */
+async function handleBookingPaymentFailed(paymentIntent: Stripe.PaymentIntent): Promise<void> {
+  logger.info(`Booking payment failed: ${paymentIntent.id}`);
+
+  const metadata = paymentIntent.metadata;
+  const bookingId = metadata?.bookingId;
+
+  if (!bookingId) return;
+
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: { client: { select: { email: true, firstName: true } } },
+  });
+
+  if (!booking) return;
+
+  // Update booking status to cancelled due to payment failure
+  await prisma.booking.update({
+    where: { id: bookingId },
+    data: {
+      bookingStatus: 'CANCELLED_BY_CLIENT',
+      paymentStatus: 'REFUNDED',
+      cancelledAt: new Date(),
+      cancellationReason: 'Payment failed',
+      updatedAt: new Date(),
+    },
+  });
+
+  // Send payment failed notification
+  await emailService.sendPaymentFailedEmail(booking.client.email, {
+    firstName: booking.client.firstName,
+    amount: `${booking.currency} ${booking.totalAmount.toString()}`,
+    retryDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString(),
+    updatePaymentUrl: `${env.FRONTEND_URL}/client/bookings/${bookingId}/retry-payment`,
+  });
+
+  logger.info(`Booking ${bookingId} cancelled due to payment failure`);
+}
+
+/**
  * Handle Paystack webhooks
  */
 export async function handlePaystackWebhook(req: Request, res: Response): Promise<void> {
@@ -434,6 +625,15 @@ async function handlePaystackSubscriptionNotRenew(data: PaystackSubscriptionData
 async function handlePaystackChargeSuccess(data: PaystackChargeData): Promise<void> {
   logger.info(`Paystack charge succeeded: ${data.reference}`);
 
+  const metadata = data.metadata;
+  const type = metadata?.type;
+
+  // Handle booking payments
+  if (type === 'booking_deposit' || type === 'balance_payment') {
+    await handlePaystackBookingChargeSuccess(data);
+    return;
+  }
+
   // If this is a subscription charge
   if (data.metadata?.providerId) {
     const profile = await prisma.providerProfile.findFirst({
@@ -472,7 +672,10 @@ async function handlePaystackChargeFailed(data: PaystackChargeData): Promise<voi
       });
 
       // Send payment failed notification
-      const amount = data.amount ? `₦${(data.amount / 100).toFixed(2)}` : '₦0.00';
+      // Get currency from charge data or profile region
+      const currency = data.currency || profile.regionCode === 'GH' ? 'GHS' : 'NGN';
+      const currencySymbol = currency === 'GHS' ? '₵' : '₦';
+      const amount = data.amount ? `${currencySymbol}${(data.amount / 100).toFixed(2)}` : `${currencySymbol}0.00`;
 
       await emailService.sendPaymentFailedEmail(profile.user.email, {
         firstName: profile.user.firstName,
@@ -485,5 +688,135 @@ async function handlePaystackChargeFailed(data: PaystackChargeData): Promise<voi
         updatePaymentUrl: `${env.FRONTEND_URL}/dashboard/subscription/payment-method`,
       });
     }
+  }
+}
+
+/**
+ * Handle Paystack booking charge success
+ */
+async function handlePaystackBookingChargeSuccess(data: PaystackChargeData): Promise<void> {
+  logger.info(`Paystack booking charge succeeded: ${data.reference}`);
+
+  const metadata = data.metadata;
+  const type = metadata?.type;
+  const bookingId = metadata?.bookingId;
+
+  if (!bookingId) return;
+
+  if (type === 'booking_deposit') {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        client: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            paystackCustomerCode: true,
+            paymentMethodId: true,
+          },
+        },
+        service: { select: { title: true, durationMinutes: true } },
+        provider: {
+          select: {
+            businessName: true,
+            addressLine1: true,
+            city: true,
+            state: true,
+            instantBookingEnabled: true,
+          },
+        },
+      },
+    });
+
+    if (!booking) return;
+
+    // Save client payment method if authorization code exists (Paystack)
+    if (data.authorization?.authorization_code) {
+      try {
+        let paystackCustomerCode = booking.client.paystackCustomerCode;
+
+        // Create or retrieve Paystack customer for client
+        if (!paystackCustomerCode) {
+          const customerResponse = await fetch('https://api.paystack.co/customer', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: booking.client.email,
+              first_name: booking.client.firstName,
+              last_name: booking.client.lastName,
+            }),
+          });
+
+          const customerData = (await customerResponse.json()) as {
+            status: boolean;
+            data?: { customer_code: string };
+          };
+          if (customerData.status && customerData.data) {
+            paystackCustomerCode = customerData.data.customer_code;
+          }
+        }
+
+        // Update client with payment method info
+        await prisma.user.update({
+          where: { id: booking.client.id },
+          data: {
+            paystackCustomerCode: paystackCustomerCode || null,
+            paymentMethodId: data.authorization.authorization_code,
+            last4Digits: data.authorization.last4 || null,
+            cardBrand: data.authorization.brand || null,
+            updatedAt: new Date(),
+          },
+        });
+
+        logger.info(`Saved payment method for client ${booking.client.id}`);
+      } catch (error) {
+        // Log error but don't fail the booking update
+        logger.error(`Error saving client payment method: ${error}`);
+      }
+    }
+
+    // Update booking payment status
+    await prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        paymentStatus: 'DEPOSIT_PAID',
+        paidAt: new Date(),
+        paymentMethod: data.channel || 'card',
+        paymentChannel: data.channel,
+        paystackTransactionId: data.id?.toString(),
+        bookingStatus: booking.provider.instantBookingEnabled ? 'CONFIRMED' : 'PENDING',
+        updatedAt: new Date(),
+      },
+    });
+
+    // Send confirmation email
+    await emailService.sendBookingConfirmationEmail(booking.client.email, {
+      clientName: `${booking.client.firstName} ${booking.client.lastName}`,
+      serviceName: booking.service.title,
+      providerName: booking.provider.businessName,
+      appointmentDateTime: `${booking.appointmentDate.toLocaleDateString()} at ${booking.appointmentTime}`,
+      duration: `${booking.service.durationMinutes} minutes`,
+      location: `${booking.provider.addressLine1}, ${booking.provider.city}, ${booking.provider.state}`,
+      totalAmount: `${booking.currency} ${booking.servicePrice.toString()}`,
+      cancellationPolicy: "Please review the provider's cancellation policy",
+      bookingDetailsUrl: `${env.FRONTEND_URL}/client/bookings/${booking.id}`,
+    });
+
+    logger.info(`Paystack booking ${bookingId} payment confirmed`);
+  } else if (type === 'balance_payment') {
+    await prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        paymentStatus: 'FULLY_PAID',
+        updatedAt: new Date(),
+      },
+    });
+
+    logger.info(`Paystack booking ${bookingId} balance paid`);
   }
 }

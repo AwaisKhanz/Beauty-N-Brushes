@@ -18,8 +18,16 @@ router.get('/:bookingId', bookingController.getBooking);
 router.put('/:bookingId', bookingController.updateBooking);
 
 // Booking actions
+router.post('/:bookingId/confirm', bookingController.confirmBooking);
 router.post('/:bookingId/cancel', bookingController.cancelBooking);
+router.post('/:bookingId/reschedule', bookingController.rescheduleBooking);
+router.post('/:bookingId/request-reschedule', bookingController.requestReschedule);
+router.post(
+  '/reschedule-requests/:requestId/respond',
+  bookingController.respondToRescheduleRequest
+);
 router.post('/:bookingId/complete', bookingController.completeBooking);
+router.post('/:bookingId/no-show', bookingController.markNoShow);
 router.post('/:bookingId/assign-team-member', bookingController.assignTeamMember);
 
 export default router;

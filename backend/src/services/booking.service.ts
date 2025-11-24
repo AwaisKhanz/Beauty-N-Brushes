@@ -6,12 +6,19 @@
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { calculateServiceFee } from '../lib/payment';
+import { emailService } from '../lib/email';
+import { env } from '../config/env';
+import { calendarSyncService } from './calendar-sync.service';
 import type {
   CreateBookingRequest,
   UpdateBookingRequest,
   CancelBookingRequest,
+  RescheduleBookingRequest,
   CompleteBookingRequest,
   AssignTeamMemberRequest,
+  BookingDetails,
+  RequestRescheduleRequest,
+  RespondToRescheduleRequest,
 } from '../../../shared-types';
 import type { RegionCode } from '../types/payment.types';
 
@@ -23,7 +30,18 @@ class BookingService {
     // Get service with provider info and addons
     const service = await prisma.service.findUnique({
       where: { id: data.serviceId },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        priceMin: true,
+        durationMinutes: true,
+        // Deposits are ALWAYS mandatory per requirements
+        depositType: true,
+        depositAmount: true,
+        // Mobile/Home service configuration
+        mobileServiceAvailable: true,
+        homeServiceFee: true,
+        active: true,
         provider: {
           select: {
             id: true,
@@ -52,32 +70,44 @@ class BookingService {
       throw new AppError(400, 'Service is not available for booking');
     }
 
-    // Calculate pricing (base price + add-ons)
-    let totalServicePrice = Number(service.priceMin);
+    // Calculate base service price
+    let servicePrice = Number(service.priceMin);
 
-    // Add selected add-ons to total
+    // Calculate add-ons total
+    let addonsTotal = 0;
     const selectedAddons = [];
     if (data.selectedAddonIds && data.selectedAddonIds.length > 0) {
       for (const addonId of data.selectedAddonIds) {
         const addon = service.addons.find((a) => a.id === addonId);
         if (addon) {
           selectedAddons.push(addon);
-          totalServicePrice += Number(addon.addonPrice);
+          addonsTotal += Number(addon.addonPrice);
         }
       }
     }
 
-    // Calculate deposit based on total price
+    // Calculate home service fee if requested
+    let homeServiceFee = 0;
+    if (data.homeServiceRequested && service.mobileServiceAvailable && service.homeServiceFee) {
+      homeServiceFee = Number(service.homeServiceFee);
+    }
+
+    // TOTAL BOOKING AMOUNT = service + add-ons + home service fee
+    const totalBookingAmount = servicePrice + addonsTotal + homeServiceFee;
+
+    // Calculate deposit (based on service + add-ons)
     const depositAmount =
       service.depositType === 'PERCENTAGE'
-        ? (totalServicePrice * Number(service.depositAmount)) / 100
+        ? (totalBookingAmount * Number(service.depositAmount)) / 100
         : Number(service.depositAmount);
 
-    // Calculate service fee on deposit amount (charged to client)
+    // ✅ CRITICAL FIX: Calculate service fee on TOTAL BOOKING AMOUNT (not just deposit)
     const serviceFee = calculateServiceFee(
-      depositAmount,
+      totalBookingAmount,
       service.provider.regionCode as RegionCode
     );
+
+    // Total amount client pays NOW = deposit + service fee
     const totalAmount = depositAmount + serviceFee;
 
     // Handle team member assignment for salon bookings
@@ -135,16 +165,22 @@ class BookingService {
         appointmentDate: new Date(data.appointmentDate),
         appointmentTime: data.appointmentTime,
         appointmentEndTime: endTime,
-        servicePrice: totalServicePrice,
+        servicePrice: totalBookingAmount, // ✅ Total service + add-ons + home service (NOT including service fee)
         depositAmount,
-        serviceFee,
-        totalAmount,
+        serviceFee, // ✅ Fee on total booking amount
+        totalAmount, // ✅ Deposit + service fee (what client pays now)
         currency: service.provider.currency,
         paymentProvider: service.provider.paymentProvider,
         bookingStatus,
         paymentStatus: 'PENDING',
         bookingType,
+        contactEmail: data.contactEmail,
+        contactPhone: data.contactPhone,
         specialRequests: data.specialRequests || null,
+        referencePhotoUrls: data.referencePhotoUrls || [],
+        // Home service tracking
+        homeServiceRequested: data.homeServiceRequested || false,
+        homeServiceFee,
       },
       include: {
         service: {
@@ -161,11 +197,18 @@ class BookingService {
           select: {
             id: true,
             businessName: true,
+            slug: true,
             businessPhone: true,
             addressLine1: true,
             city: true,
             state: true,
             isSalon: true,
+            user: {
+              select: {
+                firstName: true,
+                lastName: true,
+              },
+            },
           },
         },
         assignedTeamMember: {
@@ -200,7 +243,154 @@ class BookingService {
       });
     }
 
+    // Send booking confirmation email
+    try {
+      const appointmentDateTime = new Date(`${data.appointmentDate}T${data.appointmentTime}`);
+      const formattedDateTime = appointmentDateTime.toLocaleString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      await emailService.sendBookingConfirmationEmail(booking.client.email, {
+        clientName: `${booking.client.firstName} ${booking.client.lastName}`,
+        serviceName: booking.service.title,
+        providerName:
+          booking.provider.businessName ||
+          `${booking.provider.user.firstName} ${booking.provider.user.lastName}`,
+        appointmentDateTime: formattedDateTime,
+        duration: `${service.durationMinutes} minutes`,
+        location: `${booking.provider.addressLine1 || ''}, ${booking.provider.city}, ${booking.provider.state}`,
+        totalAmount: `${booking.currency} ${totalBookingAmount.toFixed(2)}`,
+        cancellationPolicy: "Please review the provider's cancellation policy",
+        bookingDetailsUrl: `${env.FRONTEND_URL}/client/bookings/${booking.id}`,
+      });
+    } catch (emailError) {
+      // Don't fail booking if email fails
+      console.error('Failed to send booking confirmation email:', emailError);
+    }
+
+    // Sync to Google Calendar if provider has it connected
+    try {
+      const startDate = new Date(`${data.appointmentDate}T${data.appointmentTime}:00`);
+      const endDate = new Date(startDate.getTime() + service.durationMinutes * 60000);
+
+      const calendarEventId = await calendarSyncService.syncBookingToCalendar(
+        {
+          bookingId: booking.id,
+          title: `${booking.service.title} - ${booking.client.firstName} ${booking.client.lastName}`,
+          description: `Client: ${booking.client.firstName} ${booking.client.lastName}\nEmail: ${booking.client.email}\nPhone: ${booking.contactPhone}\nService: ${booking.service.title}\nPrice: ${booking.currency} ${totalBookingAmount.toFixed(2)}\n\nSpecial Requests: ${data.specialRequests || 'None'}`,
+          startTime: startDate,
+          endTime: endDate,
+          clientEmail: booking.client.email,
+          clientName: `${booking.client.firstName} ${booking.client.lastName}`,
+          location: `${booking.provider.addressLine1 || ''}, ${booking.provider.city}, ${booking.provider.state}`,
+        },
+        service.provider.id
+      );
+
+      // Update booking with calendar event ID
+      if (calendarEventId) {
+        await prisma.booking.update({
+          where: { id: booking.id },
+          data: { googleCalendarEventId: calendarEventId },
+        });
+      }
+    } catch (calendarError) {
+      // Don't fail booking if calendar sync fails
+      console.error('Failed to sync booking to Google Calendar:', calendarError);
+    }
+
     return booking;
+  }
+
+  /**
+   * Confirm a booking (Provider only)
+   */
+  async confirmBooking(userId: string, bookingId: string): Promise<BookingDetails> {
+    // Verify user is provider and owns this booking
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        service: {
+          include: {
+            provider: {
+              include: {
+                user: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!booking) {
+      throw new AppError(404, 'Booking not found');
+    }
+
+    if (booking.service.provider.userId !== userId) {
+      throw new AppError(403, 'Not authorized to confirm this booking');
+    }
+
+    if (booking.bookingStatus !== 'PENDING') {
+      throw new AppError(400, 'Only pending bookings can be confirmed');
+    }
+
+    // Update booking status
+    const updatedBooking = await prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        bookingStatus: 'CONFIRMED',
+        updatedAt: new Date(),
+      },
+      include: {
+        client: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+          },
+        },
+        service: {
+          select: {
+            id: true,
+            title: true,
+            durationMinutes: true,
+            provider: {
+              select: {
+                id: true,
+                businessName: true,
+                addressLine1: true,
+                city: true,
+                state: true,
+                isSalon: true,
+              },
+            },
+          },
+        },
+        addons: true,
+      },
+    });
+
+    // Send confirmation email to client
+    await emailService.sendBookingConfirmationEmail(updatedBooking.client.email, {
+      clientName: `${updatedBooking.client.firstName} ${updatedBooking.client.lastName}`,
+      serviceName: updatedBooking.service.title,
+      providerName: updatedBooking.service.provider.businessName,
+      appointmentDateTime: `${updatedBooking.appointmentDate.toLocaleDateString()} at ${updatedBooking.appointmentTime}`,
+      duration: `${updatedBooking.service.durationMinutes || 60} minutes`,
+      location: `${updatedBooking.service.provider.addressLine1 || ''}, ${updatedBooking.service.provider.city}, ${updatedBooking.service.provider.state}`,
+      totalAmount: `${updatedBooking.currency} ${updatedBooking.servicePrice.toString()}`,
+      cancellationPolicy: "Please review the provider's cancellation policy",
+      bookingDetailsUrl: `${env.FRONTEND_URL}/client/bookings/${updatedBooking.id}`,
+    });
+
+    return updatedBooking as unknown as BookingDetails;
   }
 
   /**
@@ -292,6 +482,7 @@ class BookingService {
           select: {
             id: true,
             businessName: true,
+            slug: true,
             businessPhone: true,
             addressLine1: true,
             city: true,
@@ -316,6 +507,7 @@ class BookingService {
             phone: true,
           },
         },
+        addons: true, // ✅ ADD THIS - Include booking add-ons
       },
     });
 
@@ -345,6 +537,14 @@ class BookingService {
         if (!teamMember || booking.assignedTeamMemberId !== teamMember.id) {
           throw new AppError(403, 'Access denied');
         }
+      }
+
+      // Hide client phone until booking is confirmed (Requirements Line 502)
+      if (booking.bookingStatus === 'PENDING') {
+        return {
+          ...booking,
+          contactPhone: null,
+        };
       }
     }
 
@@ -420,6 +620,7 @@ class BookingService {
               phone: true,
             },
           },
+          addons: true, // ✅ ADD THIS
         },
         orderBy: { appointmentDate: 'desc' },
         skip,
@@ -428,8 +629,17 @@ class BookingService {
       prisma.booking.count({ where }),
     ]);
 
+    // Hide client phone for providers when booking is PENDING (Requirements Line 502)
+    const processedBookings =
+      userRole === 'PROVIDER'
+        ? bookings.map((booking) => ({
+            ...booking,
+            contactPhone: booking.bookingStatus === 'PENDING' ? null : booking.contactPhone,
+          }))
+        : bookings;
+
     return {
-      bookings,
+      bookings: processedBookings,
       pagination: {
         page,
         limit,
@@ -818,7 +1028,389 @@ class BookingService {
       },
     });
 
+    // Delete calendar event if it exists
+    if (updated.googleCalendarEventId) {
+      await calendarSyncService.deleteCalendarEvent(bookingId, updated.providerId);
+    }
+
     return updated;
+  }
+
+  /**
+   * Reschedule booking (within provider's policy)
+   */
+  async rescheduleBooking(userId: string, bookingId: string, data: RescheduleBookingRequest) {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        service: {
+          select: {
+            durationMinutes: true,
+            bufferTimeMinutes: true,
+          },
+        },
+        provider: {
+          select: {
+            id: true,
+            userId: true,
+            minAdvanceHours: true,
+          },
+        },
+      },
+    });
+
+    if (!booking) {
+      throw new AppError(404, 'Booking not found');
+    }
+
+    // Only client can reschedule their own booking
+    if (booking.clientId !== userId) {
+      throw new AppError(403, 'Access denied');
+    }
+
+    // Check if booking can be rescheduled
+    if (!['PENDING', 'CONFIRMED'].includes(booking.bookingStatus)) {
+      throw new AppError(400, 'Only pending or confirmed bookings can be rescheduled');
+    }
+
+    // Check minimum advance notice for rescheduling
+    const now = new Date();
+    const appointmentDateTime = new Date(
+      `${booking.appointmentDate.toISOString().split('T')[0]}T${booking.appointmentTime}`
+    );
+    const hoursUntilAppointment =
+      (appointmentDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+    const minRescheduleHours = booking.provider.minAdvanceHours || 24;
+    if (hoursUntilAppointment < minRescheduleHours) {
+      throw new AppError(
+        400,
+        `Booking must be rescheduled at least ${minRescheduleHours} hours in advance`
+      );
+    }
+
+    // Check if new slot is available
+    const totalDuration =
+      booking.service.durationMinutes + (booking.service.bufferTimeMinutes || 0);
+    const newEndTime = this.addMinutes(data.newTime, totalDuration);
+    const newRequestedDate = new Date(data.newDate);
+
+    const conflictingBooking = await prisma.booking.findFirst({
+      where: {
+        providerId: booking.provider.id,
+        appointmentDate: newRequestedDate,
+        bookingStatus: { in: ['PENDING', 'CONFIRMED'] },
+        id: { not: bookingId }, // Exclude current booking
+      },
+    });
+
+    if (conflictingBooking) {
+      const hasConflict = this.timesOverlap(
+        data.newTime,
+        newEndTime,
+        conflictingBooking.appointmentTime,
+        conflictingBooking.appointmentEndTime
+      );
+
+      if (hasConflict) {
+        throw new AppError(400, 'Selected time slot is not available');
+      }
+    }
+
+    // Update booking with new date/time
+    const updated = await prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        appointmentDate: newRequestedDate,
+        appointmentTime: data.newTime,
+        appointmentEndTime: newEndTime,
+        rescheduleCount: { increment: 1 },
+        updatedAt: new Date(),
+      },
+      include: {
+        service: {
+          select: {
+            id: true,
+            title: true,
+            durationMinutes: true,
+            category: {
+              select: { name: true },
+            },
+          },
+        },
+        provider: {
+          select: {
+            id: true,
+            businessName: true,
+            slug: true,
+            businessPhone: true,
+            addressLine1: true,
+            city: true,
+            state: true,
+            isSalon: true,
+          },
+        },
+        assignedTeamMember: {
+          select: {
+            id: true,
+            displayName: true,
+            avatarUrl: true,
+            specializations: true,
+          },
+        },
+        client: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+          },
+        },
+      },
+    });
+
+    // Update Google Calendar event with new date/time
+    if (updated.googleCalendarEventId) {
+      const startDate = new Date(`${data.newDate}T${data.newTime}:00`);
+      const endDate = new Date(startDate.getTime() + updated.service.durationMinutes * 60000);
+
+      await calendarSyncService.updateCalendarEvent(bookingId, updated.provider.id, {
+        bookingId,
+        title: `${updated.service.title} - ${updated.client.firstName} ${updated.client.lastName}`,
+        description: `Rescheduled Booking\n\nClient: ${updated.client.firstName} ${updated.client.lastName}\nEmail: ${updated.client.email}\nPhone: ${updated.client.phone}\nService: ${updated.service.title}`,
+        startTime: startDate,
+        endTime: endDate,
+        clientEmail: updated.client.email,
+        clientName: `${updated.client.firstName} ${updated.client.lastName}`,
+      });
+    }
+
+    // TODO: Send reschedule confirmation email
+
+    return updated;
+  }
+
+  /**
+   * Request reschedule (provider only)
+   */
+  async requestReschedule(userId: string, bookingId: string, data: RequestRescheduleRequest) {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        provider: {
+          select: {
+            id: true,
+            userId: true,
+          },
+        },
+        service: {
+          select: {
+            durationMinutes: true,
+            bufferTimeMinutes: true,
+          },
+        },
+      },
+    });
+
+    if (!booking) {
+      throw new AppError(404, 'Booking not found');
+    }
+
+    // Only the provider can request reschedule
+    if (booking.provider.userId !== userId) {
+      throw new AppError(403, 'Only the provider can request reschedule');
+    }
+
+    // Check if booking can be rescheduled
+    if (!['PENDING', 'CONFIRMED'].includes(booking.bookingStatus)) {
+      throw new AppError(400, 'Only pending or confirmed bookings can be rescheduled');
+    }
+
+    // Check if there's already a pending reschedule request
+    const existingRequest = await prisma.rescheduleRequest.findFirst({
+      where: {
+        bookingId,
+        status: 'pending',
+      },
+    });
+
+    if (existingRequest) {
+      throw new AppError(400, 'There is already a pending reschedule request for this booking');
+    }
+
+    // Check if new slot is available
+    const totalDuration =
+      booking.service.durationMinutes + (booking.service.bufferTimeMinutes || 0);
+    const newEndTime = this.addMinutes(data.newTime, totalDuration);
+    const newRequestedDate = new Date(data.newDate);
+
+    const conflictingBooking = await prisma.booking.findFirst({
+      where: {
+        providerId: booking.providerId,
+        appointmentDate: newRequestedDate,
+        OR: [
+          {
+            AND: [
+              { appointmentTime: { lte: data.newTime } },
+              { appointmentEndTime: { gt: data.newTime } },
+            ],
+          },
+          {
+            AND: [
+              { appointmentTime: { lt: newEndTime } },
+              { appointmentEndTime: { gte: newEndTime } },
+            ],
+          },
+          {
+            AND: [
+              { appointmentTime: { gte: data.newTime } },
+              { appointmentEndTime: { lte: newEndTime } },
+            ],
+          },
+        ],
+        id: { not: bookingId },
+        bookingStatus: { in: ['PENDING', 'CONFIRMED'] },
+      },
+    });
+
+    if (conflictingBooking) {
+      throw new AppError(400, 'The requested time slot is not available');
+    }
+
+    // Create reschedule request
+    const rescheduleRequest = await prisma.rescheduleRequest.create({
+      data: {
+        bookingId,
+        newDate: newRequestedDate,
+        newTime: data.newTime,
+        reason: data.reason,
+        status: 'pending',
+      },
+    });
+
+    // TODO: Send notification to client about reschedule request
+
+    return rescheduleRequest;
+  }
+
+  /**
+   * Respond to reschedule request (client only)
+   */
+  async respondToRescheduleRequest(
+    userId: string,
+    requestId: string,
+    data: RespondToRescheduleRequest
+  ) {
+    const rescheduleRequest = await prisma.rescheduleRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        booking: {
+          include: {
+            service: {
+              select: {
+                durationMinutes: true,
+                bufferTimeMinutes: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!rescheduleRequest) {
+      throw new AppError(404, 'Reschedule request not found');
+    }
+
+    // Only the client can respond to reschedule request
+    if (rescheduleRequest.booking.clientId !== userId) {
+      throw new AppError(403, 'Only the client can respond to reschedule request');
+    }
+
+    // Check if request is still pending
+    if (rescheduleRequest.status !== 'pending') {
+      throw new AppError(400, 'This reschedule request has already been responded to');
+    }
+
+    if (data.approved) {
+      // Update booking with new date/time
+      const totalDuration =
+        rescheduleRequest.booking.service.durationMinutes +
+        (rescheduleRequest.booking.service.bufferTimeMinutes || 0);
+      const newEndTime = this.addMinutes(rescheduleRequest.newTime, totalDuration);
+
+      const updatedBooking = await prisma.booking.update({
+        where: { id: rescheduleRequest.bookingId },
+        data: {
+          appointmentDate: rescheduleRequest.newDate,
+          appointmentTime: rescheduleRequest.newTime,
+          appointmentEndTime: newEndTime,
+          rescheduleCount: { increment: 1 },
+        },
+        include: {
+          service: {
+            select: {
+              id: true,
+              title: true,
+              durationMinutes: true,
+              category: {
+                select: { name: true },
+              },
+            },
+          },
+          provider: {
+            select: {
+              id: true,
+              businessName: true,
+              slug: true,
+              businessPhone: true,
+              addressLine1: true,
+              city: true,
+              state: true,
+              isSalon: true,
+            },
+          },
+          client: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              phone: true,
+            },
+          },
+          addons: true,
+        },
+      });
+
+      // Update reschedule request status
+      await prisma.rescheduleRequest.update({
+        where: { id: requestId },
+        data: {
+          status: 'approved',
+          respondedAt: new Date(),
+          responseReason: data.reason,
+        },
+      });
+
+      // TODO: Send confirmation notification to provider
+
+      return updatedBooking;
+    } else {
+      // Update reschedule request status to denied
+      await prisma.rescheduleRequest.update({
+        where: { id: requestId },
+        data: {
+          status: 'denied',
+          respondedAt: new Date(),
+          responseReason: data.reason,
+        },
+      });
+
+      // TODO: Send notification to provider about denial
+
+      return rescheduleRequest.booking;
+    }
   }
 
   /**
@@ -848,6 +1440,7 @@ class BookingService {
         completedAt: new Date(),
         tipAmount: data.tipAmount || 0,
         internalNotes: data.notes || null,
+        balancePaymentMethod: data.balancePaymentMethod || null,
         updatedAt: new Date(),
       },
       include: {
@@ -858,6 +1451,93 @@ class BookingService {
         review: true,
       },
     });
+
+    return updated;
+  }
+
+  /**
+   * Mark booking as no-show (provider only)
+   */
+  async markNoShow(userId: string, userRole: string, bookingId: string, notes?: string) {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        provider: { select: { userId: true } },
+      },
+    });
+
+    if (!booking) {
+      throw new AppError(404, 'Booking not found');
+    }
+
+    // Only provider can mark as no-show
+    if (userRole !== 'PROVIDER' || booking.provider.userId !== userId) {
+      throw new AppError(403, 'Only the provider can mark bookings as no-show');
+    }
+
+    // Can only mark confirmed bookings as no-show
+    if (booking.bookingStatus !== 'CONFIRMED') {
+      throw new AppError(400, 'Only confirmed bookings can be marked as no-show');
+    }
+
+    const updated = await prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        bookingStatus: 'NO_SHOW',
+        internalNotes: notes || null,
+        updatedAt: new Date(),
+      },
+      include: {
+        service: {
+          select: {
+            id: true,
+            title: true,
+            durationMinutes: true,
+            category: {
+              select: { name: true },
+            },
+          },
+        },
+        provider: {
+          select: {
+            id: true,
+            businessName: true,
+            slug: true,
+            businessPhone: true,
+            addressLine1: true,
+            city: true,
+            state: true,
+            isSalon: true,
+            user: {
+              select: {
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        assignedTeamMember: {
+          select: {
+            id: true,
+            displayName: true,
+            avatarUrl: true,
+            specializations: true,
+          },
+        },
+        client: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+          },
+        },
+      },
+    });
+
+    // TODO: Send no-show notification email to client
+    // TODO: Handle deposit forfeiture according to policy
 
     return updated;
   }

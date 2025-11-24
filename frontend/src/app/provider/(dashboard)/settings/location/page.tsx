@@ -96,7 +96,7 @@ export default function LocationSettingsPage() {
         zipCode: values.zipCode,
         country: values.country,
         businessPhone: values.businessPhone || '',
-        // TODO: Add lat/lng geocoding from address
+        // Latitude and longitude will be automatically geocoded from the address on the backend
       };
 
       await api.settings.updateLocation(data);
@@ -142,9 +142,9 @@ export default function LocationSettingsPage() {
       )}
 
       {success && (
-        <Alert className="mb-6 border-success bg-success/10">
-          <CheckCircle2 className="h-4 w-4 text-success" />
-          <AlertDescription className="text-success">{success}</AlertDescription>
+        <Alert variant="success" className="mb-6">
+          <CheckCircle2 className="h-4 w-4" />
+          <AlertDescription>{success}</AlertDescription>
         </Alert>
       )}
 
@@ -263,7 +263,8 @@ export default function LocationSettingsPage() {
             <MapPin className="h-4 w-4" />
             <AlertDescription>
               Your address will be used to display your location on maps and help clients find you.
-              Make sure it's accurate!
+              Coordinates (latitude/longitude) will be automatically calculated from your address.
+              Make sure your address is accurate!
             </AlertDescription>
           </Alert>
 

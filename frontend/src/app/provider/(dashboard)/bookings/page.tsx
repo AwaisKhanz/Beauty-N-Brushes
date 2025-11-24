@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,116 +21,55 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
   Calendar,
   Clock,
   MapPin,
-  MessageSquare,
   CheckCircle,
-  XCircle,
-  MoreHorizontal,
   Search,
-  Phone,
-  Mail,
+  Eye,
 } from 'lucide-react';
-
-type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'no_show';
+import { api } from '@/lib/api';
+import { extractErrorMessage } from '@/lib/error-utils';
+import type { BookingDetails } from '@/shared-types/booking.types';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 export default function BookingsPage() {
+  const router = useRouter();
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [bookings, setBookings] = useState<BookingDetails[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  // Mock data - replace with real data from API
-  const bookings = [
-    {
-      id: '1',
-      clientName: 'Sarah Johnson',
-      clientEmail: 'sarah@email.com',
-      clientPhone: '(555) 123-4567',
-      service: 'Hair Color & Cut',
-      date: '2025-01-20',
-      time: '14:00',
-      duration: 120,
-      status: 'confirmed' as BookingStatus,
-      totalAmount: 150,
-      depositPaid: 75,
-      balanceOwed: 75,
-      location: 'In-studio',
-      specialRequests: 'Would like to go a bit lighter than last time',
-      inspirationPhotos: 2,
-      bookingDate: '2025-01-15',
-      paymentStatus: 'deposit_paid',
-    },
-    {
-      id: '2',
-      clientName: 'Maria Garcia',
-      clientEmail: 'maria@email.com',
-      clientPhone: '(555) 234-5678',
-      service: 'Bridal Makeup',
-      date: '2025-01-22',
-      time: '10:00',
-      duration: 90,
-      status: 'pending' as BookingStatus,
-      totalAmount: 200,
-      depositPaid: 100,
-      balanceOwed: 100,
-      location: 'Client location - Hotel Downtown',
-      specialRequests: 'Natural look with subtle shimmer',
-      inspirationPhotos: 3,
-      bookingDate: '2025-01-16',
-      paymentStatus: 'deposit_paid',
-    },
-    {
-      id: '3',
-      clientName: 'Emma Davis',
-      clientEmail: 'emma@email.com',
-      clientPhone: '(555) 345-6789',
-      service: 'Nail Art',
-      date: '2025-01-25',
-      time: '15:30',
-      duration: 60,
-      status: 'confirmed' as BookingStatus,
-      totalAmount: 75,
-      depositPaid: 37.5,
-      balanceOwed: 37.5,
-      location: 'In-studio',
-      specialRequests: 'Floral design with pastel colors',
-      inspirationPhotos: 1,
-      bookingDate: '2025-01-18',
-      paymentStatus: 'deposit_paid',
-    },
-    {
-      id: '4',
-      clientName: 'Jessica Brown',
-      clientEmail: 'jessica@email.com',
-      clientPhone: '(555) 456-7890',
-      service: 'Hair Styling',
-      date: '2025-01-18',
-      time: '16:00',
-      duration: 90,
-      status: 'completed' as BookingStatus,
-      totalAmount: 120,
-      depositPaid: 60,
-      balanceOwed: 0,
-      location: 'In-studio',
-      specialRequests: '',
-      inspirationPhotos: 0,
-      bookingDate: '2025-01-10',
-      paymentStatus: 'fully_paid',
-    },
-  ];
+  // Fetch bookings on mount
+  useEffect(() => {
+    fetchBookings();
+  }, []);
 
-  const getStatusColor = (status: BookingStatus) => {
+  async function fetchBookings() {
+    try {
+      setLoading(true);
+      setError('');
+      const response = await api.bookings.getAll();
+      setBookings(response.data.bookings);
+    } catch (err: unknown) {
+      setError(extractErrorMessage(err) || 'Failed to load bookings');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+
+  const getStatusColor = (status: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
     switch (status) {
       case 'pending':
         return 'secondary';
       case 'confirmed':
         return 'default';
-      case 'cancelled':
+      case 'cancelled_by_client':
+      case 'cancelled_by_provider':
         return 'destructive';
       case 'completed':
         return 'outline';
@@ -141,7 +80,9 @@ export default function BookingsPage() {
     }
   };
 
-  const getPaymentStatusColor = (status: string) => {
+  const getPaymentStatusColor = (
+    status: string
+  ): 'default' | 'secondary' | 'destructive' | 'outline' => {
     switch (status) {
       case 'deposit_paid':
         return 'secondary';
@@ -154,20 +95,64 @@ export default function BookingsPage() {
     }
   };
 
-  const filteredBookings = bookings.filter(
-    (booking) => statusFilter === 'all' || booking.status === statusFilter
-  );
+  const filteredBookings = bookings.filter((booking) => {
+    if (statusFilter === 'all') return true;
+    if (statusFilter === 'pending') return booking.bookingStatus === 'pending';
+    if (statusFilter === 'confirmed') return booking.bookingStatus === 'confirmed';
+    if (statusFilter === 'completed') return booking.bookingStatus === 'completed';
+    if (statusFilter === 'cancelled')
+      return ['cancelled_by_client', 'cancelled_by_provider'].includes(booking.bookingStatus);
+    return true;
+  });
+
+  const calculateBalanceOwed = (booking: BookingDetails) => {
+    return booking.servicePrice - booking.depositAmount;
+  };
 
   const stats = {
     total: bookings.length,
-    pending: bookings.filter((b) => b.status === 'pending').length,
-    confirmed: bookings.filter((b) => b.status === 'confirmed').length,
-    completed: bookings.filter((b) => b.status === 'completed').length,
+    pending: bookings.filter((b) => b.bookingStatus === 'pending').length,
+    confirmed: bookings.filter((b) => b.bookingStatus === 'confirmed').length,
+    completed: bookings.filter((b) => b.bookingStatus === 'completed').length,
     totalRevenue: bookings.reduce((sum, b) => sum + b.totalAmount, 0),
     pendingRevenue: bookings
-      .filter((b) => ['pending', 'confirmed'].includes(b.status))
-      .reduce((sum, b) => sum + b.balanceOwed, 0),
+      .filter((b) => ['pending', 'confirmed'].includes(b.bookingStatus))
+      .reduce((sum, b) => sum + calculateBalanceOwed(b), 0),
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-48" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Card key={i}>
+              <CardContent className="pt-6">
+                <Skeleton className="h-16" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <Skeleton className="h-96" />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-3xl font-heading font-bold">Bookings</h1>
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -288,37 +273,46 @@ export default function BookingsPage() {
                 <TableRow key={booking.id}>
                   <TableCell>
                     <div>
-                      <div className="font-medium">{booking.clientName}</div>
-                      <div className="text-sm text-muted-foreground">{booking.clientEmail}</div>
+                      <div className="font-medium">
+                        {booking.client
+                          ? `${booking.client.firstName} ${booking.client.lastName}`
+                          : 'Unknown Client'}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {booking.client?.email || 'N/A'}
+                      </div>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div>
-                      <div className="font-medium">{booking.service}</div>
+                      <div className="font-medium">{booking.service?.title || 'Service'}</div>
                       <div className="text-sm text-muted-foreground">
-                        {booking.duration}min • ${booking.totalAmount}
+                        {booking.service?.durationMinutes || 0}min • {booking.currency}{' '}
+                        {booking.totalAmount}
                       </div>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div>
                       <div className="font-medium">
-                        {new Date(booking.date).toLocaleDateString()}
+                        {new Date(booking.appointmentDate).toLocaleDateString()}
                       </div>
-                      <div className="text-sm text-muted-foreground">{booking.time}</div>
+                      <div className="text-sm text-muted-foreground">{booking.appointmentTime}</div>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={getStatusColor(booking.status)}>{booking.status}</Badge>
+                    <Badge variant={getStatusColor(booking.bookingStatus)}>
+                      {booking.bookingStatus.replace(/_/g, ' ')}
+                    </Badge>
                   </TableCell>
                   <TableCell>
                     <div>
                       <Badge variant={getPaymentStatusColor(booking.paymentStatus)}>
-                        {booking.paymentStatus.replace('_', ' ')}
+                        {booking.paymentStatus.replace(/_/g, ' ')}
                       </Badge>
-                      {booking.balanceOwed > 0 && (
+                      {calculateBalanceOwed(booking) > 0 && (
                         <div className="text-xs text-muted-foreground mt-1">
-                          ${booking.balanceOwed} owed
+                          {booking.currency} {calculateBalanceOwed(booking).toFixed(2)} owed
                         </div>
                       )}
                     </div>
@@ -326,48 +320,21 @@ export default function BookingsPage() {
                   <TableCell>
                     <div className="flex items-center gap-1 text-sm">
                       <MapPin className="h-3 w-3" />
-                      {booking.location}
+                      {booking.provider
+                        ? `${booking.provider.city}, ${booking.provider.state}`
+                        : 'N/A'}
                     </div>
                   </TableCell>
                   <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm">
-                          <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Open menu</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
-                          <MessageSquare className="mr-2 h-4 w-4" />
-                          Message Client
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Phone className="mr-2 h-4 w-4" />
-                          Call Client
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Mail className="mr-2 h-4 w-4" />
-                          Email Client
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>View Details</DropdownMenuItem>
-                        {booking.status === 'pending' && (
-                          <>
-                            <DropdownMenuItem>
-                              <CheckCircle className="mr-2 h-4 w-4" />
-                              Confirm Booking
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <XCircle className="mr-2 h-4 w-4" />
-                              Decline Booking
-                            </DropdownMenuItem>
-                          </>
-                        )}
-                        {booking.status === 'confirmed' && (
-                          <DropdownMenuItem>Mark as Completed</DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => router.push(`/provider/bookings/${booking.id}`)}
+                      className="gap-2"
+                    >
+                      <Eye className="h-4 w-4" />
+                      View Details
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}

@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ShareBookingPageDialog } from '@/components/provider/ShareBookingPageDialog';
 import Link from 'next/link';
 import {
   Calendar,
@@ -20,6 +21,7 @@ import {
   DollarSign,
   Eye,
   AlertCircle,
+  Share2,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
@@ -30,6 +32,7 @@ export default function ProviderDashboardPage() {
   const [error, setError] = useState('');
   const [dashboardData, setDashboardData] = useState<GetDashboardStatsResponse | null>(null);
   const [recentBookings, setRecentBookings] = useState<DashboardBooking[]>([]);
+  const [showShareDialog, setShowShareDialog] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -77,7 +80,7 @@ export default function ProviderDashboardPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-heading font-bold">Dashboard</h1>
           <p className="text-muted-foreground">
@@ -85,12 +88,20 @@ export default function ProviderDashboardPage() {
             happening with your business.
           </p>
         </div>
-        <Button className="gap-2" asChild>
-          <Link href="/provider/services/create">
-            <Plus className="h-4 w-4" />
-            Create Service
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          {profile.slug && (
+            <Button variant="outline" className="gap-2" onClick={() => setShowShareDialog(true)}>
+              <Share2 className="h-4 w-4" />
+              Share Page
+            </Button>
+          )}
+          <Button className="gap-2" asChild>
+            <Link href="/provider/services/create">
+              <Plus className="h-4 w-4" />
+              Create Service
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Profile Status Alerts */}
@@ -314,6 +325,16 @@ export default function ProviderDashboardPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Share Booking Page Dialog */}
+      {profile.slug && profile.businessName && (
+        <ShareBookingPageDialog
+          open={showShareDialog}
+          onOpenChange={setShowShareDialog}
+          businessName={profile.businessName}
+          slug={profile.slug}
+        />
+      )}
     </div>
   );
 }

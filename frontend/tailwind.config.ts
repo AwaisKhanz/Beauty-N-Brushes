@@ -62,6 +62,12 @@ const config: Config = {
           DEFAULT: 'hsl(var(--info))',
           foreground: 'hsl(var(--info-foreground))',
         },
+        'rating-filled': {
+          DEFAULT: 'hsl(var(--rating-filled))',
+        },
+        'rating-empty': {
+          DEFAULT: 'hsl(var(--rating-empty))',
+        },
         muted: {
           DEFAULT: 'hsl(var(--muted))',
           foreground: 'hsl(var(--muted-foreground))',

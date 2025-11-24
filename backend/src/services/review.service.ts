@@ -39,6 +39,15 @@ class ReviewService {
       throw new AppError(400, 'Can only review completed bookings');
     }
 
+    // Enforce 7-day review window (per requirements C.6)
+    const completedAt = booking.completedAt;
+    if (completedAt) {
+      const daysSinceCompletion = (Date.now() - completedAt.getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSinceCompletion > 7) {
+        throw new AppError(400, 'Review period has expired (7 days after completion)');
+      }
+    }
+
     // Check if review already exists
     const existingReview = await prisma.review.findUnique({
       where: { bookingId: data.bookingId },
@@ -203,6 +212,58 @@ class ReviewService {
   }
 
   /**
+   * Get reviews created by a specific client
+   */
+  async getReviewsByClient(
+    clientId: string,
+    page: number = 1,
+    limit: number = 10
+  ): Promise<{
+    reviews: Review[];
+    pagination: { page: number; limit: number; total: number; totalPages: number };
+  }> {
+    const skip = (page - 1) * limit;
+
+    const [reviews, total] = await Promise.all([
+      prisma.review.findMany({
+        where: { clientId },
+        include: {
+          booking: {
+            include: {
+              service: { select: { id: true, title: true } },
+              provider: { select: { id: true, businessName: true, slug: true } },
+            },
+          },
+          client: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              avatarUrl: true,
+            },
+          },
+          reviewMedia: {
+            orderBy: { displayOrder: 'asc' },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.review.count({ where: { clientId } }),
+    ]);
+
+    return {
+      reviews: reviews.map((r) => ({
+        ...this.formatReview(r),
+        provider: { businessName: r.booking.provider.businessName, slug: r.booking.provider.slug },
+        service: { title: r.booking.service.title },
+      })) as Review[],
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  /**
    * Get single review by ID
    */
   async getReviewById(reviewId: string, userId?: string): Promise<Review> {
@@ -255,6 +316,12 @@ class ReviewService {
 
     if (review.clientId !== userId) {
       throw new AppError(403, 'Not authorized to update this review');
+    }
+
+    // Enforce 24-hour edit window (per requirements C.6)
+    const hoursSinceCreation = (Date.now() - review.createdAt.getTime()) / (1000 * 60 * 60);
+    if (hoursSinceCreation > 24) {
+      throw new AppError(400, 'Reviews can only be edited within 24 hours of posting');
     }
 
     // Validate ratings if provided

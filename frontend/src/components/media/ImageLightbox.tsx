@@ -47,7 +47,7 @@ export function ImageLightbox({
     setIndex(api.selectedScrollSnap());
     api.on('select', onSelect);
     return () => {
-      api.off('select', onSelect as any);
+      api.off('select', onSelect);
     };
   }, [api, startIndex]);
 

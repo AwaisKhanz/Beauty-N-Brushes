@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -10,23 +10,14 @@ import { Star, User, Calendar, MessageSquare } from 'lucide-react';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
 import { LoginGate } from '@/components/auth/LoginGate';
-interface Review {
-  id: string;
-  rating: number;
-  comment: string;
-  createdAt: string;
-  client: {
-    name: string;
-    avatarUrl?: string;
-  };
-}
+import type { Review } from '../../../../shared-types';
 
 interface ServiceReviewsProps {
   serviceId: string;
   serviceTitle: string;
 }
 
-export function ServiceReviews({ serviceId, serviceTitle }: ServiceReviewsProps) {
+export function ServiceReviews({ serviceId, serviceTitle: _serviceTitle }: ServiceReviewsProps) {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -58,11 +49,11 @@ export function ServiceReviews({ serviceId, serviceTitle }: ServiceReviewsProps)
     });
   };
 
-  const renderStars = (rating: number) => {
+  const renderStars = (overallRating: number) => {
     return Array.from({ length: 5 }, (_, i) => (
       <Star
         key={i}
-        className={`h-4 w-4 ${i < rating ? 'fill-accent text-accent' : 'text-muted-foreground'}`}
+        className={`h-4 w-4 ${i < overallRating ? 'fill-accent text-accent' : 'text-muted-foreground'}`}
       />
     ));
   };
@@ -137,10 +128,10 @@ export function ServiceReviews({ serviceId, serviceTitle }: ServiceReviewsProps)
               <div className="flex items-start gap-4">
                 {/* Client Avatar */}
                 <div className="flex-shrink-0">
-                  {review.client.avatarUrl ? (
+                  {review.clientAvatarUrl ? (
                     <Image
-                      src={review.client.avatarUrl}
-                      alt={review.client.name}
+                      src={review.clientAvatarUrl}
+                      alt={review.clientName}
                       width={48}
                       height={48}
                       className="rounded-full object-cover"
@@ -156,8 +147,10 @@ export function ServiceReviews({ serviceId, serviceTitle }: ServiceReviewsProps)
                 <div className="flex-1 min-w-0">
                   {/* Client Name & Rating */}
                   <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-semibold text-foreground">{review.client.name}</h4>
-                    <div className="flex items-center gap-1">{renderStars(review.rating)}</div>
+                    <h4 className="font-semibold text-foreground">{review.clientName}</h4>
+                    <div className="flex items-center gap-1">
+                      {renderStars(review.overallRating)}
+                    </div>
                   </div>
 
                   {/* Review Date */}
@@ -167,7 +160,7 @@ export function ServiceReviews({ serviceId, serviceTitle }: ServiceReviewsProps)
                   </div>
 
                   {/* Review Comment */}
-                  <p className="text-muted-foreground leading-relaxed">{review.comment}</p>
+                  <p className="text-muted-foreground leading-relaxed">{review.reviewText}</p>
                 </div>
               </div>
             </CardContent>

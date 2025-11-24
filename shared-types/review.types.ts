@@ -1,8 +1,25 @@
 /**
  * Review Types
- * Types for review system (booking reviews with photos)
+ *
+ * Types for the review system including client reviews, provider responses,
+ * and helpful marks. Supports photo/video uploads and rating breakdowns.
+ *
+ * @module shared-types/review
+ *
+ * **Backend Usage:**
+ * - `backend/src/controllers/review.controller.ts`
+ * - `backend/src/services/review.service.ts`
+ *
+ * **Frontend Usage:**
+ * - `frontend/src/lib/api.ts` (api.reviews)
+ * - `frontend/src/components/reviews/`
+ * - `frontend/src/app/client/(dashboard)/reviews/`
  */
 
+/**
+ * Request to create a new review for a completed booking
+ * @interface
+ */
 export interface CreateReviewRequest {
   bookingId: string;
   overallRating: number;
@@ -106,4 +123,25 @@ export interface MarkReviewHelpfulResponse {
   message: string;
   helpful: boolean;
   helpfulCount: number;
+}
+
+// Review with provider and service relations (for client's own reviews)
+export interface ReviewWithRelations extends Review {
+  provider: {
+    businessName: string;
+    slug: string;
+  };
+  service: {
+    title: string;
+  };
+}
+
+export interface GetMyReviewsResponse {
+  reviews: ReviewWithRelations[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 }

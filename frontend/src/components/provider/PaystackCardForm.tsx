@@ -34,19 +34,32 @@ export default function PaystackCardForm({
     setError(null);
 
     try {
-      // TRIAL MODE: Start free trial without payment collection
-      // Payment will be collected later when trial ends
-      await api.onboarding.setupPayment({
-        regionCode: regionCode as 'NA' | 'EU' | 'GH' | 'NG',
+      // Calculate subscription amount in local currency
+      // Solo: $19 USD = ~₵237.50 GHS or ~₦29,450 NGN
+      // Salon: $49 USD = ~₵612.50 GHS or ~₦75,975 NGN
+      const baseAmount = subscriptionTier === 'solo' ? 19 : 49;
+      const exchangeRate = regionCode === 'GH' ? 12.5 : 1550; // GHS:NGN exchange rates
+      const amount = baseAmount * exchangeRate;
+
+      // Initialize Paystack transaction to collect payment and authorization
+      // Currency is determined by backend from regionCode
+      const initResponse = await api.payment.initializePaystack({
+        email: user.email,
+        amount,
         subscriptionTier,
-        paymentMethodId: 'paystack_trial', // Placeholder for trial mode
+        regionCode: regionCode as 'GH' | 'NG',
+        currency: regionCode === 'GH' ? 'GHS' : 'NGN', // Required by API type but backend uses regionCode
       });
 
-      // Success - proceed to next step
-      onSuccess();
+      // Redirect to Paystack checkout
+      if (initResponse.data.authorizationUrl) {
+        window.location.href = initResponse.data.authorizationUrl;
+      } else {
+        throw new Error('Failed to get payment URL from Paystack');
+      }
     } catch (err: unknown) {
       const errorMessage =
-        err instanceof Error ? err.message : 'Failed to start trial. Please try again.';
+        err instanceof Error ? err.message : 'Failed to initialize payment. Please try again.';
       setError(errorMessage);
       setProcessing(false);
     }
@@ -63,15 +76,18 @@ export default function PaystackCardForm({
       </CardHeader>
       <CardContent>
         <div className="space-y-6">
-          {/* TRIAL NOTICE */}
+          {/* PAYMENT NOTICE */}
           <div className="bg-primary/20 text-muted-foreground p-4 rounded-lg border border-primary/20 text-sm space-y-2">
             <div className="flex items-center gap-2">
               <CreditCard className="h-4 w-4" />
-              <p className="font-medium">Free Trial - No Payment Required</p>
+              <p className="font-medium">Secure Payment Setup</p>
             </div>
-            <p>Start your 2-month free trial now. No payment required to get started.</p>
+            <p>
+              Complete payment to start your 2-month free trial. Your card will be charged after
+              the trial period ends.
+            </p>
             <p className="text-xs mt-2 text-muted-foreground">
-              Full access to all features during your trial.
+              Secure payment powered by Paystack. Cancel anytime.
             </p>
           </div>
 
@@ -83,10 +99,10 @@ export default function PaystackCardForm({
 
           <div className="border-t pt-6">
             <div className="space-y-2 text-sm text-muted-foreground mb-6">
-              <p>• Start free trial immediately</p>
               <p>• 2-month free trial period</p>
-              <p>• No payment required now</p>
-              <p>• Full access to all features</p>
+              <p>• Payment method required for setup</p>
+              <p>• Charged after trial ends</p>
+              <p>• Cancel anytime during trial</p>
             </div>
 
             <div className="flex justify-between">
@@ -106,7 +122,7 @@ export default function PaystackCardForm({
                     Processing...
                   </>
                 ) : (
-                  'Start Free Trial'
+                  'Continue to Payment'
                 )}
               </Button>
             </div>

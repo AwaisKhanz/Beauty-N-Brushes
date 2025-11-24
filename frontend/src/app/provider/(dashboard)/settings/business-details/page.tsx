@@ -163,9 +163,9 @@ export default function BusinessDetailsPage() {
       )}
 
       {success && (
-        <Alert className="mb-6 border-success bg-success/10">
-          <CheckCircle2 className="h-4 w-4 text-success" />
-          <AlertDescription className="text-success">{success}</AlertDescription>
+        <Alert variant="success" className="mb-6">
+          <CheckCircle2 className="h-4 w-4" />
+          <AlertDescription>{success}</AlertDescription>
         </Alert>
       )}
 
@@ -180,7 +180,7 @@ export default function BusinessDetailsPage() {
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">License:</span>
               {details.licenseVerified ? (
-                <Badge className="bg-success gap-1">
+                <Badge variant="success" className="gap-1">
                   <CheckCircle2 className="h-3 w-3" />
                   Verified
                 </Badge>
@@ -191,7 +191,7 @@ export default function BusinessDetailsPage() {
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Insurance:</span>
               {details.insuranceVerified ? (
-                <Badge className="bg-success gap-1">
+                <Badge variant="success" className="gap-1">
                   <CheckCircle2 className="h-3 w-3" />
                   Verified
                 </Badge>

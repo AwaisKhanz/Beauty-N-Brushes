@@ -21,6 +21,7 @@ router.put('/policies', settingsController.updatePolicies);
 
 // Subscription & Payment
 router.get('/subscription', settingsController.getSubscriptionInfo);
+router.post('/payment-method/setup-intent', settingsController.createSetupIntent);
 router.post('/payment-method', settingsController.updatePaymentMethod);
 
 // Notifications

@@ -5,7 +5,8 @@ import { AppError } from '../middleware/errorHandler';
 import { aiService } from '../lib/ai';
 import { prisma } from '../config/database';
 import type { AuthRequest } from '../types';
-import type { CreateAccountTypeResponse } from '../../../shared-types';
+import type { CreateAccountTypeRequest, CreateAccountTypeResponse } from '../../../shared-types';
+import { z } from 'zod';
 
 /**
  * Create provider profile with account type
@@ -22,15 +23,17 @@ export async function createAccountType(
       throw new AppError(401, 'Unauthorized');
     }
 
-    const { accountType } = req.body;
+    const schema = z.object({
+      accountType: z.enum(['solo', 'salon'], {
+        errorMap: () => ({ message: 'Account type must be "solo" or "salon"' }),
+      }),
+    });
 
-    if (!accountType || !['solo', 'salon'].includes(accountType)) {
-      throw new AppError(400, 'Invalid account type. Must be "solo" or "salon"');
-    }
+    const data = schema.parse(req.body) as CreateAccountTypeRequest;
 
     const profile = await onboardingService.createProviderProfile({
       userId,
-      accountType,
+      accountType: data.accountType,
     });
 
     sendSuccess<CreateAccountTypeResponse>(
@@ -45,6 +48,11 @@ export async function createAccountType(
       200 // Use 200 instead of 201 since it might be an update
     );
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return next(
+        new AppError(400, `Validation failed: ${error.errors.map((e) => e.message).join(', ')}`)
+      );
+    }
     if (error instanceof Error) {
       if (error.message === 'User must have PROVIDER role') {
         return next(new AppError(403, error.message));

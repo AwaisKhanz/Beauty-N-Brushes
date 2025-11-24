@@ -4,7 +4,17 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, Calendar, Heart, MessageSquare, Search, X } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Calendar,
+  Heart,
+  MessageSquare,
+  Search,
+  X,
+  Star,
+  User,
+  Settings,
+} from 'lucide-react';
 import { NAV_LINKS } from '@/constants';
 
 // Map icon names to actual icon components
@@ -13,6 +23,9 @@ const iconMap = {
   Calendar,
   Heart,
   MessageSquare,
+  Star,
+  User,
+  Settings,
 };
 
 const navigation = NAV_LINKS.CLIENT_SIDEBAR.map((item) => ({

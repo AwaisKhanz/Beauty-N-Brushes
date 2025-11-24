@@ -5,42 +5,11 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Clock, MapPin, Star, User } from 'lucide-react';
+import { Clock, Star, User } from 'lucide-react';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
-
-interface RelatedService {
-  id: string;
-  title: string;
-  description: string;
-  priceMin: number;
-  priceMax?: number;
-  priceType: string;
-  currency: string;
-  durationMinutes: number;
-  category: {
-    name: string;
-  };
-  subcategory?: {
-    name: string;
-  };
-  provider: {
-    id: string;
-    businessName: string;
-    slug: string;
-    logoUrl?: string;
-    user: {
-      firstName: string;
-      lastName: string;
-    };
-  };
-  featuredImage?: {
-    fileUrl: string;
-  };
-  bookingCount: number;
-}
+import type { Service } from '../../../../shared-types';
 
 interface RelatedServicesProps {
   serviceId: string;
@@ -48,7 +17,7 @@ interface RelatedServicesProps {
 }
 
 export function RelatedServices({ serviceId, currentServiceTitle }: RelatedServicesProps) {
-  const [services, setServices] = useState<RelatedService[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,7 +27,7 @@ export function RelatedServices({ serviceId, currentServiceTitle }: RelatedServi
         setLoading(true);
         setError(null);
         const response = await api.services.getRelated(serviceId);
-        setServices(response.data.services);
+        setServices(response.data?.services || []);
       } catch (err: unknown) {
         setError(extractErrorMessage(err) || 'Failed to load related services');
       } finally {
@@ -115,9 +84,9 @@ export function RelatedServices({ serviceId, currentServiceTitle }: RelatedServi
             <Link href={`/services/${service.id}`} className="block">
               {/* Service Image */}
               <div className="relative h-48 overflow-hidden bg-muted">
-                {service.featuredImage ? (
+                {service.media?.[0]?.fileUrl ? (
                   <Image
-                    src={service.featuredImage.fileUrl}
+                    src={service.media[0].fileUrl}
                     alt={service.title}
                     fill
                     className="object-cover group-hover:scale-105 transition-transform duration-300"
@@ -133,7 +102,7 @@ export function RelatedServices({ serviceId, currentServiceTitle }: RelatedServi
 
                 {/* Category Badge */}
                 <div className="absolute top-3 left-3">
-                  <Badge className="bg-background/90 backdrop-blur text-foreground border-primary/20">
+                  <Badge variant="outline" className="bg-background/90 backdrop-blur">
                     {service.category.name}
                   </Badge>
                 </div>
@@ -146,29 +115,28 @@ export function RelatedServices({ serviceId, currentServiceTitle }: RelatedServi
                 </h4>
 
                 {/* Provider Info */}
-                <div className="flex items-center gap-3">
-                  {service.provider.logoUrl ? (
-                    <Image
-                      src={service.provider.logoUrl}
-                      alt={service.provider.businessName}
-                      width={32}
-                      height={32}
-                      className="rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                      <User className="h-4 w-4 text-primary" />
+                {service.provider && (
+                  <div className="flex items-center gap-3">
+                    {service.provider.logoUrl ? (
+                      <Image
+                        src={service.provider.logoUrl}
+                        alt={service.provider.businessName}
+                        width={32}
+                        height={32}
+                        className="rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <User className="h-4 w-4 text-primary" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {service.provider.businessName}
+                      </p>
                     </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">
-                      {service.provider.businessName}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {service.provider.user.firstName} {service.provider.user.lastName}
-                    </p>
                   </div>
-                </div>
+                )}
 
                 {/* Service Details */}
                 <div className="space-y-2">
@@ -185,10 +153,10 @@ export function RelatedServices({ serviceId, currentServiceTitle }: RelatedServi
                     </div>
                   </div>
 
-                  {service.bookingCount > 0 && (
+                  {service._count?.bookings && service._count.bookings > 0 && (
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Star className="h-3 w-3 fill-accent text-accent" />
-                      <span>{service.bookingCount} bookings</span>
+                      <span>{service._count.bookings} bookings</span>
                     </div>
                   )}
                 </div>

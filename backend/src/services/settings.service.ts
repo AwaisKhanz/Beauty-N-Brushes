@@ -1,5 +1,6 @@
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
+import { geocodingService } from '../lib/geocoding';
 import bcrypt from 'bcrypt';
 import Stripe from 'stripe';
 import type {
@@ -36,6 +37,7 @@ class SettingsService {
         instagramHandle: true,
         tiktokHandle: true,
         facebookUrl: true,
+        coverPhotoUrl: true,
         instantBookingEnabled: true,
         acceptsNewClients: true,
         mobileServiceAvailable: true,
@@ -47,6 +49,11 @@ class SettingsService {
         wheelchairAccessible: true,
         regionCode: true,
         currency: true,
+        user: {
+          select: {
+            avatarUrl: true,
+          },
+        },
       },
     });
 
@@ -54,7 +61,12 @@ class SettingsService {
       throw new AppError(404, 'Provider profile not found');
     }
 
-    return profile;
+    // Map user avatarUrl to profilePhotoUrl
+    return {
+      ...profile,
+      profilePhotoUrl: profile.user.avatarUrl,
+      user: undefined,
+    } as Omit<typeof profile, 'user'> & { profilePhotoUrl: string | null };
   }
 
   /**
@@ -63,25 +75,58 @@ class SettingsService {
   async updateProfileSettings(userId: string, data: UpdateProfileSettingsRequest) {
     const profile = await prisma.providerProfile.findUnique({
       where: { userId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            avatarUrl: true,
+          },
+        },
+      },
     });
 
     if (!profile) {
       throw new AppError(404, 'Provider profile not found');
     }
 
-    const updated = await prisma.providerProfile.update({
+    // Update profile cover photo if provided
+    const profileUpdateData: {
+      businessName?: string;
+      tagline?: string | null;
+      description?: string | null;
+      yearsExperience?: number | null;
+      websiteUrl?: string | null;
+      instagramHandle?: string | null;
+      tiktokHandle?: string | null;
+      facebookUrl?: string | null;
+      coverPhotoUrl?: string | null;
+      updatedAt: Date;
+    } = {
+      updatedAt: new Date(),
+    };
+
+    if (data.businessName !== undefined) profileUpdateData.businessName = data.businessName;
+    if (data.tagline !== undefined) profileUpdateData.tagline = data.tagline;
+    if (data.description !== undefined) profileUpdateData.description = data.description;
+    if (data.yearsExperience !== undefined) profileUpdateData.yearsExperience = data.yearsExperience;
+    if (data.websiteUrl !== undefined) profileUpdateData.websiteUrl = data.websiteUrl;
+    if (data.instagramHandle !== undefined) profileUpdateData.instagramHandle = data.instagramHandle;
+    if (data.tiktokHandle !== undefined) profileUpdateData.tiktokHandle = data.tiktokHandle;
+    if (data.facebookUrl !== undefined) profileUpdateData.facebookUrl = data.facebookUrl;
+    if (data.coverPhotoUrl !== undefined) profileUpdateData.coverPhotoUrl = data.coverPhotoUrl;
+
+    // Update user avatar if profile photo provided
+    if (data.profilePhotoUrl !== undefined) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { avatarUrl: data.profilePhotoUrl },
+      });
+    }
+
+    // Update profile
+    const updatedProfile = await prisma.providerProfile.update({
       where: { userId },
-      data: {
-        ...(data.businessName !== undefined && { businessName: data.businessName }),
-        ...(data.tagline !== undefined && { tagline: data.tagline }),
-        ...(data.description !== undefined && { description: data.description }),
-        ...(data.yearsExperience !== undefined && { yearsExperience: data.yearsExperience }),
-        ...(data.websiteUrl !== undefined && { websiteUrl: data.websiteUrl }),
-        ...(data.instagramHandle !== undefined && { instagramHandle: data.instagramHandle }),
-        ...(data.tiktokHandle !== undefined && { tiktokHandle: data.tiktokHandle }),
-        ...(data.facebookUrl !== undefined && { facebookUrl: data.facebookUrl }),
-        updatedAt: new Date(),
-      },
+      data: profileUpdateData,
       select: {
         id: true,
         businessName: true,
@@ -92,6 +137,7 @@ class SettingsService {
         instagramHandle: true,
         tiktokHandle: true,
         facebookUrl: true,
+        coverPhotoUrl: true,
         instantBookingEnabled: true,
         acceptsNewClients: true,
         mobileServiceAvailable: true,
@@ -106,7 +152,16 @@ class SettingsService {
       },
     });
 
-    return updated;
+    // Get updated user avatar for response
+    const updatedUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { avatarUrl: true },
+    });
+
+    return {
+      ...updatedProfile,
+      profilePhotoUrl: updatedUser?.avatarUrl || null,
+    };
   }
 
   /**
@@ -163,10 +218,11 @@ class SettingsService {
         description: true,
         yearsExperience: true,
         websiteUrl: true,
-        instagramHandle: true,
-        tiktokHandle: true,
-        facebookUrl: true,
-        instantBookingEnabled: true,
+          instagramHandle: true,
+          tiktokHandle: true,
+          facebookUrl: true,
+          coverPhotoUrl: true,
+          instantBookingEnabled: true,
         acceptsNewClients: true,
         mobileServiceAvailable: true,
         advanceBookingDays: true,
@@ -330,24 +386,29 @@ class SettingsService {
 
     // For Stripe regions, fetch invoices
     if (profile.paymentProvider === 'STRIPE' && profile.stripeCustomerId) {
-      try {
-        const invoices = await stripe.invoices.list({
-          customer: profile.stripeCustomerId,
-          limit: 12,
-        });
-
-        for (const invoice of invoices.data) {
-          billingHistory.push({
-            id: invoice.id,
-            date: new Date(invoice.created * 1000).toISOString(),
-            amount: invoice.amount_paid / 100,
-            currency: invoice.currency.toUpperCase(),
-            status: invoice.status || 'unknown',
-            invoiceUrl: invoice.invoice_pdf || undefined,
+      // Skip invoice fetching for trial placeholder customers
+      const isTrialPlaceholder = profile.stripeCustomerId.startsWith('trial_customer_');
+      
+      if (!isTrialPlaceholder) {
+        try {
+          const invoices = await stripe.invoices.list({
+            customer: profile.stripeCustomerId,
+            limit: 12,
           });
+
+          for (const invoice of invoices.data) {
+            billingHistory.push({
+              id: invoice.id,
+              date: new Date(invoice.created * 1000).toISOString(),
+              amount: invoice.amount_paid / 100,
+              currency: invoice.currency.toUpperCase(),
+              status: invoice.status || 'unknown',
+              invoiceUrl: invoice.invoice_pdf || undefined,
+            });
+          }
+        } catch (error) {
+          console.error('Error fetching Stripe invoices:', error);
         }
-      } catch (error) {
-        console.error('Error fetching Stripe invoices:', error);
       }
     }
 
@@ -402,19 +463,72 @@ class SettingsService {
     }
 
     if (profile.paymentProvider === 'STRIPE') {
-      // Stripe payment method update
-      if (!profile.stripeCustomerId) {
-        throw new AppError(400, 'No Stripe customer ID found');
+      // Stripe payment method update - Only allow one payment method per provider
+      let stripeCustomerId = profile.stripeCustomerId;
+      
+      // Check if customer ID is a trial placeholder (starts with 'trial_customer_')
+      const isTrialPlaceholder = stripeCustomerId?.startsWith('trial_customer_');
+      
+      // Create real Stripe customer if doesn't exist or is a trial placeholder
+      if (!stripeCustomerId || isTrialPlaceholder) {
+        // Get provider user info
+        const providerUser = await prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        });
+        
+        if (!providerUser) {
+          throw new AppError(404, 'User not found');
+        }
+        
+        const customer = await stripe.customers.create({
+          email: providerUser.email,
+          name: `${providerUser.firstName} ${providerUser.lastName}`,
+          metadata: {
+            providerId: profile.id,
+            userId: userId,
+            type: 'provider',
+          },
+        });
+        stripeCustomerId = customer.id;
+        
+        // Update profile with real customer ID
+        await prisma.providerProfile.update({
+          where: { userId },
+          data: { stripeCustomerId },
+        });
       }
 
       try {
-        // Attach payment method to customer
+        // Get current payment method if exists
+        const currentProfile = await prisma.providerProfile.findUnique({
+          where: { userId },
+          select: {
+            paymentMethodId: true,
+          },
+        });
+
+        // If provider already has a payment method, detach the old one (skip trial placeholders)
+        if (currentProfile?.paymentMethodId && currentProfile.paymentMethodId !== 'stripe_trial') {
+          try {
+            await stripe.paymentMethods.detach(currentProfile.paymentMethodId);
+          } catch (error) {
+            // Ignore errors if payment method doesn't exist or is already detached
+            console.warn(`Failed to detach old payment method: ${error}`);
+          }
+        }
+
+        // Attach new payment method to customer
         await stripe.paymentMethods.attach(paymentMethodId, {
-          customer: profile.stripeCustomerId,
+          customer: stripeCustomerId,
         });
 
         // Set as default payment method
-        await stripe.customers.update(profile.stripeCustomerId, {
+        await stripe.customers.update(stripeCustomerId, {
           invoice_settings: {
             default_payment_method: paymentMethodId,
           },
@@ -423,7 +537,7 @@ class SettingsService {
         // Get payment method details
         const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
 
-        // Update database
+        // Update database - replace existing payment method
         await prisma.providerProfile.update({
           where: { userId },
           data: {
@@ -681,6 +795,37 @@ class SettingsService {
       throw new AppError(404, 'Provider profile not found');
     }
 
+    // Geocode address if coordinates are not provided but address components are
+    let latitude = data.latitude;
+    let longitude = data.longitude;
+
+    if (
+      (latitude === undefined || longitude === undefined || latitude === null || longitude === null) &&
+      data.addressLine1 &&
+      data.city &&
+      data.state &&
+      data.country
+    ) {
+      try {
+        const geocodingResult = await geocodingService.geocodeAddressComponents({
+          addressLine1: data.addressLine1,
+          addressLine2: data.addressLine2 || undefined,
+          city: data.city,
+          state: data.state,
+          zipCode: data.zipCode || undefined,
+          country: data.country,
+        });
+
+        if (geocodingResult) {
+          latitude = geocodingResult.latitude;
+          longitude = geocodingResult.longitude;
+        }
+      } catch (error) {
+        // Geocoding is optional, don't fail if it doesn't work
+        console.warn('Geocoding failed for address:', error);
+      }
+    }
+
     const updated = await prisma.providerProfile.update({
       where: { userId },
       data: {
@@ -691,8 +836,8 @@ class SettingsService {
         ...(data.zipCode !== undefined && { zipCode: data.zipCode }),
         ...(data.country !== undefined && { country: data.country }),
         ...(data.businessPhone !== undefined && { businessPhone: data.businessPhone }),
-        ...(data.latitude !== undefined && { latitude: data.latitude }),
-        ...(data.longitude !== undefined && { longitude: data.longitude }),
+        ...(latitude !== undefined && latitude !== null && { latitude }),
+        ...(longitude !== undefined && longitude !== null && { longitude }),
         updatedAt: new Date(),
       },
       select: {
@@ -830,18 +975,89 @@ class SettingsService {
         throw new AppError(500, 'Stripe price ID not configured');
       }
 
-      try {
-        const subscription = await stripe.subscriptions.retrieve(profile.stripeSubscriptionId);
+      // Check if subscription ID is a trial placeholder
+      const isTrialSubscription = profile.stripeSubscriptionId.startsWith('trial_sub_');
 
-        await stripe.subscriptions.update(profile.stripeSubscriptionId, {
-          items: [
-            {
-              id: subscription.items.data[0].id,
-              price: newPriceId,
+      try {
+        if (isTrialSubscription) {
+          // Trial subscription - need to create a real subscription
+          // Get provider details for customer creation
+          const providerProfile = await prisma.providerProfile.findUnique({
+            where: { userId },
+            include: {
+              user: true,
             },
-          ],
-          proration_behavior: 'create_prorations',
-        });
+          });
+
+          if (!providerProfile) {
+            throw new AppError(404, 'Provider profile not found');
+          }
+
+          // Ensure we have a real Stripe customer
+          let stripeCustomerId = providerProfile.stripeCustomerId;
+          const isTrialCustomer = stripeCustomerId?.startsWith('trial_customer_');
+
+          if (!stripeCustomerId || isTrialCustomer) {
+            const customer = await stripe.customers.create({
+              email: providerProfile.user.email,
+              name: `${providerProfile.user.firstName} ${providerProfile.user.lastName}`,
+              metadata: {
+                providerId: providerProfile.id,
+                userId: userId,
+                type: 'provider',
+              },
+            });
+            stripeCustomerId = customer.id;
+
+            // Update profile with real customer ID
+            await prisma.providerProfile.update({
+              where: { userId },
+              data: { stripeCustomerId },
+            });
+          }
+
+          // Check if provider has a payment method
+          if (!providerProfile.paymentMethodId || providerProfile.paymentMethodId === 'stripe_trial') {
+            throw new AppError(
+              400,
+              'Please add a payment method before changing subscription tier'
+            );
+          }
+
+          // Create real Stripe subscription
+          const subscription = await stripe.subscriptions.create({
+            customer: stripeCustomerId,
+            items: [{ price: newPriceId }],
+            default_payment_method: providerProfile.paymentMethodId,
+            trial_period_days: 0, // No additional trial when upgrading from trial
+            metadata: {
+              providerId: providerProfile.id,
+              tier: data.newTier,
+            },
+          });
+
+          // Update profile with real subscription ID
+          await prisma.providerProfile.update({
+            where: { userId },
+            data: {
+              stripeSubscriptionId: subscription.id,
+              subscriptionStatus: 'ACTIVE',
+            },
+          });
+        } else {
+          // Real subscription - update it
+          const subscription = await stripe.subscriptions.retrieve(profile.stripeSubscriptionId);
+
+          await stripe.subscriptions.update(profile.stripeSubscriptionId, {
+            items: [
+              {
+                id: subscription.items.data[0].id,
+                price: newPriceId,
+              },
+            ],
+            proration_behavior: 'create_prorations',
+          });
+        }
       } catch (error) {
         console.error('Error updating Stripe subscription:', error);
         throw new AppError(500, 'Failed to update subscription');
@@ -899,8 +1115,19 @@ class SettingsService {
         console.error('Error cancelling Stripe subscription:', error);
         throw new AppError(500, 'Failed to cancel subscription');
       }
+    } else if (
+      profile.paymentProvider === 'PAYSTACK' &&
+      profile.paystackSubscriptionCode
+    ) {
+      // Cancel Paystack subscription
+      try {
+        const { paystackService } = await import('../lib/payment');
+        await paystackService.cancelSubscription(profile.paystackSubscriptionCode);
+      } catch (error) {
+        console.error('Error cancelling Paystack subscription:', error);
+        throw new AppError(500, 'Failed to cancel subscription');
+      }
     }
-    // TODO: Implement Paystack subscription cancellation
 
     // Update database
     await prisma.providerProfile.update({

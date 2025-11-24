@@ -3,6 +3,7 @@ import { sendSuccess } from '../utils/response';
 import { AppError } from '../middleware/errorHandler';
 import { prisma } from '../config/database';
 import { googleCalendarService } from '../lib/google-calendar';
+import { calendarSyncService } from '../services/calendar-sync.service';
 import type { AuthRequest } from '../types';
 import type {
   GetAvailabilityResponse,
@@ -14,6 +15,7 @@ import type {
   DeleteBlockedDateResponse,
   DaySchedule,
 } from '../../../shared-types/calendar.types';
+import { z } from 'zod';
 
 /**
  * Get provider availability schedule
@@ -83,6 +85,30 @@ export async function updateAvailability(
       throw new AppError(401, 'Unauthorized');
     }
 
+    const schema = z.object({
+      schedule: z
+        .array(
+          z.object({
+            dayOfWeek: z.number().int().min(0).max(6),
+            startTime: z
+              .string()
+              .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Invalid time format (HH:mm)'),
+            endTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Invalid time format (HH:mm)'),
+            isAvailable: z.boolean(),
+          })
+        )
+        .min(1, 'Schedule is required')
+        .refine((schedule) => schedule.some((day) => day.isAvailable), {
+          message: 'At least one day must be available',
+        }),
+      timezone: z.string().optional(),
+      advanceBookingDays: z.number().int().min(1).max(365).optional(),
+      minimumNoticeHours: z.number().int().min(0).max(168).optional(),
+      bufferMinutes: z.number().int().min(0).max(120).optional(),
+      sameDayBooking: z.boolean().optional(),
+    });
+
+    const data = schema.parse(req.body) as UpdateAvailabilityRequest;
     const {
       schedule,
       timezone,
@@ -90,17 +116,7 @@ export async function updateAvailability(
       minimumNoticeHours,
       bufferMinutes,
       sameDayBooking,
-    } = req.body as UpdateAvailabilityRequest;
-
-    if (!schedule || !Array.isArray(schedule) || schedule.length === 0) {
-      throw new AppError(400, 'Schedule required');
-    }
-
-    // Validate at least one day is available
-    const availableDays = schedule.filter((day) => day.isAvailable);
-    if (availableDays.length === 0) {
-      throw new AppError(400, 'At least one day must be available');
-    }
+    } = data;
 
     const profile = await prisma.providerProfile.findUnique({
       where: { userId },
@@ -144,6 +160,11 @@ export async function updateAvailability(
 
     sendSuccess(res, response);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return next(
+        new AppError(400, `Validation failed: ${error.errors.map((e) => e.message).join(', ')}`)
+      );
+    }
     next(error);
   }
 }
@@ -436,6 +457,45 @@ export async function disconnectGoogleCalendar(
 
     sendSuccess(res, {
       message: 'Google Calendar disconnected successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Sync external Google Calendar events to block BNB availability
+ */
+export async function syncExternalEvents(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      throw new AppError(401, 'Unauthorized');
+    }
+
+    const profile = await prisma.providerProfile.findUnique({
+      where: { userId },
+    });
+
+    if (!profile) {
+      throw new AppError(404, 'Provider profile not found');
+    }
+
+    if (!profile.googleCalendarConnected) {
+      throw new AppError(400, 'Google Calendar not connected');
+    }
+
+    // Trigger sync
+    await calendarSyncService.syncExternalEventsToAvailability(profile.id);
+
+    sendSuccess(res, {
+      message: 'External calendar events synced successfully',
+      lastSyncedAt: new Date().toISOString(),
     });
   } catch (error) {
     next(error);

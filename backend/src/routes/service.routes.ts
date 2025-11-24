@@ -13,7 +13,18 @@ router.get('/search', serviceController.searchServices);
 router.get('/featured', serviceController.getFeaturedServices);
 router.get('/categories', serviceController.getCategories);
 
-// Public service detail (anyone can view)
+// ============================================
+// PROTECTED SPECIFIC ROUTES (Must come before dynamic routes)
+// ============================================
+
+// Protected specific routes (must come before /:serviceId to avoid route conflicts)
+router.get('/drafts', authenticate, serviceController.getDraftServices);
+
+// ============================================
+// PUBLIC DYNAMIC ROUTES (Must come after specific routes)
+// ============================================
+
+// Public service detail (anyone can view) - must come after /drafts
 router.get('/:serviceId', serviceController.getServiceById);
 router.get('/:serviceId/related', serviceController.getRelatedServices);
 router.get('/:serviceId/reviews', serviceController.getServiceReviews);
@@ -22,11 +33,11 @@ router.get('/:serviceId/reviews', serviceController.getServiceReviews);
 // PROTECTED ROUTES (Authentication required)
 // ============================================
 
+// Apply authentication middleware to all routes below
 router.use(authenticate);
 
 // Provider service management
 router.get('/', serviceController.getProviderServices);
-router.get('/drafts', serviceController.getDraftServices);
 router.post('/', serviceController.createService);
 router.put('/:serviceId', serviceController.updateService);
 

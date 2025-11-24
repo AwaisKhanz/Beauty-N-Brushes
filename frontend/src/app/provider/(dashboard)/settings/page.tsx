@@ -36,6 +36,12 @@ const SETTINGS_SECTIONS = [
     href: '/provider/settings/location',
   },
   {
+    title: 'Locations',
+    description: 'Manage multiple business locations',
+    icon: MapPin,
+    href: '/provider/settings/locations',
+  },
+  {
     title: 'Business Details',
     description: 'License, timezone, and verification status',
     icon: FileText,

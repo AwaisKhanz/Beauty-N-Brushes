@@ -5,7 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 function SearchFallback() {
   return (
     <div className="min-h-screen bg-background">
-      <div className="border-b bg-white sticky top-0 z-10">
+      <div className="border-b bg-background sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <Skeleton className="h-12 w-full" />
         </div>

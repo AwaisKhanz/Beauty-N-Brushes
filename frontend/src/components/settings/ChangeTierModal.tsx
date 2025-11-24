@@ -146,7 +146,7 @@ export function ChangeTierModal({
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="font-semibold">{newInfo.name}</h3>
-                  <Badge className="bg-primary">{isUpgrade ? 'Upgrade' : 'Downgrade'}</Badge>
+                  <Badge variant="default">{isUpgrade ? 'Upgrade' : 'Downgrade'}</Badge>
                 </div>
                 <p className="text-2xl font-bold mb-4">{formatCurrency(newInfo.price)}/month</p>
 

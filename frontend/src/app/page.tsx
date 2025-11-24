@@ -7,6 +7,7 @@ import Footer from '@/components/shared/Footer';
 import { HeroSearch } from '@/components/home/HeroSearch';
 import { CategorySection } from '@/components/home/CategorySection';
 import { FeaturedServices } from '@/components/home/FeaturedServices';
+import { ChatbotWidget } from '@/components/shared/ChatbotWidget';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/shared/Logo';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -306,6 +307,9 @@ export default function HomePage() {
       </main>
 
       <Footer />
+
+      {/* AI Chatbot Widget */}
+      <ChatbotWidget context="homepage" />
     </div>
   );
 }

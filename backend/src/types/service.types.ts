@@ -13,6 +13,9 @@ export interface CreateServiceData {
   durationMinutes: number;
   depositType: 'PERCENTAGE' | 'FLAT';
   depositAmount: number;
+  // Mobile/Home service configuration
+  mobileServiceAvailable?: boolean;
+  homeServiceFee?: number;
   addons?: Array<{
     name: string;
     description?: string;

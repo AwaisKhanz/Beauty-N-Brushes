@@ -4,6 +4,8 @@ import {
   initializePaystackTransaction,
   verifyPaystackTransaction,
   initializeBookingPayment,
+  payBalance,
+  payTip,
 } from '../controllers/payment.controller';
 
 const router = Router();
@@ -16,5 +18,11 @@ router.get('/paystack/verify/:reference', authenticate, verifyPaystackTransactio
 
 // Initialize booking payment (Stripe/Paystack)
 router.post('/booking/initialize', authenticate, initializeBookingPayment);
+
+// Pay balance for booking
+router.post('/booking/pay-balance', authenticate, payBalance);
+
+// Pay tip for completed booking
+router.post('/booking/pay-tip', authenticate, payTip);
 
 export default router;

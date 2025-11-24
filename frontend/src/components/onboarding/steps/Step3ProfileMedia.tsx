@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import NextImage from 'next/image';
 import { toast } from 'sonner';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Upload, Image, Camera, X, Instagram } from 'lucide-react';
+import { Upload, Image as ImageIcon, Camera, X, Instagram } from 'lucide-react';
 import { uploadService } from '@/lib/upload';
 
 interface Step3ProfileMediaProps {
@@ -130,19 +131,16 @@ export function Step3ProfileMedia({
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-6">
-              <div className="h-24 w-24 rounded-full bg-muted flex items-center justify-center overflow-hidden">
+              <div className="relative h-24 w-24 rounded-full bg-muted flex items-center justify-center overflow-hidden">
                 {profilePhoto ? (
-                  <img
+                  <NextImage
                     src={URL.createObjectURL(profilePhoto)}
                     alt="Profile preview"
-                    className="h-full w-full object-cover"
+                    fill
+                    className="object-cover"
                   />
                 ) : existingProfileUrl ? (
-                  <img
-                    src={existingProfileUrl}
-                    alt="Profile"
-                    className="h-full w-full object-cover"
-                  />
+                  <NextImage src={existingProfileUrl} alt="Profile" fill className="object-cover" />
                 ) : (
                   <Camera className="h-8 w-8 text-muted-foreground" />
                 )}
@@ -191,24 +189,25 @@ export function Step3ProfileMedia({
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Image className="h-5 w-5" />
+              <ImageIcon className="h-5 w-5" />
               Business Logo
             </CardTitle>
             <CardDescription>Your business logo (optional but recommended)</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-6">
-              <div className="h-20 w-20 rounded-lg bg-muted flex items-center justify-center overflow-hidden">
+              <div className="relative h-20 w-20 rounded-lg bg-muted flex items-center justify-center overflow-hidden">
                 {logo ? (
-                  <img
+                  <NextImage
                     src={URL.createObjectURL(logo)}
                     alt="Logo preview"
-                    className="h-full w-full object-cover"
+                    fill
+                    className="object-cover"
                   />
                 ) : existingLogoUrl ? (
-                  <img src={existingLogoUrl} alt="Logo" className="h-full w-full object-cover" />
+                  <NextImage src={existingLogoUrl} alt="Logo" fill className="object-cover" />
                 ) : (
-                  <Image className="h-6 w-6 text-muted-foreground" />
+                  <ImageIcon className="h-6 w-6 text-muted-foreground" />
                 )}
               </div>
 
@@ -253,24 +252,25 @@ export function Step3ProfileMedia({
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Image className="h-5 w-5" />
+              <ImageIcon className="h-5 w-5" />
               Cover Photo
             </CardTitle>
             <CardDescription>A banner image for your profile (optional)</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-6">
-              <div className="h-16 w-32 rounded-lg bg-muted flex items-center justify-center overflow-hidden">
+              <div className="relative h-16 w-32 rounded-lg bg-muted flex items-center justify-center overflow-hidden">
                 {coverPhoto ? (
-                  <img
+                  <NextImage
                     src={URL.createObjectURL(coverPhoto)}
                     alt="Cover preview"
-                    className="h-full w-full object-cover"
+                    fill
+                    className="object-cover"
                   />
                 ) : existingCoverUrl ? (
-                  <img src={existingCoverUrl} alt="Cover" className="h-full w-full object-cover" />
+                  <NextImage src={existingCoverUrl} alt="Cover" fill className="object-cover" />
                 ) : (
-                  <Image className="h-6 w-6 text-muted-foreground" />
+                  <ImageIcon className="h-6 w-6 text-muted-foreground" />
                 )}
               </div>
 
