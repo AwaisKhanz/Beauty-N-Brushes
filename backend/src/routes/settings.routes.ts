@@ -1,11 +1,14 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/authenticate';
+import { attachProviderContext, requireOwner } from '../middleware/providerAccess';
 import * as settingsController from '../controllers/settings.controller';
 
 const router = Router();
 
-// All settings routes require authentication
+// All settings routes require authentication, provider context, and OWNER permission
 router.use(authenticate);
+router.use(attachProviderContext);
+router.use(requireOwner); // Settings are owner-only
 
 // Profile/Business Settings
 router.get('/profile', settingsController.getProfileSettings);

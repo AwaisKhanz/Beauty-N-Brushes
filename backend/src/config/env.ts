@@ -27,13 +27,46 @@ const envSchema = z.object({
   AWS_REGION: z.string().default('us-east-1'),
   AWS_S3_BUCKET: z.string().optional(),
 
-  // Stripe
+  // Payment Mode
+  PAYMENT_MODE: z.enum(['test', 'live']).default('test'),
+
+  // Stripe - Test Mode
+  STRIPE_TEST_SECRET_KEY: z.string().optional(),
+  STRIPE_TEST_PUBLISHABLE_KEY: z.string().optional(),
+  STRIPE_TEST_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_TEST_SOLO_PRICE_ID: z.string().optional(),
+  STRIPE_TEST_SALON_PRICE_ID: z.string().optional(),
+
+  // Stripe - Live Mode
+  STRIPE_LIVE_SECRET_KEY: z.string().optional(),
+  STRIPE_LIVE_PUBLISHABLE_KEY: z.string().optional(),
+  STRIPE_LIVE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_LIVE_SALON_PRICE_ID: z.string().optional(),
+  STRIPE_LIVE_SOLO_PRICE_ID: z.string().optional(),
+
+  // Stripe - Legacy (backward compatibility)
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_SOLO_PRICE_ID: z.string().optional(),
+  STRIPE_SALON_PRICE_ID: z.string().optional(),
 
-  // Paystack
+  // Paystack - Test Mode
+  PAYSTACK_TEST_SECRET_KEY: z.string().optional(),
+  PAYSTACK_TEST_PUBLIC_KEY: z.string().optional(),
+
+  // Paystack - Live Mode
+  PAYSTACK_LIVE_SECRET_KEY: z.string().optional(),
+  PAYSTACK_LIVE_PUBLIC_KEY: z.string().optional(),
+
+  // Paystack - Legacy (backward compatibility)
   PAYSTACK_SECRET_KEY: z.string().optional(),
   PAYSTACK_WEBHOOK_SECRET: z.string().optional(),
+
+  // Paystack Plans
+  PAYSTACK_SOLO_GHS_PLAN: z.string().optional(),
+  PAYSTACK_SALON_GHS_PLAN: z.string().optional(),
+  PAYSTACK_SOLO_NGN_PLAN: z.string().optional(),
+  PAYSTACK_SALON_NGN_PLAN: z.string().optional(),
 
   // SendGrid
   SENDGRID_API_KEY: z.string().optional(),

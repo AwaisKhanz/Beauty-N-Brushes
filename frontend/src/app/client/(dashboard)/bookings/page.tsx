@@ -26,8 +26,10 @@ import { BalancePaymentModal } from '@/components/booking/BalancePaymentModal';
 import { CancelBookingModal } from '@/components/booking/CancelBookingModal';
 import { RebookServiceModal } from '@/components/booking/RebookServiceModal';
 import { exportBookingToCalendar } from '@/lib/calendar-export';
+import { useBookingSocket } from '@/hooks/use-booking-socket';
 
 export default function ClientBookingsPage() {
+  useBookingSocket(); // Enable real-time booking updates
   const [bookings, setBookings] = useState<BookingDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

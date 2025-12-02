@@ -324,7 +324,151 @@ class EmailTemplateService {
 
     await this.sendEmail(params.to, `You've Been Invited to Join ${params.salonName}`, html);
   }
+  /**
+   * Send upcoming billing reminder
+   */
+  async sendUpcomingBillingEmail(
+    email: string,
+    data: {
+      firstName: string;
+      amount: string;
+      billingDate: string;
+      paymentMethod: string;
+      manageSubscriptionUrl: string;
+    }
+  ): Promise<void> {
+    const template = await this.loadTemplate('upcoming-billing');
+    const html = this.replaceVariables(template, data);
+
+    await this.sendEmail(email, 'Upcoming Charge - Beauty N Brushes', html);
+  }
+
+  /**
+   * Send subscription paused email
+   */
+  async sendSubscriptionPausedEmail(
+    email: string,
+    data: {
+      firstName: string;
+      resumeDate: string;
+      manageSubscriptionUrl: string;
+    }
+  ): Promise<void> {
+    const template = await this.loadTemplate('subscription-paused');
+    const html = this.replaceVariables(template, data);
+
+    await this.sendEmail(email, 'Subscription Paused - Beauty N Brushes', html);
+  }
+
+  /**
+   * Send subscription resumed email
+   */
+  async sendSubscriptionResumedEmail(
+    email: string,
+    data: {
+      firstName: string;
+      nextBillingDate: string;
+      amount: string;
+      manageSubscriptionUrl: string;
+    }
+  ): Promise<void> {
+    const template = await this.loadTemplate('subscription-resumed');
+    const html = this.replaceVariables(template, data);
+
+    await this.sendEmail(email, 'Subscription Resumed - Beauty N Brushes', html);
+  }
+
+  /**
+   * Send expiring card warning
+   */
+  async sendExpiringCardEmail(
+    email: string,
+    data: {
+      firstName: string;
+      cardBrand: string;
+      last4: string;
+      expiryDate: string;
+      updatePaymentUrl: string;
+    }
+  ): Promise<void> {
+    const template = await this.loadTemplate('expiring-card');
+    const html = this.replaceVariables(template, data);
+
+    await this.sendEmail(email, 'Action Required: Card Expiring Soon', html);
+  }
+
+  /**
+   * Send booking confirmation email (client)
+   */
+  async sendBookingConfirmation(
+    email: string,
+    data: {
+      bookingId: string;
+      serviceName: string;
+      appointmentDate: string;
+      appointmentTime: string;
+      duration: string;
+      location: string;
+      providerName: string;
+      providerPhone: string;
+      providerEmail: string;
+      totalPrice: string;
+      depositPaid: string;
+      balanceDue: string;
+      cancellationPolicy: string;
+      bookingUrl: string;
+    }
+  ): Promise<void> {
+    const template = await this.loadTemplate('booking-confirmation');
+    const html = this.replaceVariables(template, data);
+
+    await this.sendEmail(email, 'Booking Confirmed - Beauty N Brushes', html);
+  }
+
+  /**
+   * Send 24-hour appointment reminder
+   */
+  async send24HourReminder(
+    email: string,
+    data: {
+      serviceName: string;
+      appointmentDate: string;
+      appointmentTime: string;
+      providerName: string;
+      providerPhone: string;
+      providerEmail: string;
+      location: string;
+      balanceDue: string;
+      bookingUrl: string;
+      directionsUrl: string;
+    }
+  ): Promise<void> {
+    const template = await this.loadTemplate('booking-reminder-24h');
+    const html = this.replaceVariables(template, data);
+
+    await this.sendEmail(email, 'Reminder: Appointment Tomorrow - Beauty N Brushes', html);
+  }
+
+  /**
+   * Send review reminder email
+   */
+  async sendReviewReminder(
+    email: string,
+    data: {
+      clientName: string;
+      serviceName: string;
+      appointmentDate: string;
+      providerName: string;
+      reviewUrl: string;
+    }
+  ): Promise<void> {
+    const template = await this.loadTemplate('review-reminder');
+    const html = this.replaceVariables(template, data);
+
+    await this.sendEmail(email, 'How Was Your Experience? - Beauty N Brushes', html);
+  }
 }
+
 
 export const emailService = new EmailTemplateService();
 

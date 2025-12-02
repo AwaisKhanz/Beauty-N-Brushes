@@ -72,6 +72,13 @@ export async function uploadFile(
         result = await storageService.uploadServiceMedia(file.buffer, file.originalname);
         break;
 
+      case 'booking-photo':
+        if (!storageService.validateImageFile(file.mimetype)) {
+          throw new AppError(400, 'Invalid file format. Only images allowed for booking photos.');
+        }
+        result = await storageService.uploadServiceMedia(file.buffer, file.originalname);
+        break;
+
       default:
         throw new AppError(
           400,

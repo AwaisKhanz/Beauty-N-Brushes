@@ -215,7 +215,12 @@ export default function ProviderProfilePage() {
                         </LoginGate>
 
                         <LoginGate action="send a message to this provider">
-                          <Button variant="outline" size="lg" className="gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="lg" 
+                            className="gap-2"
+                            onClick={() => router.push(`/client/messages?conversation=${provider.id}`)}
+                          >
                             <MessageCircle className="h-5 w-5" />
                             Message
                           </Button>
@@ -463,7 +468,12 @@ export default function ProviderProfilePage() {
                   </LoginGate>
 
                   <LoginGate action="send a message">
-                    <Button variant="outline" size="lg" className="w-full gap-2 h-12">
+                    <Button 
+                      variant="outline" 
+                      size="lg" 
+                      className="w-full gap-2 h-12"
+                      onClick={() => router.push(`/client/messages?conversation=${provider.id}`)}
+                    >
                       <MessageCircle className="h-5 w-5" />
                       Send Message
                     </Button>

@@ -35,8 +35,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useBookingSocket } from '@/hooks/use-booking-socket';
 
 export default function BookingsPage() {
+  useBookingSocket(); // Enable real-time booking updates
   const router = useRouter();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [bookings, setBookings] = useState<BookingDetails[]>([]);

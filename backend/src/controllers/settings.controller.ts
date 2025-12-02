@@ -76,6 +76,9 @@ export async function updateProfileSettings(
       facebookUrl: z.string().url().optional().nullable(),
       profilePhotoUrl: z.string().url().optional().nullable(),
       coverPhotoUrl: z.string().url().optional().nullable(),
+      // Business Details
+      businessType: z.string().optional().nullable(),
+      timezone: z.string().optional().nullable(),
     });
 
     const data = schema.parse(req.body) as UpdateProfileSettingsRequest;

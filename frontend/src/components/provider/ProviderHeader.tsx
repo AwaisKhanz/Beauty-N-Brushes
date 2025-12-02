@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { Bell, Settings, User, Menu } from 'lucide-react';
+import { Settings, User, Menu } from 'lucide-react';
+import { NotificationBadge } from '@/components/notifications/NotificationBadge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,11 +38,7 @@ export default function ProviderHeader({ onMenuClick }: ProviderHeaderProps) {
 
         <div className="flex items-center gap-2 md:gap-4">
           <ThemeToggle />
-
-          <Button variant="ghost" size="icon">
-            <Bell className="h-5 w-5" />
-            <span className="sr-only">Notifications</span>
-          </Button>
+          <NotificationBadge />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/authenticate';
+import { attachProviderContext } from '../middleware/providerAccess';
 import * as dashboardController from '../controllers/dashboard.controller';
 
 const router = Router();
@@ -7,11 +8,11 @@ const router = Router();
 // All dashboard routes require authentication
 router.use(authenticate);
 
-// Provider Dashboard Routes
-router.get('/stats', dashboardController.getProviderDashboardStats);
-router.get('/bookings/recent', dashboardController.getRecentBookings);
+// Provider dashboard routes (with context)
+router.get('/stats', attachProviderContext, dashboardController.getProviderDashboardStats);
+router.get('/bookings/recent', attachProviderContext, dashboardController.getRecentBookings);
 
-// Client Dashboard Routes
+// Client dashboard routes (no context needed)
 router.get('/client/stats', dashboardController.getClientDashboardStats);
 router.get('/client/bookings/recent', dashboardController.getClientRecentBookings);
 

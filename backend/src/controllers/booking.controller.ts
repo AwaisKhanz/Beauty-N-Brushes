@@ -7,6 +7,8 @@ import { Response, NextFunction } from 'express';
 import { sendSuccess } from '../utils/response';
 import { bookingService } from '../services/booking.service';
 import { AppError } from '../middleware/errorHandler';
+import { emailService } from '../lib/email';
+import { env } from '../config/env';
 import type { AuthRequest } from '../types';
 import type {
   CreateBookingRequest,
@@ -66,6 +68,38 @@ export async function createBooking(
     const data = schema.parse(req.body) as CreateBookingRequest;
 
     const booking = await bookingService.createBooking(userId, data);
+
+    // Send booking confirmation email
+    try {
+      const appointmentDateTime = new Date(`${booking.appointmentDate}T${booking.appointmentTime}`);
+      
+      await emailService.sendBookingConfirmation(booking.client.email, {
+        bookingId: booking.id,
+        serviceName: booking.service?.title || 'Service',
+        appointmentDate: appointmentDateTime.toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        }),
+        appointmentTime: booking.appointmentTime,
+        duration: booking.service?.durationMinutes?.toString() || '0',
+        location: booking.homeServiceFee
+          ? 'Home Service'
+          : `${booking.provider?.locations?.[0]?.addressLine1 || ''}, ${booking.provider?.city || ''}, ${booking.provider?.state || ''}`,
+        providerName: booking.provider?.businessName || 'Provider',
+        providerPhone: booking.provider?.businessPhone || '',
+        providerEmail: booking.client.email, // Will be updated when provider email is available
+        totalPrice: `${booking.currency} ${Number(booking.totalAmount).toFixed(2)}`,
+        depositPaid: `${booking.currency} ${Number(booking.depositAmount).toFixed(2)}`,
+        balanceDue: `${booking.currency} ${(Number(booking.totalAmount) - Number(booking.depositAmount)).toFixed(2)}`,
+        cancellationPolicy: 'Please contact the provider for cancellation policy.',
+        bookingUrl: `${env.FRONTEND_URL}/client/bookings/${booking.id}`,
+      });
+    } catch (emailError) {
+      // Log error but don't fail the booking
+      console.error('Failed to send booking confirmation email:', emailError);
+    }
 
     sendSuccess<CreateBookingResponse>(
       res,
@@ -562,3 +596,92 @@ export async function markNoShow(
     next(error);
   }
 }
+
+/**
+ * Add photo to booking
+ */
+export async function addBookingPhoto(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    const { bookingId } = req.params;
+
+    if (!userId) throw new AppError(401, 'Unauthorized');
+    if (!bookingId) throw new AppError(400, 'Booking ID required');
+
+    const schema = z.object({
+      photoUrl: z.string().url(),
+      photoType: z.enum(['BEFORE', 'AFTER', 'REFERENCE']),
+      caption: z.string().optional(),
+    });
+
+    const data = schema.parse(req.body);
+
+    const photo = await bookingService.addBookingPhoto(userId, bookingId, data);
+
+    sendSuccess(res, {
+      message: 'Photo added successfully',
+      photo,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return next(
+        new AppError(400, `Validation failed: ${error.errors.map((e) => e.message).join(', ')}`)
+      );
+    }
+    next(error);
+  }
+}
+
+/**
+ * Delete photo from booking
+ */
+export async function deleteBookingPhoto(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    const { bookingId, photoId } = req.params;
+
+    if (!userId) throw new AppError(401, 'Unauthorized');
+    if (!bookingId || !photoId) throw new AppError(400, 'Booking ID and Photo ID required');
+
+    await bookingService.deleteBookingPhoto(userId, bookingId, photoId);
+
+    sendSuccess(res, {
+      message: 'Photo deleted successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Get bookings with pending reviews (client only)
+ */
+export async function getPendingReviews(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) throw new AppError(401, 'Unauthorized');
+
+    const pendingReviews = await bookingService.getPendingReviews(userId);
+
+    sendSuccess(res, {
+      message: 'Pending reviews retrieved',
+      bookings: pendingReviews,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+

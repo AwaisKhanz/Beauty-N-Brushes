@@ -21,6 +21,7 @@ export interface SubscriptionResult {
   customerId: string;
   subscriptionId: string;
   planCode?: string; // For Paystack - plan code to use when creating subscription later
+  emailToken?: string; // For Paystack - email token for subscription management (cancel/disable)
   paymentMethodId?: string;
   last4?: string;
   cardBrand?: string;

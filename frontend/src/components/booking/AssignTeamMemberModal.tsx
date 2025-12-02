@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import {
   Dialog,
   DialogContent,
@@ -147,9 +148,11 @@ export function AssignTeamMemberModal({
                     <Label htmlFor={stylist.id} className="flex-1 cursor-pointer">
                       <div className="flex items-center gap-3">
                         {stylist.avatarUrl ? (
-                          <img
+                          <Image
                             src={stylist.avatarUrl}
                             alt={stylist.displayName}
+                            width={40}
+                            height={40}
                             className="w-10 h-10 rounded-full object-cover"
                           />
                         ) : (

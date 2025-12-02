@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { Bell, Settings, User, Menu, Search } from 'lucide-react';
+import { Settings, User, Menu, Search } from 'lucide-react';
+import { NotificationBadge } from '@/components/notifications/NotificationBadge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,11 +56,7 @@ export function ClientHeader({ onMenuClick }: ClientHeaderProps) {
           </Button>
 
           <ThemeToggle />
-
-          <Button variant="ghost" size="icon">
-            <Bell className="h-5 w-5" />
-            <span className="sr-only">Notifications</span>
-          </Button>
+          <NotificationBadge />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

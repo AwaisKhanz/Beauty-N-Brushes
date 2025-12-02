@@ -10,14 +10,12 @@ import { api } from '@/lib/api';
 interface PaystackCardFormProps {
   regionCode: string;
   subscriptionTier: 'solo' | 'salon';
-  onSuccess: () => void;
   onBack: () => void;
 }
 
 export default function PaystackCardForm({
   regionCode,
   subscriptionTier,
-  onSuccess,
   onBack,
 }: PaystackCardFormProps) {
   const { user } = useAuth();

@@ -10,7 +10,7 @@ import {
   User,
   Users,
   ChevronRight,
-  Palette,
+  // Palette, // Temporarily hidden with Branding
   MapPin,
   FileText,
 } from 'lucide-react';
@@ -23,42 +23,46 @@ const SETTINGS_SECTIONS = [
     icon: Building2,
     href: '/provider/settings/profile',
   },
-  {
-    title: 'Branding',
-    description: 'Customize your colors, fonts, and logo',
-    icon: Palette,
-    href: '/provider/settings/branding',
-  },
-  {
-    title: 'Location & Contact',
-    description: 'Manage business address and contact information',
-    icon: MapPin,
-    href: '/provider/settings/location',
-  },
+  // Temporarily hidden - Branding customization
+  // {
+  //   title: 'Branding',
+  //   description: 'Customize your colors, fonts, and logo',
+  //   icon: Palette,
+  //   href: '/provider/settings/branding',
+  // },
+  // Temporarily hidden - Use "Locations" (plural) instead
+  // {
+  //   title: 'Location & Contact',
+  //   description: 'Manage business address and contact information',
+  //   icon: MapPin,
+  //   href: '/provider/settings/location',
+  // },
   {
     title: 'Locations',
     description: 'Manage multiple business locations',
     icon: MapPin,
     href: '/provider/settings/locations',
   },
-  {
-    title: 'Business Details',
-    description: 'License, timezone, and verification status',
-    icon: FileText,
-    href: '/provider/settings/business-details',
-  },
+  // Temporarily hidden - Fields merged into Profile page
+  // {
+  //   title: 'Business Details',
+  //   description: 'License, timezone, and verification status',
+  //   icon: FileText,
+  //   href: '/provider/settings/business-details',
+  // },
   {
     title: 'Booking Settings',
     description: 'Configure booking windows, buffer times, and availability',
     icon: Calendar,
     href: '/provider/settings/booking',
   },
-  {
-    title: 'Calendar Integration',
-    description: 'Connect Google Calendar for automatic sync',
-    icon: Calendar,
-    href: '/provider/settings/calendar',
-  },
+  // Temporarily hidden - Calendar Integration needs OAuth implementation
+  // {
+  //   title: 'Calendar Integration',
+  //   description: 'Connect Google Calendar for automatic sync',
+  //   icon: Calendar,
+  //   href: '/provider/settings/calendar',
+  // },
   {
     title: 'Team Management',
     description: 'Manage salon team members and permissions (Salon only)',

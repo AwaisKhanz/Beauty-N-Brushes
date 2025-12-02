@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Upload, Image as ImageIcon, Camera, X, Instagram } from 'lucide-react';
+import { Upload, Image as ImageIcon, Camera, X, /* Instagram */ } from 'lucide-react';
 import { uploadService } from '@/lib/upload';
 
 interface Step3ProfileMediaProps {
@@ -61,9 +61,12 @@ export function Step3ProfileMedia({
     }
   };
 
+  // Instagram function - Temporarily hidden
+  /*
   const handleInstagramConnect = () => {
     toast.info('Instagram connection will be available soon!');
   };
+  */
 
   const handleContinue = async () => {
     if (!profilePhoto && !existingProfileUrl) {
@@ -311,8 +314,8 @@ export function Step3ProfileMedia({
           </CardContent>
         </Card>
 
-        {/* Instagram Integration */}
-        <Card>
+        {/* Instagram Integration - Temporarily hidden */}
+        {/* <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Instagram className="h-5 w-5" />
@@ -337,7 +340,7 @@ export function Step3ProfileMedia({
               </Button>
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
 
       <div className="flex justify-between pt-6 w-full">

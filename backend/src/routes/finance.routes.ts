@@ -1,11 +1,14 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/authenticate';
+import { attachProviderContext, requireOwner } from '../middleware/providerAccess';
 import * as financeController from '../controllers/finance.controller';
 
 const router = Router();
 
-// All routes require authentication
+// All finance routes require authentication, provider context, and OWNER permission
 router.use(authenticate);
+router.use(attachProviderContext);
+router.use(requireOwner); // Finance is owner-only
 
 // GET /api/v1/finance/summary - Get finance summary
 router.get('/summary', financeController.getFinanceSummary);

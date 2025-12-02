@@ -9,6 +9,7 @@ import type { ClientProfile, ClientWithNotes, ClientNote } from '../../../shared
 export class ClientManagementService {
   /**
    * Get all clients for a provider
+   * FIXED: Now uses proper database-level aggregation and sorts BEFORE pagination
    */
   async getClients(
     userId: string,
@@ -32,64 +33,70 @@ export class ClientManagementService {
       throw new Error('Provider profile not found');
     }
 
-    // Get unique client IDs from bookings
-    const bookings = await prisma.booking.findMany({
+    // Step 1: Use Prisma groupBy to aggregate booking statistics at database level
+    const bookingStats = await prisma.booking.groupBy({
+      by: ['clientId'],
       where: {
         providerId: profile.id,
       },
-      select: {
-        clientId: true,
-        bookingStatus: true,
+      _count: {
+        id: true,
+      },
+      _sum: {
         servicePrice: true,
-        appointmentDate: true,
+      },
+      _min: {
+        createdAt: true,
+      },
+      _max: {
         createdAt: true,
       },
     });
 
-    // Group by client
-    const clientMap = new Map<
-      string,
-      {
-        totalBookings: number;
-        completedBookings: number;
-        totalSpent: number;
-        firstBookingDate: Date;
-        lastBookingDate: Date;
-      }
-    >();
-
-    bookings.forEach((booking) => {
-      if (!clientMap.has(booking.clientId)) {
-        clientMap.set(booking.clientId, {
-          totalBookings: 0,
-          completedBookings: 0,
-          totalSpent: 0,
-          firstBookingDate: booking.createdAt,
-          lastBookingDate: booking.createdAt,
-        });
-      }
-
-      const clientData = clientMap.get(booking.clientId)!;
-      clientData.totalBookings += 1;
-
-      if (booking.bookingStatus === 'COMPLETED') {
-        clientData.completedBookings += 1;
-        clientData.totalSpent += Number(booking.servicePrice);
-      }
-
-      if (booking.createdAt < clientData.firstBookingDate) {
-        clientData.firstBookingDate = booking.createdAt;
-      }
-
-      if (booking.createdAt > clientData.lastBookingDate) {
-        clientData.lastBookingDate = booking.createdAt;
-      }
+    // Step 2: Get completed booking counts separately (groupBy doesn't support conditional aggregation)
+    const completedBookingStats = await prisma.booking.groupBy({
+      by: ['clientId'],
+      where: {
+        providerId: profile.id,
+        bookingStatus: 'COMPLETED',
+      },
+      _count: {
+        id: true,
+      },
+      _sum: {
+        servicePrice: true,
+      },
     });
 
-    const clientIds = Array.from(clientMap.keys());
+    // Create a map for completed bookings
+    const completedMap = new Map(
+      completedBookingStats.map((stat) => [
+        stat.clientId,
+        {
+          count: stat._count.id,
+          totalSpent: Number(stat._sum.servicePrice || 0),
+        },
+      ])
+    );
+
+    // Step 3: Build client stats array with all information
+    const clientStatsArray = bookingStats.map((stat) => {
+      const completed = completedMap.get(stat.clientId) || { count: 0, totalSpent: 0 };
+      return {
+        clientId: stat.clientId,
+        totalBookings: stat._count.id,
+        completedBookings: completed.count,
+        totalSpent: completed.totalSpent,
+        firstBookingDate: stat._min.createdAt!,
+        lastBookingDate: stat._max.createdAt!,
+      };
+    });
+
+    // Step 4: Get all client IDs for search filtering
+    const allClientIds = clientStatsArray.map((stat) => stat.clientId);
 
     // Build where clause for search
-    const where: {
+    const userWhere: {
       id: { in: string[] };
       OR?: Array<{
         firstName?: { contains: string; mode: 'insensitive' };
@@ -97,82 +104,88 @@ export class ClientManagementService {
         email?: { contains: string; mode: 'insensitive' };
       }>;
     } = {
-      id: { in: clientIds },
+      id: { in: allClientIds },
     };
 
     if (search) {
-      where.OR = [
+      userWhere.OR = [
         { firstName: { contains: search, mode: 'insensitive' } },
         { lastName: { contains: search, mode: 'insensitive' } },
         { email: { contains: search, mode: 'insensitive' } },
       ];
     }
 
-    const [clients, total] = await Promise.all([
-      prisma.user.findMany({
-        where,
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-          phone: true,
-          avatarUrl: true,
-          hairType: true,
-          hairTexture: true,
-          hairPreferences: true,
-          createdAt: true,
-        },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      prisma.user.count({ where }),
-    ]);
-
-    // Map to ClientProfile with statistics
-    const clientProfiles: ClientProfile[] = clients.map((client) => {
-      const stats = clientMap.get(client.id)!;
-
-      return {
-        id: client.id,
-        firstName: client.firstName,
-        lastName: client.lastName,
-        email: client.email,
-        phone: client.phone,
-        avatarUrl: client.avatarUrl,
-        hairType: client.hairType,
-        hairTexture: client.hairTexture,
-        hairPreferences: client.hairPreferences,
-        totalBookings: stats.totalBookings,
-        completedBookings: stats.completedBookings,
-        totalSpent: stats.totalSpent,
-        averageRating: null, // Can be calculated from reviews if needed
-        firstBookingDate: stats.firstBookingDate.toISOString(),
-        lastBookingDate: stats.lastBookingDate.toISOString(),
-        createdAt: client.createdAt.toISOString(),
-      };
+    // Step 5: Fetch all matching users (for sorting by name if needed)
+    const allUsers = await prisma.user.findMany({
+      where: userWhere,
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        avatarUrl: true,
+        hairType: true,
+        hairTexture: true,
+        hairPreferences: true,
+        createdAt: true,
+      },
     });
 
-    // Sort clients
-    clientProfiles.sort((a, b) => {
+    // Step 6: Create a map of user data for quick lookup
+    const userMap = new Map(allUsers.map((user) => [user.id, user]));
+
+    // Step 7: Build complete client profiles with stats
+    const allClientProfiles: ClientProfile[] = clientStatsArray
+      .filter((stat) => userMap.has(stat.clientId)) // Only include users that match search
+      .map((stat) => {
+        const user = userMap.get(stat.clientId)!;
+        return {
+          id: user.id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          phone: user.phone,
+          avatarUrl: user.avatarUrl,
+          hairType: user.hairType,
+          hairTexture: user.hairTexture,
+          hairPreferences: user.hairPreferences,
+          totalBookings: stat.totalBookings,
+          completedBookings: stat.completedBookings,
+          totalSpent: stat.totalSpent,
+          averageRating: null,
+          firstBookingDate: stat.firstBookingDate.toISOString(),
+          lastBookingDate: stat.lastBookingDate.toISOString(),
+          createdAt: user.createdAt.toISOString(),
+        };
+      });
+
+    // Step 8: Sort ALL clients BEFORE pagination
+    allClientProfiles.sort((a, b) => {
       let compareValue = 0;
 
       if (sortBy === 'name') {
         compareValue = `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
       } else if (sortBy === 'bookings') {
-        compareValue = b.totalBookings - a.totalBookings;
+        compareValue = a.totalBookings - b.totalBookings;
       } else if (sortBy === 'lastBooking') {
         compareValue =
-          new Date(b.lastBookingDate!).getTime() - new Date(a.lastBookingDate!).getTime();
+          new Date(a.lastBookingDate!).getTime() - new Date(b.lastBookingDate!).getTime();
       } else if (sortBy === 'totalSpent') {
-        compareValue = b.totalSpent - a.totalSpent;
+        compareValue = a.totalSpent - b.totalSpent;
       }
 
       return sortOrder === 'asc' ? compareValue : -compareValue;
     });
 
+    // Step 9: Apply pagination AFTER sorting
+    const total = allClientProfiles.length;
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const paginatedClients = allClientProfiles.slice(startIndex, endIndex);
+
     return {
-      clients: clientProfiles,
+      clients: paginatedClients,
       total,
       page,
       limit,

@@ -5,9 +5,10 @@ import logger from '../utils/logger';
 import crypto from 'crypto';
 import { emailService } from '../lib/email';
 import { env } from '../config/env';
+import { paymentConfig } from '../config/payment.config';
 import type { PaystackSubscriptionData, PaystackChargeData } from '../../../shared-types';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+const stripe = new Stripe(paymentConfig.stripe.secretKey || '', {
   apiVersion: '2023-10-16',
 });
 
@@ -16,7 +17,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
  */
 export async function handleStripeWebhook(req: Request, res: Response): Promise<void> {
   const sig = req.headers['stripe-signature'] as string;
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  const webhookSecret = paymentConfig.stripe.webhookSecret;
 
   if (!webhookSecret) {
     logger.error('Stripe webhook secret not configured');
@@ -73,6 +74,26 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
 
       case 'payment_intent.payment_failed':
         await handleBookingPaymentFailed(event.data.object as Stripe.PaymentIntent);
+        break;
+
+      case 'customer.updated':
+        await handleCustomerUpdated(event.data.object as Stripe.Customer);
+        break;
+
+      case 'payment_method.detached':
+        await handlePaymentMethodDetached(event.data.object as Stripe.PaymentMethod);
+        break;
+
+      case 'invoice.upcoming':
+        await handleInvoiceUpcoming(event.data.object as Stripe.Invoice);
+        break;
+
+      case 'customer.subscription.paused':
+        await handleSubscriptionPaused(event.data.object as Stripe.Subscription);
+        break;
+
+      case 'customer.subscription.resumed':
+        await handleSubscriptionResumed(event.data.object as Stripe.Subscription);
         break;
 
       default:
@@ -296,6 +317,9 @@ async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
 /**
  * Handle payment method attached
  */
+/**
+ * Handle payment method attached
+ */
 async function handlePaymentMethodAttached(paymentMethod: Stripe.PaymentMethod): Promise<void> {
   logger.info(`Payment method attached: ${paymentMethod.id}`);
 
@@ -316,6 +340,145 @@ async function handlePaymentMethodAttached(paymentMethod: Stripe.PaymentMethod):
       last4Digits: paymentMethod.card?.last4,
       cardBrand: paymentMethod.card?.brand,
     },
+  });
+}
+
+/**
+ * Handle payment method detached
+ */
+async function handlePaymentMethodDetached(paymentMethod: Stripe.PaymentMethod): Promise<void> {
+  logger.info(`Payment method detached: ${paymentMethod.id}`);
+
+  const profile = await prisma.providerProfile.findFirst({
+    where: { paymentMethodId: paymentMethod.id },
+  });
+
+  if (!profile) return;
+
+  // Clear payment method details
+  await prisma.providerProfile.update({
+    where: { id: profile.id },
+    data: {
+      paymentMethodId: null,
+      last4Digits: null,
+      cardBrand: null,
+    },
+  });
+}
+
+/**
+ * Handle customer updated
+ */
+async function handleCustomerUpdated(customer: Stripe.Customer): Promise<void> {
+  logger.info(`Customer updated: ${customer.id}`);
+
+  // Update default payment method if changed
+  if (customer.invoice_settings?.default_payment_method) {
+    const paymentMethodId =
+      typeof customer.invoice_settings.default_payment_method === 'string'
+        ? customer.invoice_settings.default_payment_method
+        : customer.invoice_settings.default_payment_method.id;
+
+    const profile = await prisma.providerProfile.findFirst({
+      where: { stripeCustomerId: customer.id },
+    });
+
+    if (profile) {
+      const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+      await prisma.providerProfile.update({
+        where: { id: profile.id },
+        data: {
+          paymentMethodId: paymentMethod.id,
+          last4Digits: paymentMethod.card?.last4,
+          cardBrand: paymentMethod.card?.brand,
+        },
+      });
+    }
+  }
+}
+
+/**
+ * Handle invoice upcoming
+ */
+async function handleInvoiceUpcoming(invoice: Stripe.Invoice): Promise<void> {
+  logger.info(`Invoice upcoming: ${invoice.customer}`);
+
+  const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id;
+  if (!customerId) return;
+
+  const profile = await prisma.providerProfile.findFirst({
+    where: { stripeCustomerId: customerId },
+    include: { user: true },
+  });
+
+  if (!profile) return;
+
+  // Send upcoming billing email
+  await emailService.sendUpcomingBillingEmail(profile.user.email, {
+    firstName: profile.user.firstName,
+    amount: invoice.amount_due ? `$${(invoice.amount_due / 100).toFixed(2)}` : '$0.00',
+    billingDate: new Date(invoice.next_payment_attempt || Date.now()).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    }),
+    paymentMethod: '•••• •••• •••• ' + (profile.last4Digits || '****'),
+    manageSubscriptionUrl: `${env.FRONTEND_URL}/dashboard/subscription`,
+  });
+}
+
+/**
+ * Handle subscription paused
+ */
+async function handleSubscriptionPaused(subscription: Stripe.Subscription): Promise<void> {
+  logger.info(`Subscription paused: ${subscription.id}`);
+
+  const profile = await prisma.providerProfile.findFirst({
+    where: { stripeSubscriptionId: subscription.id },
+    include: { user: true },
+  });
+
+  if (!profile) return;
+
+  await prisma.providerProfile.update({
+    where: { id: profile.id },
+    data: { subscriptionStatus: 'PAUSED' }, // Use PAUSED status enum
+  });
+
+  // Send paused email
+  await emailService.sendSubscriptionPausedEmail(profile.user.email, {
+    firstName: profile.user.firstName,
+    resumeDate: subscription.pause_collection?.resumes_at
+      ? new Date(subscription.pause_collection.resumes_at * 1000).toLocaleDateString()
+      : 'Indefinite',
+    manageSubscriptionUrl: `${env.FRONTEND_URL}/dashboard/subscription`,
+  });
+}
+
+/**
+ * Handle subscription resumed
+ */
+async function handleSubscriptionResumed(subscription: Stripe.Subscription): Promise<void> {
+  logger.info(`Subscription resumed: ${subscription.id}`);
+
+  const profile = await prisma.providerProfile.findFirst({
+    where: { stripeSubscriptionId: subscription.id },
+    include: { user: true },
+  });
+
+  if (!profile) return;
+
+  await prisma.providerProfile.update({
+    where: { id: profile.id },
+    data: { subscriptionStatus: 'ACTIVE' },
+  });
+
+  // Send resumed email
+  await emailService.sendSubscriptionResumedEmail(profile.user.email, {
+    firstName: profile.user.firstName,
+    nextBillingDate: new Date(subscription.current_period_end * 1000).toLocaleDateString(),
+    amount: `$${profile.monthlyFee || (profile.isSalon ? 49 : 19)}`,
+    manageSubscriptionUrl: `${env.FRONTEND_URL}/dashboard/subscription`,
   });
 }
 
@@ -349,10 +512,13 @@ async function handleBookingPaymentSucceeded(paymentIntent: Stripe.PaymentIntent
         provider: {
           select: {
             businessName: true,
-            addressLine1: true,
             city: true,
             state: true,
             instantBookingEnabled: true,
+            locations: {
+              where: { isPrimary: true, isActive: true },
+              take: 1,
+            },
           },
         },
       },
@@ -437,7 +603,7 @@ async function handleBookingPaymentSucceeded(paymentIntent: Stripe.PaymentIntent
       providerName: booking.provider.businessName,
       appointmentDateTime: `${booking.appointmentDate.toLocaleDateString()} at ${booking.appointmentTime}`,
       duration: `${booking.service.durationMinutes || 60} minutes`,
-      location: `${booking.provider.addressLine1 || ''}, ${booking.provider.city}, ${booking.provider.state}`,
+      location: `${booking.provider.locations[0]?.addressLine1 || ''}, ${booking.provider.city}, ${booking.provider.state}`,
       totalAmount: `${booking.currency} ${booking.servicePrice.toString()}`,
       cancellationPolicy: "Please review the provider's cancellation policy",
       bookingDetailsUrl: `${env.FRONTEND_URL}/client/bookings/${booking.id}`,
@@ -517,7 +683,7 @@ export async function handlePaystackWebhook(req: Request, res: Response): Promis
     }
 
     const hash = crypto
-      .createHmac('sha512', process.env.PAYSTACK_SECRET_KEY || '')
+      .createHmac('sha512', paymentConfig.paystack.secretKey || '')
       .update(rawBody)
       .digest('hex');
 
@@ -551,6 +717,19 @@ export async function handlePaystackWebhook(req: Request, res: Response): Promis
 
       case 'charge.failed':
         await handlePaystackChargeFailed(event.data);
+        break;
+
+      case 'invoice.create':
+      case 'invoice.update':
+        await handlePaystackInvoiceUpdate(event.data);
+        break;
+
+      case 'invoice.payment_failed':
+        await handlePaystackInvoicePaymentFailed(event.data);
+        break;
+
+      case 'subscription.expiring_cards':
+        await handlePaystackExpiringCards(event.data);
         break;
 
       default:
@@ -629,7 +808,7 @@ async function handlePaystackChargeSuccess(data: PaystackChargeData): Promise<vo
   const type = metadata?.type;
 
   // Handle booking payments
-  if (type === 'booking_deposit' || type === 'balance_payment') {
+  if (type === 'booking_deposit' || type === 'balance_payment' || type === 'tip_payment') {
     await handlePaystackBookingChargeSuccess(data);
     return;
   }
@@ -721,10 +900,13 @@ async function handlePaystackBookingChargeSuccess(data: PaystackChargeData): Pro
         provider: {
           select: {
             businessName: true,
-            addressLine1: true,
             city: true,
             state: true,
             instantBookingEnabled: true,
+            locations: {
+              where: { isPrimary: true, isActive: true },
+              take: 1,
+            },
           },
         },
       },
@@ -742,7 +924,7 @@ async function handlePaystackBookingChargeSuccess(data: PaystackChargeData): Pro
           const customerResponse = await fetch('https://api.paystack.co/customer', {
             method: 'POST',
             headers: {
-              Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`,
+              Authorization: `Bearer ${paymentConfig.paystack.secretKey}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
@@ -801,7 +983,7 @@ async function handlePaystackBookingChargeSuccess(data: PaystackChargeData): Pro
       providerName: booking.provider.businessName,
       appointmentDateTime: `${booking.appointmentDate.toLocaleDateString()} at ${booking.appointmentTime}`,
       duration: `${booking.service.durationMinutes} minutes`,
-      location: `${booking.provider.addressLine1}, ${booking.provider.city}, ${booking.provider.state}`,
+      location: `${booking.provider.locations[0]?.addressLine1 || ''}, ${booking.provider.city}, ${booking.provider.state}`,
       totalAmount: `${booking.currency} ${booking.servicePrice.toString()}`,
       cancellationPolicy: "Please review the provider's cancellation policy",
       bookingDetailsUrl: `${env.FRONTEND_URL}/client/bookings/${booking.id}`,
@@ -818,5 +1000,88 @@ async function handlePaystackBookingChargeSuccess(data: PaystackChargeData): Pro
     });
 
     logger.info(`Paystack booking ${bookingId} balance paid`);
+  } else if (type === 'tip_payment') {
+    await prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        tipAmount: Number(metadata.tipAmount),
+        tipPaidAt: new Date(),
+        tipPaymentMethod: 'online',
+        tipPaymentIntentId: data.reference,
+        updatedAt: new Date(),
+      },
+    });
+
+    logger.info(`Paystack booking ${bookingId} tip paid`);
   }
+}
+
+/**
+ * Handle Paystack invoice update (upcoming billing)
+ */
+async function handlePaystackInvoiceUpdate(data: any): Promise<void> {
+  // Paystack sends invoice.create/update for upcoming payments
+  logger.info(`Paystack invoice update: ${data.subscription_code}`);
+
+  if (!data.subscription_code) return;
+
+  const profile = await prisma.providerProfile.findFirst({
+    where: { paystackSubscriptionCode: data.subscription_code },
+    include: { user: true },
+  });
+
+  if (!profile) return;
+
+  // Send upcoming billing email
+  await emailService.sendUpcomingBillingEmail(profile.user.email, {
+    firstName: profile.user.firstName,
+    amount: data.amount ? `${data.currency} ${(data.amount / 100).toFixed(2)}` : 'N/A',
+    billingDate: new Date(data.next_notification_date || Date.now()).toLocaleDateString(),
+    paymentMethod: 'Paystack Card',
+    manageSubscriptionUrl: `${env.FRONTEND_URL}/dashboard/subscription`,
+  });
+}
+
+/**
+ * Handle Paystack invoice payment failed
+ */
+async function handlePaystackInvoicePaymentFailed(data: any): Promise<void> {
+  logger.info(`Paystack invoice payment failed: ${data.subscription_code}`);
+  // Similar to charge.failed but specifically for invoices
+  // We can reuse the logic or add specific handling
+  if (data.subscription_code) {
+    const profile = await prisma.providerProfile.findFirst({
+      where: { paystackSubscriptionCode: data.subscription_code },
+      include: { user: true },
+    });
+
+    if (profile) {
+      await prisma.providerProfile.update({
+        where: { id: profile.id },
+        data: { subscriptionStatus: 'PAST_DUE' },
+      });
+    }
+  }
+}
+
+/**
+ * Handle Paystack expiring cards
+ */
+async function handlePaystackExpiringCards(data: any): Promise<void> {
+  logger.info(`Paystack expiring card: ${data.customer_email}`);
+
+  const profile = await prisma.providerProfile.findFirst({
+    where: { user: { email: data.customer_email } },
+    include: { user: true },
+  });
+
+  if (!profile) return;
+
+  await emailService.sendExpiringCardEmail(profile.user.email, {
+    firstName: profile.user.firstName,
+    cardBrand: data.brand || 'Card',
+    last4: data.last4 || '****',
+    expiryDate: data.exp_month && data.exp_year ? `${data.exp_month}/${data.exp_year}` : 'Soon',
+    updatePaymentUrl: `${env.FRONTEND_URL}/dashboard/subscription/payment-method`,
+  });
 }

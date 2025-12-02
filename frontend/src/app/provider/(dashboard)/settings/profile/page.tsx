@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import Image from 'next/image';
 import { SettingsLayout } from '@/components/settings/SettingsLayout';
-import { InstagramMediaImport } from '@/components/provider/InstagramMediaImport';
+// import { InstagramMediaImport } from '@/components/provider/InstagramMediaImport'; // Temporarily hidden
 import {
   Form,
   FormControl,
@@ -22,9 +22,16 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+// import { Badge } from '@/components/ui/badge'; // Temporarily hidden
 import { Label } from '@/components/ui/label';
-import { CheckCircle2, AlertCircle, Instagram, Link as LinkIcon, Camera, Upload, X, ImageIcon } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { CheckCircle2, AlertCircle, /* Instagram, Link as LinkIcon, */ Camera, Upload, X, ImageIcon } from 'lucide-react';
 import { api } from '@/lib/api';
 import { uploadService } from '@/lib/upload';
 import { extractErrorMessage } from '@/lib/error-utils';
@@ -39,18 +46,44 @@ const profileSchema = z.object({
   instagramHandle: z.string().max(100).optional(),
   tiktokHandle: z.string().max(100).optional(),
   facebookUrl: z.string().url('Invalid URL').optional().or(z.literal('')),
+  // Business Details fields
+  businessType: z.string().optional(),
+  timezone: z.string().optional(),
 });
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
+
+// Common timezones
+const TIMEZONES = [
+  { value: 'America/New_York', label: 'Eastern Time (ET)' },
+  { value: 'America/Chicago', label: 'Central Time (CT)' },
+  { value: 'America/Denver', label: 'Mountain Time (MT)' },
+  { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
+  { value: 'America/Anchorage', label: 'Alaska Time (AKT)' },
+  { value: 'Pacific/Honolulu', label: 'Hawaii Time (HT)' },
+  { value: 'Europe/London', label: 'London (GMT/BST)' },
+  { value: 'Europe/Paris', label: 'Paris (CET)' },
+  { value: 'Africa/Accra', label: 'Ghana (GMT)' },
+  { value: 'Africa/Lagos', label: 'Nigeria (WAT)' },
+];
+
+const BUSINESS_TYPES = [
+  { value: 'individual', label: 'Individual Professional' },
+  { value: 'salon', label: 'Salon' },
+  { value: 'spa', label: 'Spa' },
+  { value: 'mobile', label: 'Mobile Services' },
+  { value: 'studio', label: 'Studio' },
+];
 
 export default function ProfileSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [instagramConnected, setInstagramConnected] = useState(false);
-  const [instagramUsername, setInstagramUsername] = useState<string | null>(null);
-  const [disconnecting, setDisconnecting] = useState(false);
+  // Instagram integration state - Temporarily hidden
+  // const [instagramConnected, setInstagramConnected] = useState(false);
+  // const [instagramUsername, setInstagramUsername] = useState<string | null>(null);
+  // const [disconnecting, setDisconnecting] = useState(false);
 
   // Photo upload states
   const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
@@ -70,14 +103,19 @@ export default function ProfileSettingsPage() {
       instagramHandle: '',
       tiktokHandle: '',
       facebookUrl: '',
+      // Business Details
+      businessType: '',
+      timezone: '',
     },
   });
 
   useEffect(() => {
     fetchProfileSettings();
-    checkInstagramConnection();
+    // checkInstagramConnection(); // Temporarily hidden
   }, []);
 
+  // Instagram functions - Temporarily hidden
+  /*
   async function checkInstagramConnection() {
     try {
       // TODO: Add API endpoint to check Instagram connection status
@@ -131,6 +169,7 @@ export default function ProfileSettingsPage() {
       setDisconnecting(false);
     }
   }
+  */
 
   async function fetchProfileSettings() {
     try {
@@ -149,6 +188,9 @@ export default function ProfileSettingsPage() {
         instagramHandle: profile.instagramHandle || '',
         tiktokHandle: profile.tiktokHandle || '',
         facebookUrl: profile.facebookUrl || '',
+        // Business Details
+        businessType: profile.businessType || '',
+        timezone: profile.timezone || '',
       });
 
       // Set existing photo URLs
@@ -209,8 +251,11 @@ export default function ProfileSettingsPage() {
         instagramHandle: values.instagramHandle || null,
         tiktokHandle: values.tiktokHandle || null,
         facebookUrl: values.facebookUrl || null,
-        profilePhotoUrl: profilePhotoUrl || null,
-        coverPhotoUrl: coverPhotoUrl || null,
+        profilePhotoUrl: profilePhotoUrl || existingProfilePhotoUrl || null,
+        coverPhotoUrl: coverPhotoUrl || existingCoverPhotoUrl || null,
+        // Business Details
+        businessType: values.businessType || null,
+        timezone: values.timezone || null,
       };
 
       await api.settings.updateProfile(data);
@@ -504,8 +549,8 @@ export default function ProfileSettingsPage() {
             )}
           />
 
-          {/* Instagram Handle */}
-          <FormField
+          {/* Instagram Handle - Temporarily hidden */}
+          {/* <FormField
             control={form.control}
             name="instagramHandle"
             render={({ field }) => (
@@ -518,7 +563,7 @@ export default function ProfileSettingsPage() {
                 <FormMessage />
               </FormItem>
             )}
-          />
+          /> */}
 
           {/* TikTok Handle */}
           <FormField
@@ -552,6 +597,67 @@ export default function ProfileSettingsPage() {
             )}
           />
 
+          {/* Business Details Section */}
+          <div className="space-y-4 pt-6 border-t">
+            <h3 className="text-lg font-semibold">Business Details</h3>
+            
+            <div className="space-y-4">
+              {/* Business Type */}
+              <FormField
+                control={form.control}
+                name="businessType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Business Type</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select business type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {BUSINESS_TYPES.map((type) => (
+                          <SelectItem key={type.value} value={type.value}>
+                            {type.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>Type of your beauty business</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Timezone */}
+            <FormField
+              control={form.control}
+              name="timezone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Timezone</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select timezone" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {TIMEZONES.map((tz) => (
+                        <SelectItem key={tz.value} value={tz.value}>
+                          {tz.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>Your business timezone for scheduling</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
           {/* Submit Button */}
           <div className="flex justify-end">
             <Button type="submit" disabled={saving || uploadingPhotos}>
@@ -561,8 +667,8 @@ export default function ProfileSettingsPage() {
         </form>
       </Form>
 
-      {/* Instagram Integration Section */}
-      <Card className="mt-8">
+      {/* Instagram Integration Section - Temporarily hidden */}
+      {/* <Card className="mt-8">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -623,9 +729,9 @@ export default function ProfileSettingsPage() {
       </Card>
 
       {/* Instagram Media Import */}
-      {instagramConnected && (
+      {/* {instagramConnected && (
         <InstagramMediaImport onImportComplete={() => checkInstagramConnection()} />
-      )}
+      )} */}
     </SettingsLayout>
   );
 }

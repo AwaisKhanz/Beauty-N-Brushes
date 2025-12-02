@@ -193,7 +193,9 @@ export function InviteTeamMemberModal({ open, onClose, onSuccess }: InviteTeamMe
 
             {/* Specializations */}
             <div className="space-y-2">
-              <FormLabel>Specializations (Optional)</FormLabel>
+              <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Specializations (Optional)
+              </label>
               <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto border rounded-lg p-3">
                 {SERVICE_SPECIALIZATIONS.map((spec) => (
                   <div key={spec} className="flex items-center space-x-2">

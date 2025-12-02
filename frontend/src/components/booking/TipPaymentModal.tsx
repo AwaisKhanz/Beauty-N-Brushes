@@ -44,10 +44,15 @@ export function TipPaymentModal({
         return;
       }
 
-      await api.payment.payTip({
+      const response = await api.payment.payTip({
         bookingId,
         tipAmount: amount,
       });
+
+      if (response.data.authorizationUrl) {
+        window.location.href = response.data.authorizationUrl;
+        return;
+      }
 
       toast.success('Tip sent successfully!', {
         description: `Thank you for tipping $${amount}`,

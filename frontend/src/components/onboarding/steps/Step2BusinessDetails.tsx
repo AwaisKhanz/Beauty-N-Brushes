@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { MapPin, Phone, Instagram, Navigation } from 'lucide-react';
+import { MapPin, Phone, /* Instagram, */ Navigation } from 'lucide-react';
 import { SERVICE_SPECIALIZATIONS, BUSINESS_TYPES } from '@/constants';
 
 const businessDetailsSchema = z.object({
@@ -51,7 +51,7 @@ const businessDetailsSchema = z.object({
   longitude: z.number().optional(),
   phone: z.string().min(10, 'Valid phone number is required'),
   email: z.string().email('Valid email is required'),
-  instagramHandle: z.string().optional(),
+  // instagramHandle: z.string().optional(), // Temporarily hidden
   website: z.string().url().optional().or(z.literal('')),
   serviceSpecializations: z.array(z.string()).min(1, 'Select at least one service specialization'),
 });
@@ -92,7 +92,7 @@ export function Step2BusinessDetails({
       country: 'US',
       phone: '',
       email: '',
-      instagramHandle: '',
+      // instagramHandle: '', // Temporarily hidden
       website: '',
       serviceSpecializations: [],
       yearsExperience: undefined,
@@ -203,7 +203,7 @@ export function Step2BusinessDetails({
       phone: values.phone,
       email: values.email,
       website: values.website,
-      instagramHandle: values.instagramHandle,
+      // instagramHandle: values.instagramHandle, // Temporarily hidden
       description: values.description,
       serviceSpecializations: values.serviceSpecializations,
       yearsExperience: values.yearsExperience,
@@ -426,7 +426,8 @@ export function Step2BusinessDetails({
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
+                  {/* Instagram Handle - Temporarily hidden */}
+                  {/* <FormField
                     control={form.control}
                     name="instagramHandle"
                     render={({ field }) => (
@@ -441,7 +442,7 @@ export function Step2BusinessDetails({
                         <FormMessage />
                       </FormItem>
                     )}
-                  />
+                  /> */}
 
                   <FormField
                     control={form.control}

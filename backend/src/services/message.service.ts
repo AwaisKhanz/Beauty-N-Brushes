@@ -1,4 +1,6 @@
 import { prisma as db } from '../config/database';
+import { emitNewMessage, emitConversationUpdate, isUserViewingConversation } from '../config/socket.server';
+import { notificationService } from './notification.service';
 import type {
   Conversation,
   Message,
@@ -6,6 +8,7 @@ import type {
   GetConversationsRequest,
   GetMessagesRequest,
 } from '../../../shared-types/message.types';
+import logger from '@/utils/logger';
 
 export const messageService = {
   /**
@@ -109,6 +112,66 @@ export const messageService = {
           },
         },
       });
+    }
+
+    return conversation as unknown as Conversation;
+  },
+
+  /**
+   * Create empty conversation (without initial message)
+   */
+  async createEmptyConversation(clientId: string, providerId: string): Promise<Conversation> {
+    // Check if conversation already exists
+    const existing = await db.conversation.findFirst({
+      where: {
+        clientId,
+        providerId,
+      },
+    });
+
+    if (existing) {
+      // Return existing conversation with full details
+      return this.getOrCreateConversation(clientId, providerId);
+    }
+
+    // Create new conversation
+    const conversation = await db.conversation.create({
+      data: {
+        clientId,
+        providerId,
+        status: 'active',
+      },
+      include: {
+        client: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            avatarUrl: true,
+          },
+        },
+        provider: {
+          select: {
+            id: true,
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+            businessName: true,
+            logoUrl: true,
+          },
+        },
+      },
+    });
+
+    // Emit Socket.IO event to both users
+    try {
+      emitConversationUpdate(conversation.id, conversation);
+    } catch (error) {
+      logger.error('Failed to emit conversation update:', error);
     }
 
     return conversation as unknown as Conversation;
@@ -220,7 +283,7 @@ export const messageService = {
 
     // Update conversation
     const isClient = senderId === conversation.clientId;
-    await db.conversation.update({
+    const updatedConversation = await db.conversation.update({
       where: { id: conversation.id },
       data: {
         lastMessageAt: new Date(),
@@ -230,11 +293,70 @@ export const messageService = {
           ? { providerUnreadCount: { increment: 1 } }
           : { clientUnreadCount: { increment: 1 } }),
       },
+      include: {
+        client: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            avatarUrl: true,
+          },
+        },
+        provider: {
+          select: {
+            id: true,
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+            businessName: true,
+            logoUrl: true,
+          },
+        },
+      },
     });
+
+    // Emit Socket.IO events for real-time updates
+    try {
+      // Emit new message to conversation participants
+      emitNewMessage(conversation.id, message, conversation);
+
+      // Emit conversation update
+      emitConversationUpdate(conversation.id, updatedConversation);
+
+      // Determine recipient and create notification
+      const recipientId = isClient ? updatedConversation.provider.user.id : conversation.clientId;
+      const senderName = isClient
+        ? `${message.sender.firstName} ${message.sender.lastName}`
+        : updatedConversation.provider.businessName;
+
+      // Check if recipient is actively viewing this conversation
+      const isRecipientViewing = await isUserViewingConversation(recipientId, conversation.id);
+      
+      // Only create notification if recipient is NOT viewing the conversation
+      if (!isRecipientViewing) {
+        // Create in-app notification (this already emits the notification via Socket.IO)
+        await notificationService.createMessageNotification(
+          recipientId,
+          senderName,
+          data.content,
+          conversation.id,
+          senderId // Pass sender ID for context checking
+        );
+      } else {
+        console.log(`📭 Skipping notification - user ${recipientId} is viewing conversation ${conversation.id}`);
+      }
+    } catch (error) {
+      // Log error but don't fail the message send
+      console.error('Failed to emit Socket.IO events:', error);
+    }
 
     return {
       message: message as unknown as Message,
-      conversation,
+      conversation: updatedConversation as unknown as Conversation,
     };
   },
 

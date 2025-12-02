@@ -91,6 +91,7 @@ export interface AuthUser {
   hairType?: string | null;
   hairTexture?: string | null;
   hairPreferences?: string | null;
+  regionCode?: string | null;
 }
 
 /**

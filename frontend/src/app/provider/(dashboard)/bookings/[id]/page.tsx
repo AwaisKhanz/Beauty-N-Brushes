@@ -249,10 +249,10 @@ export default function ProviderBookingDetailPage() {
                   </div>
                   <p className="font-medium">{booking.provider?.businessName || 'Your Business'}</p>
                   <p className="text-sm text-muted-foreground">
-                    {booking.provider?.addressLine1 &&
+                    {booking.provider?.locations?.[0]?.addressLine1 &&
                     booking.provider?.city &&
                     booking.provider?.state
-                      ? `${booking.provider.addressLine1}, ${booking.provider.city}, ${booking.provider.state}`
+                      ? `${booking.provider.locations[0].addressLine1}, ${booking.provider.city}, ${booking.provider.state}`
                       : 'Location not specified'}
                   </p>
                 </div>

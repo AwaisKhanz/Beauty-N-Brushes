@@ -207,6 +207,15 @@ export interface BookingDetails {
   referencePhotoUrls: string[];
   internalNotes: string | null;
 
+  // Photos
+  photos?: Array<{
+    id: string;
+    photoType: 'BEFORE' | 'AFTER' | 'REFERENCE';
+    imageUrl: string;
+    caption: string | null;
+    createdAt: string;
+  }>;
+
   // Cancellation
   cancelledAt: string | null;
   cancellationReason: string | null;
@@ -237,6 +246,13 @@ export interface BookingDetails {
     cancellationWindowHours: number | null;
     cancellationFeePercentage: number | null;
     cancellationPolicy: string | null;
+    locations?: Array<{
+      id: string;
+      addressLine1: string;
+      city: string;
+      state: string;
+      isPrimary: boolean;
+    }>;
   };
 
   client?: {

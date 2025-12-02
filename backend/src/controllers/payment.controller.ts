@@ -5,7 +5,8 @@ import { AppError } from '../middleware/errorHandler';
 import { env } from '../config/env';
 import { prisma } from '../config/database';
 import { stripe } from '../lib/stripe';
-import { getRegionalCurrency } from '../lib/payment';
+import { getRegionalCurrency, generateIdempotencyKey } from '../lib/payment';
+import { paymentConfig } from '../config/payment.config';
 import type { RegionCode } from '../types/payment.types';
 import type {
   InitializeBookingPaymentRequest,
@@ -47,7 +48,7 @@ export async function initializePaystackTransaction(
     const response = await fetch('https://api.paystack.co/transaction/initialize', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`,
+        Authorization: `Bearer ${paymentConfig.paystack.secretKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -241,27 +242,58 @@ export async function initializeBookingPayment(
     const currency = booking.currency;
 
     if (paymentProvider === 'STRIPE') {
-      // Initialize Stripe Payment Intent
-      const paymentIntent = await stripe.paymentIntents.create({
-        amount: Math.round(amount * 100), // Convert to cents
-        currency: currency.toLowerCase(),
-        receipt_email: client.email,
-        metadata: {
-          bookingId: booking.id,
-          depositAmount: booking.depositAmount.toString(),
-          serviceFee: booking.serviceFee.toString(),
-          type: 'booking_deposit',
-        },
-        automatic_payment_methods: {
-          enabled: true,
-        },
-      });
+      let paymentIntent;
 
-      // Update booking with Stripe payment intent ID
-      await prisma.booking.update({
-        where: { id: booking.id },
-        data: { stripePaymentIntentId: paymentIntent.id },
-      });
+      // Check if PaymentIntent already exists and can be reused
+      if (booking.stripePaymentIntentId) {
+        try {
+          paymentIntent = await stripe.paymentIntents.retrieve(booking.stripePaymentIntentId);
+
+          // If payment intent is in a terminal state, create a new one
+          if (['succeeded', 'canceled'].includes(paymentIntent.status)) {
+            paymentIntent = null;
+          } else if (paymentIntent.amount !== Math.round(amount * 100)) {
+            // Update amount if changed
+            paymentIntent = await stripe.paymentIntents.update(booking.stripePaymentIntentId, {
+              amount: Math.round(amount * 100),
+            });
+          }
+          // Otherwise, reuse existing PaymentIntent
+        } catch (error) {
+          // PaymentIntent not found or error, create new one
+          paymentIntent = null;
+        }
+      }
+
+      // Create new PaymentIntent if needed
+      if (!paymentIntent) {
+        paymentIntent = await stripe.paymentIntents.create(
+          {
+            amount: Math.round(amount * 100), // Convert to cents
+            currency: currency.toLowerCase(),
+            receipt_email: client.email,
+            metadata: {
+              bookingId: booking.id,
+              depositAmount: booking.depositAmount.toString(),
+              serviceFee: booking.serviceFee.toString(),
+              type: 'booking_deposit',
+            },
+            automatic_payment_methods: {
+              enabled: true,
+            },
+            setup_future_usage: 'off_session', // Save payment method for future use
+          },
+          {
+            idempotencyKey: generateIdempotencyKey(booking.id, 'deposit'),
+          }
+        );
+
+        // Update booking with new PaymentIntent ID
+        await prisma.booking.update({
+          where: { id: booking.id },
+          data: { stripePaymentIntentId: paymentIntent.id },
+        });
+      }
 
       sendSuccess<InitializeBookingPaymentResponse>(res, {
         clientSecret: paymentIntent.client_secret || '',
@@ -274,7 +306,7 @@ export async function initializeBookingPayment(
       const paystackResponse = await fetch('https://api.paystack.co/transaction/initialize', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`,
+          Authorization: `Bearer ${paymentConfig.paystack.secretKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -419,15 +451,20 @@ export async function payBalance(
 
     if (paymentProvider === 'STRIPE') {
       // Initialize Stripe Payment Intent for balance
-      const paymentIntent = await stripe.paymentIntents.create({
-        amount: Math.round(balanceAmount * 100), // Convert to cents
-        currency: currency.toLowerCase(),
-        metadata: {
-          bookingId: booking.id,
-          type: 'balance_payment',
-          balanceAmount: balanceAmount.toString(),
+      const paymentIntent = await stripe.paymentIntents.create(
+        {
+          amount: Math.round(balanceAmount * 100), // Convert to cents
+          currency: currency.toLowerCase(),
+          metadata: {
+            bookingId: booking.id,
+            type: 'balance_payment',
+            balanceAmount: balanceAmount.toString(),
+          },
         },
-      });
+        {
+          idempotencyKey: generateIdempotencyKey(booking.id, 'balance'),
+        }
+      );
 
       sendSuccess<PayBalanceResponse>(res, {
         clientSecret: paymentIntent.client_secret || undefined,
@@ -442,7 +479,7 @@ export async function payBalance(
       const paystackResponse = await fetch('https://api.paystack.co/transaction/initialize', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`,
+          Authorization: `Bearer ${paymentConfig.paystack.secretKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -535,22 +572,33 @@ export async function payTip(req: AuthRequest, res: Response, next: NextFunction
 
     if (booking.service.provider.paymentProvider === 'STRIPE') {
       // Process Stripe tip payment
-      const paymentIntent = await stripe.paymentIntents.create({
-        amount: Math.round(data.tipAmount * 100), // Convert to cents
-        currency: currency.toLowerCase(),
-        payment_method: data.paymentMethodId,
-        confirm: true,
-        metadata: {
-          bookingId: booking.id,
-          type: 'tip_payment',
-          tipAmount: data.tipAmount.toString(),
+      const paymentIntent = await stripe.paymentIntents.create(
+        {
+          amount: Math.round(data.tipAmount * 100), // Convert to cents
+          currency: currency.toLowerCase(),
+          customer: booking.client.stripeCustomerId || undefined,
+          payment_method: data.paymentMethodId || booking.client.paymentMethodId || undefined,
+          confirm: true,
+          metadata: {
+            bookingId: booking.id,
+            type: 'tip_payment',
+            tipAmount: data.tipAmount.toString(),
+          },
         },
-      });
+        {
+          idempotencyKey: generateIdempotencyKey(booking.id, 'tip'),
+        }
+      );
 
-      // Update booking with tip amount
+      // Update booking with tip amount and details
       await prisma.booking.update({
         where: { id: booking.id },
-        data: { tipAmount: data.tipAmount },
+        data: { 
+          tipAmount: data.tipAmount,
+          tipPaidAt: new Date(),
+          tipPaymentIntentId: paymentIntent.id,
+          tipPaymentMethod: 'online'
+        },
       });
 
       sendSuccess(res, {
@@ -564,7 +612,7 @@ export async function payTip(req: AuthRequest, res: Response, next: NextFunction
       const paystackResponse = await fetch('https://api.paystack.co/transaction/initialize', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`,
+          Authorization: `Bearer ${paymentConfig.paystack.secretKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({

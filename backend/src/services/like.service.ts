@@ -5,6 +5,8 @@
 
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
+import { notificationService } from './notification.service';
+import { emitLikeUpdate } from '../config/socket.server';
 import type { LikeItem, GetLikesResponse } from '../../../shared-types';
 
 class LikeService {
@@ -67,6 +69,30 @@ class LikeService {
       ]);
       liked = true;
       likeCount = provider.likeCount + 1;
+
+      // Send notification to provider about new like
+      try {
+        const providerUserId = await prisma.providerProfile.findUnique({
+          where: { id: providerId },
+          select: { userId: true },
+        });
+
+        if (providerUserId) {
+          await notificationService.createProviderLikedNotification(
+            providerUserId.userId,
+            1,
+            likeCount
+          );
+
+          emitLikeUpdate(providerUserId.userId, {
+            type: 'provider_liked',
+            likeCount: 1,
+            totalLikes: likeCount,
+          });
+        }
+      } catch (err) {
+        console.error('Failed to send provider like notification:', err);
+      }
     }
 
     return { liked, likeCount };
@@ -131,6 +157,37 @@ class LikeService {
       ]);
       liked = true;
       likeCount = service.likeCount + 1;
+
+      // Send notification to provider about service like
+      try {
+        const serviceWithProvider = await prisma.service.findUnique({
+          where: { id: serviceId },
+          select: {
+            title: true,
+            provider: {
+              select: { userId: true },
+            },
+          },
+        });
+
+        if (serviceWithProvider) {
+          await notificationService.createServiceLikedNotification(
+            serviceWithProvider.provider.userId,
+            serviceWithProvider.title,
+            1,
+            serviceId
+          );
+
+          emitLikeUpdate(serviceWithProvider.provider.userId, {
+            type: 'service_liked',
+            serviceName: serviceWithProvider.title,
+            serviceId,
+            likeCount: 1,
+          });
+        }
+      } catch (err) {
+        console.error('Failed to send service like notification:', err);
+      }
     }
 
     return { liked, likeCount };

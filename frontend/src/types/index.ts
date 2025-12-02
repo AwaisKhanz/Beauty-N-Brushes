@@ -92,7 +92,6 @@ export type {
   CreateMessageResponse,
   GetConversationsResponse,
   GetMessagesResponse,
-  MarkAsReadResponse,
   UpdateConversationResponse,
 } from '../../../shared-types/message.types';
 

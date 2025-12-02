@@ -6,6 +6,7 @@ import ProviderSidebar from '@/components/provider/ProviderSidebar';
 import { AuthGuard } from '@/components/auth/AuthGuard';
 import { EmailVerificationGuard } from '@/components/auth/EmailVerificationGuard';
 import { OnboardingGuard } from '@/components/auth/OnboardingGuard';
+import { GlobalNotificationListener } from '@/components/notifications/GlobalNotificationListener';
 
 export default function ProviderLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -14,6 +15,7 @@ export default function ProviderLayout({ children }: { children: React.ReactNode
     <AuthGuard requiredRole="PROVIDER">
       <EmailVerificationGuard>
         <OnboardingGuard>
+          <GlobalNotificationListener />
           <div className="flex h-screen flex-col bg-background">
             <ProviderHeader onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
             <div className="flex flex-1 overflow-hidden">

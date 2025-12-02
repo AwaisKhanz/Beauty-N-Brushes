@@ -79,3 +79,6 @@ export interface DeleteLocationResponse {
   message: string;
 }
 
+// Type aliases for backward compatibility
+export type UpdateLocationResponse = UpdateLocationManagementResponse;
+

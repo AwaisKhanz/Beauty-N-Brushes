@@ -18,6 +18,9 @@ export interface UpdateProfileSettingsRequest {
   facebookUrl?: string | null;
   profilePhotoUrl?: string | null;
   coverPhotoUrl?: string | null;
+  // Business Details
+  businessType?: string | null;
+  timezone?: string | null;
 }
 
 // ================================
@@ -120,6 +123,9 @@ export interface ProviderSettingsProfile {
   wheelchairAccessible: boolean | null;
   regionCode: string;
   currency: string;
+  // Business Details
+  businessType: string | null;
+  timezone: string;
 }
 
 export interface ProviderSettingsResponse {
@@ -161,7 +167,7 @@ export interface BillingRecord {
 
 export interface SubscriptionInfoResponse {
   subscriptionTier: 'solo' | 'salon';
-  subscriptionStatus: 'trial' | 'active' | 'past_due' | 'cancelled' | 'expired';
+  subscriptionStatus: 'trial' | 'active' | 'past_due' | 'cancelled' | 'expired' | 'paused';
   trialEndDate: string | null;
   nextBillingDate: string | null;
   monthlyFee: number;

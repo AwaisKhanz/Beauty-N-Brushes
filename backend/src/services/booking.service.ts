@@ -9,6 +9,9 @@ import { calculateServiceFee } from '../lib/payment';
 import { emailService } from '../lib/email';
 import { env } from '../config/env';
 import { calendarSyncService } from './calendar-sync.service';
+import { notificationService } from './notification.service';
+import { emitBookingUpdate } from '../config/socket.server';
+import { format } from 'date-fns';
 import type {
   CreateBookingRequest,
   UpdateBookingRequest,
@@ -199,10 +202,13 @@ class BookingService {
             businessName: true,
             slug: true,
             businessPhone: true,
-            addressLine1: true,
             city: true,
             state: true,
             isSalon: true,
+            locations: {
+              where: { isPrimary: true, isActive: true },
+              take: 1,
+            },
             user: {
               select: {
                 firstName: true,
@@ -263,7 +269,7 @@ class BookingService {
           `${booking.provider.user.firstName} ${booking.provider.user.lastName}`,
         appointmentDateTime: formattedDateTime,
         duration: `${service.durationMinutes} minutes`,
-        location: `${booking.provider.addressLine1 || ''}, ${booking.provider.city}, ${booking.provider.state}`,
+        location: `${booking.provider.locations[0]?.addressLine1 || ''}, ${booking.provider.city}, ${booking.provider.state}`,
         totalAmount: `${booking.currency} ${totalBookingAmount.toFixed(2)}`,
         cancellationPolicy: "Please review the provider's cancellation policy",
         bookingDetailsUrl: `${env.FRONTEND_URL}/client/bookings/${booking.id}`,
@@ -287,7 +293,7 @@ class BookingService {
           endTime: endDate,
           clientEmail: booking.client.email,
           clientName: `${booking.client.firstName} ${booking.client.lastName}`,
-          location: `${booking.provider.addressLine1 || ''}, ${booking.provider.city}, ${booking.provider.state}`,
+          location: `${booking.provider.locations[0]?.addressLine1 || ''}, ${booking.provider.city}, ${booking.provider.state}`,
         },
         service.provider.id
       );
@@ -302,6 +308,42 @@ class BookingService {
     } catch (calendarError) {
       // Don't fail booking if calendar sync fails
       console.error('Failed to sync booking to Google Calendar:', calendarError);
+    }
+
+    // Send notification to provider about new booking
+    try {
+      const clientName = `${booking.client.firstName} ${booking.client.lastName}`;
+      const providerUserId = await prisma.providerProfile.findUnique({
+        where: { id: booking.providerId },
+        select: { userId: true },
+      });
+
+      if (providerUserId) {
+        await notificationService.createBookingCreatedNotification(
+          providerUserId.userId,
+          clientName,
+          booking.service.title,
+          format(new Date(data.appointmentDate), 'MMM dd, yyyy'),
+          data.appointmentTime,
+          booking.id
+        );
+
+        // Emit Socket.IO event for real-time update
+        emitBookingUpdate(providerUserId.userId, {
+          type: 'booking_created',
+          booking: {
+            id: booking.id,
+            clientName,
+            serviceName: booking.service.title,
+            appointmentDate: data.appointmentDate,
+            appointmentTime: data.appointmentTime,
+            status: bookingStatus,
+          },
+        });
+      }
+    } catch (notificationError) {
+      // Don't fail booking if notification fails
+      console.error('Failed to send booking notification:', notificationError);
     }
 
     return booking;
@@ -365,10 +407,13 @@ class BookingService {
               select: {
                 id: true,
                 businessName: true,
-                addressLine1: true,
                 city: true,
                 state: true,
                 isSalon: true,
+                locations: {
+                  where: { isPrimary: true, isActive: true },
+                  take: 1,
+                },
               },
             },
           },
@@ -384,11 +429,37 @@ class BookingService {
       providerName: updatedBooking.service.provider.businessName,
       appointmentDateTime: `${updatedBooking.appointmentDate.toLocaleDateString()} at ${updatedBooking.appointmentTime}`,
       duration: `${updatedBooking.service.durationMinutes || 60} minutes`,
-      location: `${updatedBooking.service.provider.addressLine1 || ''}, ${updatedBooking.service.provider.city}, ${updatedBooking.service.provider.state}`,
+      location: `${updatedBooking.service.provider.locations[0]?.addressLine1 || ''}, ${updatedBooking.service.provider.city}, ${updatedBooking.service.provider.state}`,
       totalAmount: `${updatedBooking.currency} ${updatedBooking.servicePrice.toString()}`,
       cancellationPolicy: "Please review the provider's cancellation policy",
       bookingDetailsUrl: `${env.FRONTEND_URL}/client/bookings/${updatedBooking.id}`,
     });
+
+    // Send notification to client about booking confirmation
+    try {
+      await notificationService.createBookingConfirmedNotification(
+        updatedBooking.client.id,
+        updatedBooking.service.provider.businessName,
+        format(updatedBooking.appointmentDate, 'MMM dd, yyyy'),
+        updatedBooking.appointmentTime,
+        updatedBooking.id
+      );
+
+      // Emit Socket.IO event for real-time update
+      emitBookingUpdate(updatedBooking.client.id, {
+        type: 'booking_confirmed',
+        booking: {
+          id: updatedBooking.id,
+          providerName: updatedBooking.service.provider.businessName,
+          serviceName: updatedBooking.service.title,
+          appointmentDate: updatedBooking.appointmentDate.toISOString(),
+          appointmentTime: updatedBooking.appointmentTime,
+          status: 'CONFIRMED',
+        },
+      });
+    } catch (notificationError) {
+      console.error('Failed to send confirmation notification:', notificationError);
+    }
 
     return updatedBooking as unknown as BookingDetails;
   }
@@ -484,10 +555,13 @@ class BookingService {
             businessName: true,
             slug: true,
             businessPhone: true,
-            addressLine1: true,
             city: true,
             state: true,
             isSalon: true,
+            locations: {
+              where: { isPrimary: true, isActive: true },
+              take: 1,
+            },
           },
         },
         assignedTeamMember: {
@@ -508,6 +582,7 @@ class BookingService {
           },
         },
         addons: true, // ✅ ADD THIS - Include booking add-ons
+        photos: true, // Include booking photos
       },
     });
 
@@ -705,10 +780,30 @@ class BookingService {
       include: {
         service: true,
         provider: true,
-        assignedTeamMember: true,
         client: true,
       },
     });
+
+    // Notify client about no-show
+    try {
+      await notificationService.createBookingNoShowNotification(
+        updated.clientId,
+        updated.provider.businessName || 'Provider',
+        updated.id,
+        format(updated.appointmentDate, 'MMM dd, yyyy')
+      );
+
+      emitBookingUpdate(updated.clientId, {
+        type: 'booking_no_show',
+        booking: {
+          id: updated.id,
+          serviceName: updated.service.title,
+          appointmentDate: updated.appointmentDate.toISOString(),
+        },
+      });
+    } catch (err) {
+      console.error('Failed to send no-show notification:', err);
+    }
 
     return updated;
   }
@@ -781,6 +876,57 @@ class BookingService {
         client: true,
       },
     });
+
+    // Send notifications to team member and client
+    try {
+      const clientName = `${updated.client.firstName} ${updated.client.lastName}`;
+      const stylistName = updated.assignedTeamMember?.displayName || 'Team Member';
+
+      // Notify team member about assignment
+      const teamMemberUser = await prisma.teamMember.findUnique({
+        where: { id: data.teamMemberId },
+        select: { userId: true },
+      });
+
+      if (teamMemberUser?.userId) {
+        await notificationService.createTeamMemberAssignedNotification(
+          teamMemberUser.userId,
+          clientName,
+          updated.id
+        );
+
+        emitBookingUpdate(teamMemberUser.userId, {
+          type: 'booking_assigned_to_you',
+          booking: {
+            id: updated.id,
+            clientName,
+            serviceName: updated.service.title,
+            appointmentDate: updated.appointmentDate.toISOString(),
+            appointmentTime: updated.appointmentTime,
+          },
+        });
+      }
+
+      // Notify client about stylist assignment
+      await notificationService.createStylistAssignedNotification(
+        updated.client.id,
+        stylistName,
+        updated.id
+      );
+
+      emitBookingUpdate(updated.client.id, {
+        type: 'team_member_assigned',
+        booking: {
+          id: updated.id,
+          stylistName,
+          serviceName: updated.service.title,
+          appointmentDate: updated.appointmentDate.toISOString(),
+          appointmentTime: updated.appointmentTime,
+        },
+      });
+    } catch (notificationError) {
+      console.error('Failed to send assignment notifications:', notificationError);
+    }
 
     return updated;
   }
@@ -1033,6 +1179,39 @@ class BookingService {
       await calendarSyncService.deleteCalendarEvent(bookingId, updated.providerId);
     }
 
+    // Send notification to the other party about cancellation
+    try {
+      const isClient = data.cancelledBy === 'client';
+      const recipientId = isClient ? booking.provider.userId : booking.clientId;
+      const cancellerName = isClient
+        ? `${updated.client.firstName} ${updated.client.lastName}`
+        : updated.provider.businessName;
+
+      await notificationService.createBookingCancelledNotification(
+        recipientId,
+        cancellerName,
+        format(updated.appointmentDate, 'MMM dd, yyyy'),
+        updated.id,
+        !isClient // isProvider
+      );
+
+      // Emit Socket.IO event for real-time update
+      emitBookingUpdate(recipientId, {
+        type: 'booking_cancelled',
+        booking: {
+          id: updated.id,
+          cancellerName,
+          serviceName: updated.service.title,
+          appointmentDate: updated.appointmentDate.toISOString(),
+          appointmentTime: updated.appointmentTime,
+          status: updated.bookingStatus,
+          reason: data.reason,
+        },
+      });
+    } catch (notificationError) {
+      console.error('Failed to send cancellation notification:', notificationError);
+    }
+
     return updated;
   }
 
@@ -1144,10 +1323,13 @@ class BookingService {
             businessName: true,
             slug: true,
             businessPhone: true,
-            addressLine1: true,
             city: true,
             state: true,
             isSalon: true,
+            locations: {
+              where: { isPrimary: true, isActive: true },
+              take: 1,
+            },
           },
         },
         assignedTeamMember: {
@@ -1186,7 +1368,47 @@ class BookingService {
       });
     }
 
-    // TODO: Send reschedule confirmation email
+    // Send notifications to both parties
+    try {
+      const providerUserId = await prisma.providerProfile.findUnique({
+        where: { id: updated.providerId },
+        select: { userId: true },
+      });
+
+      const newDate = format(new Date(data.newDate), 'MMM dd, yyyy');
+
+      // Notify client
+      await notificationService.createBookingRescheduledNotification(
+        updated.clientId,
+        newDate,
+        data.newTime,
+        updated.id,
+        false
+      );
+
+      emitBookingUpdate(updated.clientId, {
+        type: 'booking_rescheduled',
+        booking: { id: updated.id, serviceName: updated.service.title, newDate, newTime: data.newTime },
+      });
+
+      // Notify provider
+      if (providerUserId) {
+        await notificationService.createBookingRescheduledNotification(
+          providerUserId.userId,
+          newDate,
+          data.newTime,
+          updated.id,
+          true
+        );
+
+        emitBookingUpdate(providerUserId.userId, {
+          type: 'booking_rescheduled',
+          booking: { id: updated.id, serviceName: updated.service.title, newDate, newTime: data.newTime },
+        });
+      }
+    } catch (err) {
+      console.error('Failed to send reschedule notifications:', err);
+    }
 
     return updated;
   }
@@ -1202,6 +1424,7 @@ class BookingService {
           select: {
             id: true,
             userId: true,
+            businessName: true,
           },
         },
         service: {
@@ -1289,7 +1512,28 @@ class BookingService {
       },
     });
 
-    // TODO: Send notification to client about reschedule request
+    // Notify client about reschedule request
+    try {
+      await notificationService.createRescheduleRequestNotification(
+        booking.clientId,
+        booking.provider.businessName,
+        format(newRequestedDate, 'MMM dd, yyyy'),
+        data.newTime,
+        booking.id
+      );
+
+      emitBookingUpdate(booking.clientId, {
+        type: 'reschedule_requested',
+        booking: {
+          id: booking.id,
+          providerName: booking.provider.businessName,
+          proposedDate: format(newRequestedDate, 'MMM dd, yyyy'),
+          proposedTime: data.newTime,
+        },
+      });
+    } catch (err) {
+      console.error('Failed to send reschedule request notification:', err);
+    }
 
     return rescheduleRequest;
   }
@@ -1364,10 +1608,13 @@ class BookingService {
               businessName: true,
               slug: true,
               businessPhone: true,
-              addressLine1: true,
               city: true,
               state: true,
               isSalon: true,
+              locations: {
+                where: { isPrimary: true, isActive: true },
+                take: 1,
+              },
             },
           },
           client: {
@@ -1389,11 +1636,33 @@ class BookingService {
         data: {
           status: 'approved',
           respondedAt: new Date(),
-          responseReason: data.reason,
         },
       });
 
-      // TODO: Send confirmation notification to provider
+      // Send notification to provider about approval
+      try {
+        const providerUserId = await prisma.providerProfile.findUnique({
+          where: { id: updatedBooking.provider.id },
+          select: { userId: true },
+        });
+
+        if (providerUserId) {
+          await notificationService.createRescheduleApprovedNotification(
+            providerUserId.userId,
+            updatedBooking.id
+          );
+
+          emitBookingUpdate(providerUserId.userId, {
+            type: 'reschedule_approved',
+            booking: {
+              id: rescheduleRequest.bookingId,
+              status: 'approved',
+            },
+          });
+        }
+      } catch (err) {
+        console.error('Failed to send reschedule approval notification:', err);
+      }
 
       return updatedBooking;
     } else {
@@ -1407,7 +1676,30 @@ class BookingService {
         },
       });
 
-      // TODO: Send notification to provider about denial
+      // Notify provider about denial
+      try {
+        const providerUserId = await prisma.providerProfile.findUnique({
+          where: { id: rescheduleRequest.booking.providerId },
+          select: { userId: true },
+        });
+
+        if (providerUserId) {
+          await notificationService.createRescheduleRejectedNotification(
+            providerUserId.userId,
+            rescheduleRequest.bookingId
+          );
+
+          emitBookingUpdate(providerUserId.userId, {
+            type: 'reschedule_rejected',
+            booking: {
+              id: rescheduleRequest.bookingId,
+              status: 'denied',
+            },
+          });
+        }
+      } catch (err) {
+        console.error('Failed to send reschedule rejection notification:', err);
+      }
 
       return rescheduleRequest.booking;
     }
@@ -1508,6 +1800,10 @@ class BookingService {
             city: true,
             state: true,
             isSalon: true,
+            locations: {
+              where: { isPrimary: true, isActive: true },
+              take: 1,
+            },
             user: {
               select: {
                 firstName: true,
@@ -1540,6 +1836,170 @@ class BookingService {
     // TODO: Handle deposit forfeiture according to policy
 
     return updated;
+  }
+
+  /**
+   * Add photo to booking
+   */
+  async addBookingPhoto(
+    userId: string,
+    bookingId: string,
+    data: { photoUrl: string; photoType: 'BEFORE' | 'AFTER' | 'REFERENCE'; caption?: string }
+  ) {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        provider: {
+          select: {
+            id: true,
+            businessName: true,
+          },
+        },
+        client: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+
+    if (!booking) {
+      throw new AppError(404, 'Booking not found');
+    }
+
+    // Verify access
+    if (booking.clientId !== userId) {
+      const providerProfile = await prisma.providerProfile.findUnique({
+        where: { userId },
+        select: { id: true },
+      });
+
+      if (!providerProfile || booking.providerId !== providerProfile.id) {
+        throw new AppError(403, 'Access denied');
+      }
+    }
+
+    const photo = await prisma.bookingPhoto.create({
+      data: {
+        bookingId,
+        uploadedBy: userId,
+        photoType: data.photoType,
+        imageUrl: data.photoUrl,
+        caption: data.caption,
+      },
+    });
+
+    // Notify the other party about photo addition
+    try {
+      const isProvider = booking.providerId === (await prisma.providerProfile.findUnique({
+        where: { userId },
+        select: { id: true },
+      }))?.id;
+
+      const recipientId = isProvider ? booking.clientId : (await prisma.providerProfile.findUnique({
+        where: { id: booking.providerId },
+        select: { userId: true },
+      }))?.userId;
+
+      if (recipientId) {
+        const uploaderName = isProvider
+          ? booking.provider.businessName
+          : `${booking.client.firstName} ${booking.client.lastName}`;
+
+        await notificationService.createBookingPhotoAddedNotification(
+          recipientId,
+          uploaderName,
+          data.photoType,
+          booking.id,
+          !isProvider
+        );
+
+        emitBookingUpdate(recipientId, {
+          type: 'booking_photo_added',
+          booking: {
+            id: booking.id,
+            photoType: data.photoType,
+            uploaderName,
+          },
+        });
+      }
+    } catch (err) {
+      console.error('Failed to send photo notification:', err);
+    }
+
+    return photo;
+  }
+
+  /**
+   * Delete booking photo
+   */
+  async deleteBookingPhoto(userId: string, bookingId: string, photoId: string) {
+    const photo = await prisma.bookingPhoto.findUnique({
+      where: { id: photoId },
+      include: { booking: true },
+    });
+
+    if (!photo) {
+      throw new AppError(404, 'Photo not found');
+    }
+
+    if (photo.bookingId !== bookingId) {
+      throw new AppError(400, 'Photo does not belong to this booking');
+    }
+
+    // Only uploader or provider/admin can delete
+    if (photo.uploadedBy !== userId && photo.booking.providerId !== userId) {
+      throw new AppError(403, 'Access denied');
+    }
+
+    await prisma.bookingPhoto.delete({
+      where: { id: photoId },
+    });
+  }
+
+  /**
+   * Get bookings with pending reviews for a client
+   */
+  async getPendingReviews(userId: string) {
+    const now = new Date();
+
+    const bookings = await prisma.booking.findMany({
+      where: {
+        clientId: userId,
+        bookingStatus: 'COMPLETED',
+        // No review exists for this booking
+        review: null,
+        // Optionally filter by review deadline
+        OR: [
+          { reviewDeadline: null },
+          { reviewDeadline: { gte: now } },
+        ],
+      },
+      include: {
+        service: {
+          select: {
+            id: true,
+            title: true,
+            durationMinutes: true,
+          },
+        },
+        provider: {
+          select: {
+            id: true,
+            businessName: true,
+            slug: true,
+          },
+        },
+      },
+      orderBy: {
+        appointmentDate: 'desc',
+      },
+      take: 10, // Limit to most recent 10
+    });
+
+    return bookings;
   }
 }
 

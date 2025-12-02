@@ -11,13 +11,12 @@ import { locationService } from '../services/location.service';
 import type { AuthRequest } from '../types';
 import type {
   CreateLocationRequest,
-  UpdateLocationRequest,
+  UpdateLocationManagementRequest,
   CreateLocationResponse,
   UpdateLocationResponse,
   GetLocationResponse,
   GetLocationsResponse,
   DeleteLocationResponse,
-  ProviderLocation,
 } from '../../../shared-types';
 
 /**
@@ -146,7 +145,7 @@ export async function updateLocation(
       isActive: z.boolean().optional(),
     });
 
-    const data = schema.parse(req.body) as UpdateLocationRequest;
+    const data = schema.parse(req.body) as UpdateLocationManagementRequest;
 
     const location = await locationService.updateLocation(userId, locationId, data);
 

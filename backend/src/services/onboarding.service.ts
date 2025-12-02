@@ -114,7 +114,7 @@ export class OnboardingService {
 
     const finalSlug = existingSlug ? `${slug}-${Date.now()}` : slug;
 
-    // Update provider profile
+    // Update provider profile (without address fields - those go to ProviderLocation)
     const updatedProfile = await prisma.providerProfile.update({
       where: { id: profile.id },
       data: {
@@ -122,13 +122,11 @@ export class OnboardingService {
         tagline: data.tagline,
         businessType: data.businessType,
         description: data.description,
-        addressLine1: data.address,
+        // Keep city, state, zipCode for search/filtering optimization
         city: data.city,
         state: data.state,
         zipCode: data.zipCode,
         country: data.country,
-        latitude: data.latitude,
-        longitude: data.longitude,
         businessEmail: data.businessEmail,
         businessPhone: data.phone,
         instagramHandle: data.instagramHandle,
@@ -139,8 +137,51 @@ export class OnboardingService {
       },
     });
 
-    // Note: Additional salon locations can be added via separate endpoint
-    // This would require a separate table for salon locations
+    // Create or update primary location in ProviderLocation table
+    const existingLocation = await prisma.providerLocation.findFirst({
+      where: { 
+        providerId: profile.id,
+        isPrimary: true,
+      },
+    });
+
+    if (existingLocation) {
+      // Update existing primary location
+      await prisma.providerLocation.update({
+        where: { id: existingLocation.id },
+        data: {
+          name: 'Primary Location',
+          addressLine1: data.address,
+          addressLine2: null,
+          city: data.city,
+          state: data.state,
+          zipCode: data.zipCode,
+          country: data.country,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          businessPhone: data.phone,
+        },
+      });
+    } else {
+      // Create new primary location
+      await prisma.providerLocation.create({
+        data: {
+          providerId: profile.id,
+          name: 'Primary Location',
+          addressLine1: data.address,
+          addressLine2: null,
+          city: data.city,
+          state: data.state,
+          zipCode: data.zipCode,
+          country: data.country,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          businessPhone: data.phone,
+          isPrimary: true,
+          isActive: true,
+        },
+      });
+    }
 
     return updatedProfile;
   }
@@ -343,6 +384,7 @@ export class OnboardingService {
           currency,
           paystackCustomerCode: subscriptionResult.customerId,
           paystackSubscriptionCode: subscriptionResult.subscriptionId || null,
+          paystackEmailToken: subscriptionResult.emailToken || null, // Store email token for cancellation
           paymentMethodId: paymentMethodId || null, // Store authorization code or null
           subscriptionStatus,
           trialEndDate: subscriptionResult.trialEndDate,
@@ -458,6 +500,10 @@ export class OnboardingService {
         user: true,
         policies: true,
         availability: true,
+        locations: {
+          where: { isPrimary: true },
+          take: 1,
+        },
       },
     });
 
@@ -488,7 +534,7 @@ export class OnboardingService {
       completed: profile.profileCompleted,
       steps: {
         accountType: true,
-        businessDetails: !!profile.businessName && !!profile.addressLine1,
+        businessDetails: !!profile.businessName && !!profile.locations[0]?.addressLine1,
         profileMedia: !!profile.user.avatarUrl, // Profile photo is REQUIRED
         brandCustomization: !!profile.brandColorPrimary,
         policies: !!profile.policies,
@@ -502,14 +548,15 @@ export class OnboardingService {
         businessType: profile.businessType,
         description: profile.description,
         tagline: profile.tagline,
-        addressLine1: profile.addressLine1,
-        addressLine2: profile.addressLine2,
+        // Get location data from ProviderLocation table
+        addressLine1: profile.locations[0]?.addressLine1 || null,
+        addressLine2: profile.locations[0]?.addressLine2 || null,
         city: profile.city,
         state: profile.state,
         zipCode: profile.zipCode,
         country: profile.country,
-        latitude: profile.latitude ? Number(profile.latitude) : null,
-        longitude: profile.longitude ? Number(profile.longitude) : null,
+        latitude: profile.locations[0]?.latitude ? Number(profile.locations[0].latitude) : null,
+        longitude: profile.locations[0]?.longitude ? Number(profile.locations[0].longitude) : null,
         businessEmail: profile.businessEmail,
         businessPhone: profile.businessPhone,
         instagramHandle: profile.instagramHandle,
@@ -532,7 +579,7 @@ export class OnboardingService {
               refundPolicy: profile.policies.refundPolicyText || '',
             }
           : null,
-        subscriptionTier: profile.subscriptionTier,
+        subscriptionTier: profile.subscriptionTier as string,
       },
     };
   }

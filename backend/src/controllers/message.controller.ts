@@ -13,7 +13,6 @@ import type {
   GetMessagesRequest,
   GetMessagesResponse,
   MarkAsReadRequest,
-  MarkAsReadResponse,
   UpdateConversationRequest,
   UpdateConversationResponse,
 } from '../../../shared-types/message.types';
@@ -24,6 +23,43 @@ import type {
   ChatbotQueryResponse,
 } from '../../../shared-types/ai-messaging.types';
 import { z } from 'zod';
+
+/**
+ * Create empty conversation
+ */
+export async function createConversation(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+    
+    if (!userId || !userRole) throw new AppError(401, 'Unauthorized');
+
+    const { providerId } = req.body;
+
+    // Validate request
+    if (!providerId) {
+      throw new AppError(400, 'Provider ID is required');
+    }
+
+    // Only clients can create conversations with providers
+    if (userRole !== 'CLIENT') {
+      throw new AppError(403, 'Only clients can initiate conversations');
+    }
+
+    const conversation = await messageService.createEmptyConversation(userId, providerId);
+
+    sendSuccess(res, {
+      message: 'Conversation created',
+      conversation,
+    }, 201);
+  } catch (error) {
+    next(error);
+  }
+}
 
 /**
  * Send a message
@@ -173,7 +209,7 @@ export async function markAsRead(
 
     const markedCount = await messageService.markAsRead(userId, data.conversationId);
 
-    sendSuccess<MarkAsReadResponse>(res, {
+    sendSuccess(res, {
       message: 'Messages marked as read',
       markedCount,
     });

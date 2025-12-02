@@ -1,6 +1,8 @@
 import { prisma } from '../config/database';
 import { aiService } from '../lib/ai';
 import { mediaProcessorService } from './media-processor.service';
+import { notificationService } from './notification.service';
+import { emitServiceUpdate } from '../config/socket.server';
 import type { CreateServiceData } from '../types/service.types';
 import type { SaveServiceMediaRequest } from '../../../shared-types';
 import type { Prisma } from '@prisma/client';
@@ -102,6 +104,25 @@ export class ServiceService {
 
       return newService;
     });
+
+    // Send notification for newly published service
+    try {
+      await notificationService.createServicePublishedNotification(
+        userId,
+        service.title,
+        service.id
+      );
+
+      emitServiceUpdate(userId, {
+        type: 'service_published',
+        service: {
+          id: service.id,
+          title: service.title,
+        },
+      });
+    } catch (err) {
+      console.error('Failed to send service published notification:', err);
+    }
 
     return service;
   }

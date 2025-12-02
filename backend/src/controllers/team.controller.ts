@@ -213,3 +213,76 @@ export async function getTeamAnalytics(
     next(error);
   }
 }
+
+/**
+ * Get invitation details (public - no auth required)
+ */
+export async function getInvitation(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { invitationId } = req.params;
+
+    if (!invitationId) throw new AppError(400, 'Invitation ID required');
+
+    const invitation = await teamService.getInvitationDetails(invitationId);
+
+    sendSuccess(res, {
+      message: 'Invitation retrieved',
+      invitation,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Accept team invitation
+ */
+export async function acceptInvitation(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    const { invitationId } = req.params;
+
+    if (!userId) throw new AppError(401, 'You must be logged in to accept invitations');
+    if (!invitationId) throw new AppError(400, 'Invitation ID required');
+
+    const teamMember = await teamService.acceptInvitation(userId, invitationId);
+
+    sendSuccess(res, {
+      message: 'Invitation accepted successfully',
+      teamMember,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Decline team invitation
+ */
+export async function declineInvitation(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { invitationId } = req.params;
+
+    if (!invitationId) throw new AppError(400, 'Invitation ID required');
+
+    await teamService.declineInvitation(invitationId);
+
+    sendSuccess(res, {
+      message: 'Invitation declined',
+    });
+  } catch (error) {
+    next(error);
+  }
+}

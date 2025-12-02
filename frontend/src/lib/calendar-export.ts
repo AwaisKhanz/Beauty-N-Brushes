@@ -128,8 +128,8 @@ export function exportBookingToCalendar(booking: BookingDetails): void {
   const startDate = new Date(year, month - 1, day, startHour, startMinute);
   const endDate = new Date(year, month - 1, day, endHour, endMinute);
 
-  const location = booking.provider.addressLine1
-    ? `${booking.provider.addressLine1}, ${booking.provider.city}, ${booking.provider.state}`
+  const location = booking.provider.locations?.[0]?.addressLine1
+    ? `${booking.provider.locations[0].addressLine1}, ${booking.provider.city}, ${booking.provider.state}`
     : `${booking.provider.city}, ${booking.provider.state}`;
 
   const description = [

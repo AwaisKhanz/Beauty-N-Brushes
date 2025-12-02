@@ -260,7 +260,7 @@ export default function BrandingSettingsPage() {
           {/* Logo Upload */}
           <Card>
             <CardContent className="pt-6">
-              <FormLabel className="text-base font-semibold mb-4 block">Logo</FormLabel>
+              <Label className="text-base font-semibold mb-4 block">Logo</Label>
               <div className="space-y-4">
                 <div className="flex items-center gap-6">
                   <div className="relative h-20 w-20 rounded-lg bg-muted flex items-center justify-center overflow-hidden border-2 border-border">
@@ -348,12 +348,20 @@ export default function BrandingSettingsPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Primary Color</FormLabel>
-                    <FormControl>
-                      <div className="flex gap-2">
-                        <Input type="color" className="w-16 h-10" {...field} />
-                        <Input placeholder="#B06F64" {...field} />
-                      </div>
-                    </FormControl>
+                    <div className="flex gap-2">
+                      <Input 
+                        type="color" 
+                        className="w-16 h-10" 
+                        value={field.value || ''}
+                        onChange={field.onChange}
+                      />
+                      <FormControl>
+                        <Input 
+                          placeholder="#B06F64" 
+                          {...field}
+                        />
+                      </FormControl>
+                    </div>
                     <FormDescription>Main brand color</FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -366,12 +374,20 @@ export default function BrandingSettingsPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Secondary Color</FormLabel>
-                    <FormControl>
-                      <div className="flex gap-2">
-                        <Input type="color" className="w-16 h-10" {...field} />
-                        <Input placeholder="#CA8D80" {...field} />
-                      </div>
-                    </FormControl>
+                    <div className="flex gap-2">
+                      <Input 
+                        type="color" 
+                        className="w-16 h-10" 
+                        value={field.value || ''}
+                        onChange={field.onChange}
+                      />
+                      <FormControl>
+                        <Input 
+                          placeholder="#CA8D80" 
+                          {...field}
+                        />
+                      </FormControl>
+                    </div>
                     <FormDescription>Secondary color</FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -384,12 +400,20 @@ export default function BrandingSettingsPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Accent Color</FormLabel>
-                    <FormControl>
-                      <div className="flex gap-2">
-                        <Input type="color" className="w-16 h-10" {...field} />
-                        <Input placeholder="#FFB09E" {...field} />
-                      </div>
-                    </FormControl>
+                    <div className="flex gap-2">
+                      <Input 
+                        type="color" 
+                        className="w-16 h-10" 
+                        value={field.value || ''}
+                        onChange={field.onChange}
+                      />
+                      <FormControl>
+                        <Input 
+                          placeholder="#FFB09E" 
+                          {...field}
+                        />
+                      </FormControl>
+                    </div>
                     <FormDescription>Accent/highlight color</FormDescription>
                     <FormMessage />
                   </FormItem>

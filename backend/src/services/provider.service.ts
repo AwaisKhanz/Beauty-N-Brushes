@@ -155,6 +155,13 @@ export class ProviderService {
             status: true,
           },
         },
+        locations: {
+          where: { 
+            isPrimary: true,
+            isActive: true,
+          },
+          take: 1,
+        },
         services: {
           where: { active: true },
           include: {
@@ -224,7 +231,7 @@ export class ProviderService {
         coverPhotoUrl: profile.coverPhotoUrl,
         city: profile.city,
         state: profile.state,
-        address: profile.addressLine1,
+        address: profile.locations[0]?.addressLine1 || null,
         averageRating: profile.averageRating.toNumber(),
         totalReviews: profile.totalReviews,
         likeCount: profile.likeCount,
@@ -272,6 +279,80 @@ export class ProviderService {
         })),
       },
     };
+  }
+
+  /**
+   * Get provider profile or team member context
+   * Supports both salon owners and team members
+   * @param userId - User ID to check
+   * @returns Provider context with type (owner/team_member)
+   */
+  async getProviderOrTeamMemberProfile(userId: string) {
+    // First check if user owns a provider profile
+    const providerProfile = await prisma.providerProfile.findUnique({
+      where: { userId },
+      include: {
+        locations: {
+          where: { isPrimary: true },
+          take: 1,
+        },
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    if (providerProfile) {
+      return {
+        type: 'owner' as const,
+        profile: providerProfile,
+        isOwner: true,
+        isTeamMember: false,
+        canManageTeam: true,
+        canManageFinances: true,
+        canManageSettings: true,
+      };
+    }
+
+    // Check if user is a team member
+    const { teamService } = await import('./team.service');
+    const teamMember = await teamService.getTeamMemberContext(userId);
+
+    if (teamMember) {
+      // Get the provider profile they work for
+      const salonProfile = await prisma.providerProfile.findUnique({
+        where: { id: teamMember.providerId },
+        include: {
+          locations: {
+            where: { isPrimary: true },
+            take: 1,
+          },
+        },
+      });
+
+      if (!salonProfile) {
+        throw new Error('Salon profile not found');
+      }
+
+      return {
+        type: 'team_member' as const,
+        profile: salonProfile,
+        teamMember: teamMember,
+        isOwner: false,
+        isTeamMember: true,
+        canManageTeam: false,
+        canManageFinances: false,
+        canManageSettings: false,
+      };
+    }
+
+    throw new Error('No provider profile or team member access found');
   }
 }
 

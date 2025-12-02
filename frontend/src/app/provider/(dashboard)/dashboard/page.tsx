@@ -1,12 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useBookingSocket } from '@/hooks/use-booking-socket';
+import { useReviewSocket } from '@/hooks/use-review-socket';
+import { useLikeSocket } from '@/hooks/use-like-socket';
+import { useTeamSocket } from '@/hooks/use-team-socket';
+import { useSystemSocket } from '@/hooks/use-system-socket';
 import { ShareBookingPageDialog } from '@/components/provider/ShareBookingPageDialog';
 import Link from 'next/link';
 import {
@@ -28,6 +33,12 @@ import { extractErrorMessage } from '@/lib/error-utils';
 import type { GetDashboardStatsResponse, DashboardBooking } from '@/shared-types/dashboard.types';
 
 export default function ProviderDashboardPage() {
+  useBookingSocket(); // Enable real-time booking updates
+  useReviewSocket(); // Enable real-time review updates
+  useLikeSocket(); // Enable real-time like updates
+  useTeamSocket(); // Enable real-time team updates
+  useSystemSocket(); // Enable real-time service & system updates
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [dashboardData, setDashboardData] = useState<GetDashboardStatsResponse | null>(null);

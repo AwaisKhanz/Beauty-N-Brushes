@@ -46,8 +46,8 @@ export function ConversationList({
             key={conversation.id}
             variant="ghost"
             className={cn(
-              'w-full justify-start p-4 h-auto rounded-none hover:bg-accent transition-colors',
-              selectedConversationId === conversation.id && 'bg-accent'
+              'w-full justify-start p-4 h-auto rounded-none hover:bg-muted/50 transition-colors',
+              selectedConversationId === conversation.id && 'bg-primary/10 hover:bg-primary/15 border-l-4 border-primary'
             )}
             onClick={() => onSelectConversation(conversation.id)}
           >
@@ -80,9 +80,13 @@ export function ConversationList({
                   )}
                 </div>
 
-                {conversation.lastMessagePreview && (
+                {conversation.lastMessagePreview ? (
                   <p className="text-sm text-muted-foreground line-clamp-2">
                     {conversation.lastMessagePreview}
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">
+                    No messages yet
                   </p>
                 )}
 

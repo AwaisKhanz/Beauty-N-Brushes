@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -19,6 +19,15 @@ export function MessageInput({ onSend, initialText }: MessageInputProps) {
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [attachmentPreviews, setAttachmentPreviews] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 128)}px`;
+    }
+  }, [content]);
 
   // Update content when initialText changes (from AI draft)
   useEffect(() => {
@@ -155,12 +164,13 @@ export function MessageInput({ onSend, initialText }: MessageInputProps) {
 
         {/* Text Input */}
         <Textarea
+          ref={textareaRef}
           value={content}
           onChange={(e) => setContent(e.target.value)}
           onKeyDown={handleKeyPress}
           placeholder="Type a message..."
           rows={1}
-          className="resize-none min-h-[40px] max-h-32"
+          className="resize-none min-h-[40px] max-h-32 py-3"
           disabled={sending || uploading}
         />
 

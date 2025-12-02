@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>How Was Your Experience?</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f9fafb;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f9fafb; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #CA8D80 0%, #B06F64 100%); padding: 40px 30px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700;">How Was Your Experience? ⭐</h1>
+              <p style="margin: 10px 0 0 0; color: #ffffff; font-size: 16px; opacity: 0.95;">Share your thoughts and help others</p>
+            </td>
+          </tr>
+
+          <!-- Content -->
+          <tr>
+            <td style="padding: 40px 30px;">
+              <p style="margin: 0 0 20px 0; color: #1f2937; font-size: 16px; line-height: 1.6;">Hi {{clientName}},</p>
+              
+              <p style="margin: 0 0 20px 0; color: #1f2937; font-size: 16px; line-height: 1.6;">
+                We hope you loved your recent appointment with <strong>{{providerName}}</strong>! Your feedback helps other clients make informed decisions and helps beauty professionals improve their services.
+              </p>
+
+              <!-- Service Details -->
+              <div style="background-color: #f9fafb; border-radius: 8px; padding: 20px; margin: 25px 0;">
+                <h3 style="margin: 0 0 10px 0; color: #1f2937; font-size: 16px; font-weight: 600;">Your Appointment</h3>
+                <p style="margin: 0; color: #6b7280; font-size: 14px;">
+                  <strong>Service:</strong> {{serviceName}}<br>
+                  <strong>Date:</strong> {{appointmentDate}}<br>
+                  <strong>Provider:</strong> {{providerName}}
+                </p>
+              </div>
+
+              <!-- Star Rating Preview -->
+              <div style="text-align: center; margin: 30px 0;">
+                <p style="margin: 0 0 15px 0; color: #6b7280; font-size: 14px;">Rate your experience:</p>
+                <div style="font-size: 32px; letter-spacing: 8px;">⭐⭐⭐⭐⭐</div>
+              </div>
+
+              <!-- CTA Button -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+                <tr>
+                  <td align="center">
+                    <a href="{{reviewUrl}}" style="display: inline-block; background-color: #2A3F4D; color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600;">Leave a Review</a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Benefits -->
+              <div style="background-color: #f0fdf4; border-left: 4px solid #10b981; padding: 16px; border-radius: 8px; margin: 25px 0;">
+                <h3 style="margin: 0 0 10px 0; color: #065f46; font-size: 16px; font-weight: 600;">Why Your Review Matters</h3>
+                <ul style="margin: 0; padding-left: 20px; color: #047857; font-size: 14px; line-height: 1.6;">
+                  <li>Help other clients find great beauty professionals</li>
+                  <li>Support your favorite providers</li>
+                  <li>Share your before/after photos (optional)</li>
+                  <li>Takes less than 2 minutes</li>
+                </ul>
+              </div>
+
+              <p style="margin: 25px 0 0 0; color: #6b7280; font-size: 14px; line-height: 1.6;">
+                <em>You have 7 days from your appointment to leave a review. After that, the review window closes.</em>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f9fafb; padding: 30px; text-align: center; border-top: 1px solid #e5e7eb;">
+              <p style="margin: 0 0 10px 0; color: #6b7280; font-size: 14px;">Thank you for being part of our community!</p>
+              <p style="margin: 0; color: #9ca3af; font-size: 12px;">© 2025 Beauty N Brushes. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

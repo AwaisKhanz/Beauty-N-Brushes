@@ -1,10 +1,12 @@
 /**
  * Review Service
- * Handles review creation, updates, and management
+ * Handles review creation, updates, responses, and helpful marks
  */
 
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
+import { notificationService } from './notification.service';
+import { emitReviewUpdate } from '../config/socket.server';
 import type {
   CreateReviewRequest,
   UpdateReviewRequest,
@@ -109,6 +111,44 @@ class ReviewService {
 
       return newReview;
     });
+
+    // Send notification to provider about new review
+    try {
+      const providerUserId = await prisma.providerProfile.findUnique({
+        where: { id: booking.service.providerId },
+        select: { userId: true, businessName: true },
+      });
+
+      if (providerUserId) {
+        const clientName = `${booking.client.firstName} ${booking.client.lastName}`;
+        const serviceName = await prisma.service.findUnique({
+          where: { id: review.bookingId },
+          select: { title: true },
+        });
+
+        await notificationService.createReviewReceivedNotification(
+          providerUserId.userId,
+          clientName,
+          data.overallRating,
+          serviceName?.title || 'your service',
+          review.id
+        );
+
+        emitReviewUpdate(providerUserId.userId, {
+          type: 'review_received',
+          review: {
+            id: review.id,
+            rating: data.overallRating,
+            clientName,
+          },
+        });
+      }
+
+      // Check for review milestones
+      await this.checkReviewMilestone(booking.service.providerId);
+    } catch (err) {
+      console.error('Failed to send review notification:', err);
+    }
 
     // Update provider rating asynchronously
     this.updateProviderRating(booking.service.providerId).catch((err) => {
@@ -496,6 +536,24 @@ class ReviewService {
       ]);
       helpful = true;
       helpfulCount = review.helpfulCount + 1;
+
+      // Send notification to review author
+      try {
+        await notificationService.createReviewHelpfulNotification(
+          review.clientId,
+          reviewId
+        );
+
+        emitReviewUpdate(review.clientId, {
+          type: 'review_marked_helpful',
+          review: {
+            id: reviewId,
+            helpfulCount,
+          },
+        });
+      } catch (err) {
+        console.error('Failed to send helpful notification:', err);
+      }
     }
 
     return { helpful, helpfulCount };
@@ -593,6 +651,45 @@ class ReviewService {
       createdAt: review.createdAt.toISOString(),
       updatedAt: review.updatedAt.toISOString(),
     };
+  }
+
+  /**
+   * Check for review milestones and send notification
+   */
+  private async checkReviewMilestone(providerId: string): Promise<void> {
+    const reviewCount = await prisma.review.count({
+      where: { providerId },
+    });
+
+    const milestones = [10, 25, 50, 100, 250, 500, 1000];
+    
+    if (milestones.includes(reviewCount)) {
+      const avgRating = await prisma.review.aggregate({
+        where: { providerId },
+        _avg: { overallRating: true },
+      });
+
+      const providerUserId = await prisma.providerProfile.findUnique({
+        where: { id: providerId },
+        select: { userId: true },
+      });
+
+      if (providerUserId) {
+        await notificationService.createReviewMilestoneNotification(
+          providerUserId.userId,
+          reviewCount,
+          avgRating._avg.overallRating || 0
+        );
+
+        emitReviewUpdate(providerUserId.userId, {
+          type: 'review_milestone',
+          milestone: {
+            count: reviewCount,
+            avgRating: avgRating._avg.overallRating,
+          },
+        });
+      }
+    }
   }
 }
 

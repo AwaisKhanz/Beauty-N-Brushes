@@ -14,6 +14,7 @@ import type {
   GetClientDashboardStatsResponse,
   ClientDashboardBooking,
 } from '@/shared-types/dashboard.types';
+import { PendingReviews } from '@/components/client/PendingReviews';
 
 export default function ClientDashboardPage() {
   const [loading, setLoading] = useState(true);
@@ -61,7 +62,7 @@ export default function ClientDashboardPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Upcoming Bookings</CardTitle>
@@ -103,6 +104,17 @@ export default function ClientDashboardPage() {
           <CardContent>
             <div className="text-2xl font-bold">{stats.unreadMessages}</div>
             <p className="text-xs text-muted-foreground">Unread</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending Reviews</CardTitle>
+            <Star className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.pendingReviews}</div>
+            <p className="text-xs text-muted-foreground">To review</p>
           </CardContent>
         </Card>
       </div>
@@ -163,21 +175,7 @@ export default function ClientDashboardPage() {
         </Card>
 
         {/* Pending Reviews */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Pending Reviews</CardTitle>
-            <CardDescription>Share your experience</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-8">
-              <Star className="h-12 w-12 mx-auto mb-4 opacity-50 text-rating-filled" />
-              <p className="text-sm text-muted-foreground mb-4">No pending reviews at this time</p>
-              <p className="text-xs text-muted-foreground">
-                Complete a booking to leave your first review
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <PendingReviews />
       </div>
 
       {/* Quick Actions */}

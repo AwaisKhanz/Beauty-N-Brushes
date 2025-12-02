@@ -58,6 +58,7 @@ export * from './favorite.types';
 
 // Message Types
 export * from './message.types';
+export * from './notification.types';
 
 // Saved Search Types
 export * from './savedSearch.types';

@@ -58,6 +58,7 @@ export interface ClientDashboardStats {
   completedBookings: number;
   favoriteProviders: number;
   unreadMessages: number;
+  pendingReviews: number;
 }
 
 export interface ClientDashboardBooking {

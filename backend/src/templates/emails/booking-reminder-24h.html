@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Appointment Reminder - Tomorrow</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f9fafb;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f9fafb; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #FFB09E 0%, #DF9C8C 100%); padding: 40px 30px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700;">Appointment Tomorrow! ⏰</h1>
+              <p style="margin: 10px 0 0 0; color: #ffffff; font-size: 16px; opacity: 0.95;">Your beauty appointment is coming up</p>
+            </td>
+          </tr>
+
+          <!-- Appointment Details -->
+          <tr>
+            <td style="padding: 40px 30px;">
+              <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
+                <h2 style="margin: 0 0 15px 0; color: #92400e; font-size: 22px; font-weight: 700;">Tomorrow at {{appointmentTime}}</h2>
+                <p style="margin: 0; color: #78350f; font-size: 16px;">{{serviceName}}</p>
+              </div>
+
+              <h3 style="margin: 0 0 15px 0; color: #1f2937; font-size: 18px; font-weight: 600;">Appointment Details</h3>
+              
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f9fafb; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+                <tr>
+                  <td style="padding: 8px 0;">
+                    <strong style="color: #6b7280; font-size: 14px;">Date:</strong><br>
+                    <span style="color: #1f2937; font-size: 16px;">{{appointmentDate}}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0;">
+                    <strong style="color: #6b7280; font-size: 14px;">Time:</strong><br>
+                    <span style="color: #1f2937; font-size: 18px; font-weight: 600;">{{appointmentTime}}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0;">
+                    <strong style="color: #6b7280; font-size: 14px;">Provider:</strong><br>
+                    <span style="color: #1f2937; font-size: 16px;">{{providerName}}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0;">
+                    <strong style="color: #6b7280; font-size: 14px;">Location:</strong><br>
+                    <span style="color: #1f2937; font-size: 16px;">{{location}}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0;">
+                    <strong style="color: #6b7280; font-size: 14px;">Balance Due:</strong><br>
+                    <span style="color: #1f2937; font-size: 18px; font-weight: 600;">{{balanceDue}}</span>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Preparation Tips -->
+              <div style="background-color: #dbeafe; border-left: 4px solid #3b82f6; padding: 16px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="margin: 0 0 10px 0; color: #1e40af; font-size: 16px; font-weight: 600;">💡 Preparation Tips</h3>
+                <ul style="margin: 0; padding-left: 20px; color: #1e3a8a; font-size: 14px; line-height: 1.6;">
+                  <li>Arrive 5-10 minutes early</li>
+                  <li>Bring payment for the remaining balance</li>
+                  <li>Wear comfortable clothing</li>
+                  <li>Remove any existing nail polish (for nail services)</li>
+                </ul>
+              </div>
+
+              <!-- Action Buttons -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+                <tr>
+                  <td align="center">
+                    <table cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="padding: 0 5px;">
+                          <a href="{{bookingUrl}}" style="display: inline-block; background-color: #2A3F4D; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 600;">View Details</a>
+                        </td>
+                        <td style="padding: 0 5px;">
+                          <a href="{{directionsUrl}}" style="display: inline-block; background-color: #10b981; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 600;">Get Directions</a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Contact Info -->
+              <div style="background-color: #f3f4f6; padding: 16px; border-radius: 8px; margin: 20px 0;">
+                <p style="margin: 0 0 8px 0; color: #6b7280; font-size: 14px;">Need to reschedule or have questions?</p>
+                <p style="margin: 0; color: #1f2937; font-size: 14px;">
+                  <strong>Contact {{providerName}}:</strong><br>
+                  📞 {{providerPhone}}<br>
+                  ✉️ {{providerEmail}}
+                </p>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f9fafb; padding: 30px; text-align: center; border-top: 1px solid #e5e7eb;">
+              <p style="margin: 0 0 10px 0; color: #6b7280; font-size: 14px;">We're excited to see you tomorrow!</p>
+              <p style="margin: 0; color: #9ca3af; font-size: 12px;">© 2025 Beauty N Brushes. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

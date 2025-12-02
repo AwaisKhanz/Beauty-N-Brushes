@@ -32,6 +32,7 @@ import { BalancePaymentModal } from '@/components/booking/BalancePaymentModal';
 import { CancelBookingModal } from '@/components/booking/CancelBookingModal';
 import { RebookServiceModal } from '@/components/booking/RebookServiceModal';
 import { TipPaymentModal } from '@/components/booking/TipPaymentModal';
+import { BookingPhotos } from '@/components/booking/BookingPhotos';
 import { exportBookingToCalendar } from '@/lib/calendar-export';
 import { toast } from 'sonner';
 
@@ -217,7 +218,11 @@ export default function ClientBookingDetailPage() {
             <Calendar className="h-4 w-4" />
             Add to Calendar
           </Button>
-          <Button variant="outline" className="gap-2">
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => router.push(`/client/messages?conversation=${booking.providerId}`)}
+          >
             <MessageSquare className="h-4 w-4" />
             Message Provider
           </Button>
@@ -263,10 +268,10 @@ export default function ClientBookingDetailPage() {
                   </div>
                   <p className="font-medium">{booking.provider?.businessName || 'Provider'}</p>
                   <p className="text-sm text-muted-foreground">
-                    {booking.provider?.addressLine1 &&
+                    {booking.provider?.locations?.[0]?.addressLine1 &&
                     booking.provider?.city &&
                     booking.provider?.state
-                      ? `${booking.provider.addressLine1}, ${booking.provider.city}, ${booking.provider.state}`
+                      ? `${booking.provider.locations[0].addressLine1}, ${booking.provider.city}, ${booking.provider.state}`
                       : 'Location not specified'}
                   </p>
                 </div>
@@ -304,6 +309,17 @@ export default function ClientBookingDetailPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Booking Photos */}
+          {booking.photos && (
+            <BookingPhotos
+              bookingId={booking.id}
+              photos={booking.photos}
+              canUpload={['confirmed', 'completed'].includes(booking.bookingStatus)}
+              canDelete={true}
+              onUpdate={fetchBooking}
+            />
+          )}
 
           {/* Provider Details */}
           <Card>

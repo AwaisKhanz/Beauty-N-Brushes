@@ -8,7 +8,7 @@ import { AppError } from '../middleware/errorHandler';
 import { geocodingService } from '../lib/geocoding';
 import type {
   CreateLocationRequest,
-  UpdateLocationRequest,
+  UpdateLocationManagementRequest,
   ProviderLocation,
 } from '../../../shared-types';
 
@@ -198,7 +198,7 @@ class LocationService {
   async updateLocation(
     userId: string,
     locationId: string,
-    data: UpdateLocationRequest
+    data: UpdateLocationManagementRequest
   ): Promise<ProviderLocation> {
     const profile = await prisma.providerProfile.findUnique({
       where: { userId },

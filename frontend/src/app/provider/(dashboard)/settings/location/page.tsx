@@ -258,16 +258,6 @@ export default function LocationSettingsPage() {
             )}
           />
 
-          {/* Info Alert */}
-          <Alert>
-            <MapPin className="h-4 w-4" />
-            <AlertDescription>
-              Your address will be used to display your location on maps and help clients find you.
-              Coordinates (latitude/longitude) will be automatically calculated from your address.
-              Make sure your address is accurate!
-            </AlertDescription>
-          </Alert>
-
           {/* Submit Button */}
           <div className="flex justify-end">
             <Button type="submit" disabled={saving}>

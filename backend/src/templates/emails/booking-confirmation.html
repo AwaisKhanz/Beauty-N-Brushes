@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Booking Confirmation</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f9fafb;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f9fafb; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #B06F64 0%, #CA8D80 100%); padding: 40px 30px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700;">Booking Confirmed! 🎉</h1>
+              <p style="margin: 10px 0 0 0; color: #ffffff; font-size: 16px; opacity: 0.95;">Your appointment is all set</p>
+            </td>
+          </tr>
+
+          <!-- Booking Details -->
+          <tr>
+            <td style="padding: 40px 30px;">
+              <h2 style="margin: 0 0 20px 0; color: #1f2937; font-size: 20px; font-weight: 600;">Booking Details</h2>
+              
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f9fafb; border-radius: 8px; padding: 20px;">
+                <tr>
+                  <td style="padding: 8px 0;">
+                    <strong style="color: #6b7280; font-size: 14px;">Booking ID:</strong><br>
+                    <span style="color: #1f2937; font-size: 16px;">{{bookingId}}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0;">
+                    <strong style="color: #6b7280; font-size: 14px;">Service:</strong><br>
+                    <span style="color: #1f2937; font-size: 16px;">{{serviceName}}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0;">
+                    <strong style="color: #6b7280; font-size: 14px;">Date & Time:</strong><br>
+                    <span style="color: #1f2937; font-size: 18px; font-weight: 600;">{{appointmentDate}} at {{appointmentTime}}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0;">
+                    <strong style="color: #6b7280; font-size: 14px;">Duration:</strong><br>
+                    <span style="color: #1f2937; font-size: 16px;">{{duration}} minutes</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0;">
+                    <strong style="color: #6b7280; font-size: 14px;">Location:</strong><br>
+                    <span style="color: #1f2937; font-size: 16px;">{{location}}</span>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Provider Info -->
+              <h2 style="margin: 30px 0 20px 0; color: #1f2937; font-size: 20px; font-weight: 600;">Your Beauty Professional</h2>
+              
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding: 15px; background-color: #f9fafb; border-radius: 8px;">
+                    <strong style="color: #1f2937; font-size: 18px;">{{providerName}}</strong><br>
+                    <span style="color: #6b7280; font-size: 14px;">{{providerPhone}}</span><br>
+                    <span style="color: #6b7280; font-size: 14px;">{{providerEmail}}</span>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Payment Summary -->
+              <h2 style="margin: 30px 0 20px 0; color: #1f2937; font-size: 20px; font-weight: 600;">Payment Summary</h2>
+              
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f9fafb; border-radius: 8px; padding: 20px;">
+                <tr>
+                  <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Service Price:</td>
+                  <td align="right" style="padding: 8px 0; color: #1f2937; font-size: 16px; font-weight: 600;">{{totalPrice}}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Deposit Paid:</td>
+                  <td align="right" style="padding: 8px 0; color: #10b981; font-size: 16px; font-weight: 600;">{{depositPaid}}</td>
+                </tr>
+                <tr style="border-top: 2px solid #e5e7eb;">
+                  <td style="padding: 12px 0 0 0; color: #1f2937; font-size: 16px; font-weight: 600;">Balance Due:</td>
+                  <td align="right" style="padding: 12px 0 0 0; color: #1f2937; font-size: 18px; font-weight: 700;">{{balanceDue}}</td>
+                </tr>
+              </table>
+
+              <!-- Action Button -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+                <tr>
+                  <td align="center">
+                    <a href="{{bookingUrl}}" style="display: inline-block; background-color: #2A3F4D; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-size: 16px; font-weight: 600;">View Booking Details</a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Next Steps -->
+              <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="margin: 0 0 10px 0; color: #92400e; font-size: 16px; font-weight: 600;">📋 Next Steps</h3>
+                <ul style="margin: 0; padding-left: 20px; color: #78350f; font-size: 14px; line-height: 1.6;">
+                  <li>You'll receive a reminder 24 hours before your appointment</li>
+                  <li>Pay the remaining balance before or at your appointment</li>
+                  <li>Arrive on time to enjoy your full service duration</li>
+                  <li>Contact your provider if you need to reschedule</li>
+                </ul>
+              </div>
+
+              <!-- Cancellation Policy -->
+              <div style="background-color: #fee2e2; border-left: 4px solid #ef4444; padding: 16px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="margin: 0 0 10px 0; color: #991b1b; font-size: 16px; font-weight: 600;">⚠️ Cancellation Policy</h3>
+                <p style="margin: 0; color: #7f1d1d; font-size: 14px; line-height: 1.6;">{{cancellationPolicy}}</p>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f9fafb; padding: 30px; text-align: center; border-top: 1px solid #e5e7eb;">
+              <p style="margin: 0 0 10px 0; color: #6b7280; font-size: 14px;">Need help? Contact us at support@beautynbrushes.com</p>
+              <p style="margin: 0; color: #9ca3af; font-size: 12px;">© 2025 Beauty N Brushes. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

@@ -8,9 +8,12 @@ import type {
   GetClientRecentBookingsResponse,
   ClientDashboardBooking,
 } from '../../../shared-types';
+import { getProviderContext } from '../middleware/providerAccess';
+import { PermissionHelper } from '../utils/permissions';
 
 /**
  * Get provider dashboard statistics
+ * Supports both salon owners and team members
  */
 export async function getProviderDashboardStats(
   req: AuthRequest,
@@ -24,13 +27,21 @@ export async function getProviderDashboardStats(
       throw new AppError(401, 'Unauthorized');
     }
 
-    // Get provider profile
+    // Get provider context (works for both owners and team members)
+    const context = getProviderContext(req);
+    const providerId = PermissionHelper.getProviderId(context);
+
+    // Get profile with services count
     const profile = await prisma.providerProfile.findUnique({
-      where: { userId },
+      where: { id: providerId },
       include: {
         services: {
           where: { active: true },
           select: { id: true },
+        },
+        locations: {
+          where: { isPrimary: true },
+          take: 1,
         },
         _count: {
           select: {
@@ -44,14 +55,22 @@ export async function getProviderDashboardStats(
       throw new AppError(404, 'Provider profile not found');
     }
 
+    // Build booking filter based on role
+    const bookingFilter: any = { providerId: profile.id };
+    
+    if (context.isTeamMember && context.teamMember) {
+      // Team members only see their assigned bookings
+      bookingFilter.assignedTeamMemberId = context.teamMember.teamMemberId;
+    }
+
     // Get bookings count
     const allBookings = await prisma.booking.count({
-      where: { providerId: profile.id },
+      where: bookingFilter,
     });
 
     const upcoming = await prisma.booking.count({
       where: {
-        providerId: profile.id,
+        ...bookingFilter,
         appointmentDate: { gte: new Date() },
         bookingStatus: { in: ['PENDING', 'CONFIRMED'] },
       },
@@ -60,7 +79,7 @@ export async function getProviderDashboardStats(
     // Calculate revenue from completed bookings
     const completedBookings = await prisma.booking.findMany({
       where: {
-        providerId: profile.id,
+        ...bookingFilter,
         bookingStatus: 'COMPLETED',
       },
       select: {
@@ -103,6 +122,11 @@ export async function getProviderDashboardStats(
         subscriptionStatus: profile.subscriptionStatus,
         subscriptionTier: profile.subscriptionTier,
       },
+      // Include team member context if applicable
+      teamMember: context.isTeamMember ? {
+        displayName: context.teamMember?.displayName,
+        role: context.teamMember?.role,
+      } : null,
     });
   } catch (error) {
     next(error);
@@ -111,6 +135,7 @@ export async function getProviderDashboardStats(
 
 /**
  * Get recent bookings for provider
+ * Filters by team member if applicable
  */
 export async function getRecentBookings(
   req: AuthRequest,
@@ -124,18 +149,21 @@ export async function getRecentBookings(
       throw new AppError(401, 'Unauthorized');
     }
 
-    // Get provider profile
-    const profile = await prisma.providerProfile.findUnique({
-      where: { userId },
-    });
+    // Get provider context
+    const context = getProviderContext(req);
+    const providerId = PermissionHelper.getProviderId(context);
 
-    if (!profile) {
-      throw new AppError(404, 'Provider profile not found');
+    // Build booking filter
+    const bookingFilter: any = { providerId };
+    
+    if (context.isTeamMember && context.teamMember) {
+      // Team members only see their assigned bookings
+      bookingFilter.assignedTeamMemberId = context.teamMember.teamMemberId;
     }
 
     // Get recent bookings with team member info
     const recentBookings = await prisma.booking.findMany({
-      where: { providerId: profile.id },
+      where: bookingFilter,
       include: {
         client: {
           select: {
@@ -187,8 +215,8 @@ export async function getRecentBookings(
 function calculateOnboardingProgress(profile: {
   isSalon: boolean;
   businessName: string | null;
-  addressLine1: string | null;
   city: string | null;
+  locations?: Array<{ addressLine1: string }>;
   profilePhotoUrl?: string | null;
   brandColorPrimary?: string | null;
   brandColorSecondary?: string | null;
@@ -200,7 +228,7 @@ function calculateOnboardingProgress(profile: {
 }): number {
   const steps = {
     accountType: !!profile.isSalon || profile.isSalon === false,
-    businessDetails: !!(profile.businessName && profile.addressLine1 && profile.city),
+    businessDetails: !!(profile.businessName && profile.locations?.[0]?.addressLine1 && profile.city),
     profileMedia: !!profile.profilePhotoUrl,
     brandCustomization: !!(profile.brandColorPrimary && profile.brandColorSecondary),
     policies: !!profile.policiesId,
@@ -270,6 +298,15 @@ export async function getClientDashboardStats(
       },
     });
 
+    // Get pending reviews count
+    const pendingReviews = await prisma.booking.count({
+      where: {
+        clientId: userId,
+        bookingStatus: 'COMPLETED',
+        review: null,
+      },
+    });
+
     sendSuccess<GetClientDashboardStatsResponse>(res, {
       message: 'Stats retrieved',
       stats: {
@@ -278,6 +315,7 @@ export async function getClientDashboardStats(
         completedBookings,
         favoriteProviders,
         unreadMessages,
+        pendingReviews,
       },
     });
   } catch (error) {

@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import { paymentConfig } from '../config/payment.config';
 import type {
   PaymentProvider,
   RegionCode,
@@ -15,6 +16,14 @@ import {
 
 // Re-export for convenience
 export type { PaymentProvider, RegionCode, SubscriptionTier, SubscriptionResult };
+
+/**
+ * Generate idempotency key for payment operations
+ * Prevents duplicate charges if client retries
+ */
+export function generateIdempotencyKey(bookingId: string, type: string): string {
+  return `booking_${bookingId}_${type}`;
+}
 
 /**
  * Get payment provider based on region
@@ -52,9 +61,9 @@ export class StripeService {
   private stripe: Stripe;
 
   constructor() {
-    const apiKey = process.env.STRIPE_SECRET_KEY;
+    const apiKey = paymentConfig.stripe.secretKey;
     if (!apiKey) {
-      throw new Error('STRIPE_SECRET_KEY not configured');
+      throw new Error('Stripe secret key not configured');
     }
     this.stripe = new Stripe(apiKey, {
       apiVersion: '2023-10-16',
@@ -78,9 +87,9 @@ export class StripeService {
         ? SUBSCRIPTION_TIERS.SOLO.monthlyPriceUSD
         : SUBSCRIPTION_TIERS.SALON.monthlyPriceUSD;
 
-    // Get price ID from environment
+    // Get price ID from payment config
     const priceId =
-      tier === 'solo' ? process.env.STRIPE_SOLO_PRICE_ID : process.env.STRIPE_SALON_PRICE_ID;
+      tier === 'solo' ? paymentConfig.stripe.soloPriceId : paymentConfig.stripe.salonPriceId;
 
     if (!priceId) {
       throw new Error(`Stripe price ID not configured for ${tier} tier`);
@@ -111,16 +120,27 @@ export class StripeService {
 
     // Create subscription with trial period from shared constants
     // Payment method is already attached and set as default, so subscription will charge after trial
-    const subscription = await this.stripe.subscriptions.create({
-      customer: customer.id,
-      items: [{ price: priceId }],
-      trial_period_days: TRIAL_PERIOD_DAYS,
-      expand: ['latest_invoice.payment_intent'],
-      metadata: {
-        providerId,
-        tier,
+    const subscription = await this.stripe.subscriptions.create(
+      {
+        customer: customer.id,
+        items: [{ price: priceId }],
+        trial_period_days: TRIAL_PERIOD_DAYS,
+        payment_behavior: 'default_incomplete', // Best practice: handle failed payments properly
+        trial_settings: {
+          end_behavior: {
+            missing_payment_method: 'cancel', // Auto-cancel if no payment method at trial end
+          },
+        },
+        expand: ['latest_invoice.payment_intent'],
+        metadata: {
+          providerId,
+          tier,
+        },
       },
-    });
+      {
+        idempotencyKey: `subscription_${providerId}_${tier}`, // Prevent duplicate subscriptions
+      }
+    );
 
     // Get payment method details
     const paymentMethod = await this.stripe.paymentMethods.retrieve(paymentMethodId);
@@ -171,11 +191,11 @@ export class PaystackService {
   private baseUrl: string;
 
   constructor() {
-    this.secretKey = process.env.PAYSTACK_SECRET_KEY || '';
+    this.secretKey = paymentConfig.paystack.secretKey;
     this.baseUrl = 'https://api.paystack.co';
 
     if (!this.secretKey) {
-      console.warn('PAYSTACK_SECRET_KEY not configured. Paystack integration will not work.');
+      console.warn('Paystack secret key not configured. Paystack integration will not work.');
     }
   }
 
@@ -268,8 +288,10 @@ export class PaystackService {
       }
     }
 
-    // Create or verify subscription plan exists
-    const planCode = `bnb_${tier}_${currency.toLowerCase()}`;
+    // Use pre-created plan codes from payment config
+    const planCode = regionCode === 'GH'
+      ? (tier === 'solo' ? paymentConfig.paystack.plans.soloGHS : paymentConfig.paystack.plans.salonGHS)
+      : (tier === 'solo' ? paymentConfig.paystack.plans.soloNGN : paymentConfig.paystack.plans.salonNGN);
 
     // Check if plan exists
     const planCheckResponse = await fetch(`${this.baseUrl}/plan/${planCode}`, {
@@ -319,6 +341,7 @@ export class PaystackService {
     // If authorization code is provided, create subscription immediately
     // Otherwise, return customer and plan info for later subscription creation
     let subscriptionCode = '';
+    let emailToken = '';
     let nextBillingDate = trialEndDate;
 
     if (authorizationCode) {
@@ -344,12 +367,17 @@ export class PaystackService {
 
       const subscriptionData = (await subscriptionResponse.json()) as {
         status: boolean;
-        data?: { subscription_code: string; next_payment_date: string };
+        data?: { 
+          subscription_code: string; 
+          next_payment_date: string;
+          email_token: string; // Capture email token from response
+        };
         message?: string;
       };
 
       if (subscriptionData.status && subscriptionData.data) {
         subscriptionCode = subscriptionData.data.subscription_code;
+        emailToken = subscriptionData.data.email_token || ''; // Store email token
         nextBillingDate = new Date(subscriptionData.data.next_payment_date);
       } else {
         throw new Error(subscriptionData.message || 'Failed to create Paystack subscription');
@@ -359,6 +387,7 @@ export class PaystackService {
     return {
       customerId: customerCode,
       subscriptionId: subscriptionCode,
+      emailToken, // Return email token
       planCode,
       trialEndDate,
       nextBillingDate,
@@ -369,7 +398,7 @@ export class PaystackService {
   /**
    * Cancel subscription
    */
-  async cancelSubscription(subscriptionCode: string): Promise<void> {
+  async cancelSubscription(subscriptionCode: string, emailToken: string): Promise<void> {
     const response = await fetch(`${this.baseUrl}/subscription/disable`, {
       method: 'POST',
       headers: {
@@ -378,7 +407,7 @@ export class PaystackService {
       },
       body: JSON.stringify({
         code: subscriptionCode,
-        token: subscriptionCode, // Token is required for email subscriptions; for API subscriptions, use subscription code
+        token: emailToken, // Use the stored email token
       }),
     });
 
@@ -386,6 +415,38 @@ export class PaystackService {
       const errorData = (await response.json()) as { message?: string };
       throw new Error(errorData.message || 'Failed to cancel Paystack subscription');
     }
+  }
+
+  /**
+   * Change subscription tier (Paystack)
+   * Paystack doesn't support direct tier changes, so we cancel and recreate
+   */
+  async changeSubscriptionTier(
+    subscriptionCode: string,
+    emailToken: string,
+    email: string,
+    firstName: string,
+    lastName: string,
+    newTier: SubscriptionTier,
+    regionCode: RegionCode,
+    providerId: string,
+    authorizationCode: string
+  ): Promise<SubscriptionResult> {
+    // Step 1: Cancel existing subscription
+    await this.cancelSubscription(subscriptionCode, emailToken);
+
+    // Step 2: Create new subscription with new tier
+    const result = await this.createProviderSubscription(
+      email,
+      firstName,
+      lastName,
+      newTier,
+      regionCode,
+      providerId,
+      authorizationCode
+    );
+
+    return result;
   }
 }
 

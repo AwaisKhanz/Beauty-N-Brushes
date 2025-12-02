@@ -136,7 +136,7 @@ export interface GetMessagesResponse {
   };
 }
 
-export interface MarkAsReadResponse {
+export interface MessageMarkAsReadResponse {
   message: string;
   markedCount: number;
 }

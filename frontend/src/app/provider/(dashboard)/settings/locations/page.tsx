@@ -36,19 +36,18 @@ import {
 } from '@/components/ui/dialog';
 import {
   CheckCircle2,
-  AlertCircle,
-  MapPin,
-  Plus,
-  Edit,
-  Trash2,
   Star,
-  StarOff,
+  Trash2,
+  Plus,
+  MapPin,
+  AlertCircle,
+  Edit,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
 import type {
   CreateLocationRequest,
-  UpdateLocationRequest,
+  UpdateLocationManagementRequest,
   ProviderLocation,
 } from '@/shared-types/location.types';
 
@@ -165,23 +164,34 @@ export default function LocationsPage() {
       setError('');
       setSuccess('');
 
-      const data: CreateLocationRequest | UpdateLocationRequest = {
-        name: values.name || undefined,
-        addressLine1: values.addressLine1,
-        addressLine2: values.addressLine2 || null,
-        city: values.city,
-        state: values.state,
-        zipCode: values.zipCode,
-        country: values.country,
-        businessPhone: values.businessPhone || null,
-        isPrimary: values.isPrimary || false,
-      };
-
       if (editingLocation) {
-        await api.locations.update(editingLocation.id, data);
+        const updateData: UpdateLocationManagementRequest = {
+          name: values.name || undefined,
+          addressLine1: values.addressLine1,
+          addressLine2: values.addressLine2 || null,
+          city: values.city,
+          state: values.state,
+          zipCode: values.zipCode,
+          country: values.country,
+          businessPhone: values.businessPhone || null,
+          isPrimary: values.isPrimary || false,
+          isActive: true,
+        };
+        await api.locations.update(editingLocation.id, updateData);
         setSuccess('Location updated successfully');
       } else {
-        await api.locations.create(data);
+        const createData: CreateLocationRequest = {
+          name: values.name || undefined,
+          addressLine1: values.addressLine1,
+          addressLine2: values.addressLine2 || null,
+          city: values.city,
+          state: values.state,
+          zipCode: values.zipCode,
+          country: values.country,
+          businessPhone: values.businessPhone || null,
+          isPrimary: values.isPrimary || false,
+        };
+        await api.locations.create(createData);
         setSuccess('Location created successfully');
       }
 

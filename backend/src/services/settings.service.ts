@@ -49,6 +49,9 @@ class SettingsService {
         wheelchairAccessible: true,
         regionCode: true,
         currency: true,
+        // Business Details
+        businessType: true,
+        timezone: true,
         user: {
           select: {
             avatarUrl: true,
@@ -100,6 +103,9 @@ class SettingsService {
       tiktokHandle?: string | null;
       facebookUrl?: string | null;
       coverPhotoUrl?: string | null;
+      // Business Details
+      businessType?: string | null;
+      timezone?: string | null;
       updatedAt: Date;
     } = {
       updatedAt: new Date(),
@@ -114,6 +120,9 @@ class SettingsService {
     if (data.tiktokHandle !== undefined) profileUpdateData.tiktokHandle = data.tiktokHandle;
     if (data.facebookUrl !== undefined) profileUpdateData.facebookUrl = data.facebookUrl;
     if (data.coverPhotoUrl !== undefined) profileUpdateData.coverPhotoUrl = data.coverPhotoUrl;
+    // Business Details
+    if (data.businessType !== undefined) profileUpdateData.businessType = data.businessType;
+    if (data.timezone !== undefined) profileUpdateData.timezone = data.timezone;
 
     // Update user avatar if profile photo provided
     if (data.profilePhotoUrl !== undefined) {
@@ -149,6 +158,9 @@ class SettingsService {
         wheelchairAccessible: true,
         regionCode: true,
         currency: true,
+        // Business Details
+        businessType: true,
+        timezone: true,
       },
     });
 
@@ -421,6 +433,7 @@ class SettingsService {
         | 'trial'
         | 'active'
         | 'past_due'
+        | 'paused'
         | 'cancelled'
         | 'expired',
       trialEndDate: profile.trialEndDate?.toISOString() || null,
@@ -1062,8 +1075,64 @@ class SettingsService {
         console.error('Error updating Stripe subscription:', error);
         throw new AppError(500, 'Failed to update subscription');
       }
+    } else if (profile.paymentProvider === 'PAYSTACK' && profile.paystackSubscriptionCode) {
+      // Paystack tier change - requires cancel and recreate
+      const providerProfile = await prisma.providerProfile.findUnique({
+        where: { userId },
+        include: { user: true },
+      });
+
+      if (!providerProfile) {
+        throw new AppError(404, 'Provider profile not found');
+      }
+
+      // Check if we have email token for cancellation
+      if (!providerProfile.paystackEmailToken) {
+        throw new AppError(
+          400,
+          'Email token not found. Cannot change Paystack subscription tier.'
+        );
+      }
+
+      // Check if we have authorization code for new subscription
+      if (!providerProfile.paymentMethodId) {
+        throw new AppError(
+          400,
+          'Payment method not found. Please add a payment method before changing subscription tier.'
+        );
+      }
+
+      try {
+        const { paystackService } = await import('../lib/payment');
+        
+        // Use the changeSubscriptionTier method which handles cancel + recreate
+        const result = await paystackService.changeSubscriptionTier(
+          profile.paystackSubscriptionCode,
+          providerProfile.paystackEmailToken,
+          providerProfile.user.email,
+          providerProfile.user.firstName,
+          providerProfile.user.lastName,
+          data.newTier as 'solo' | 'salon',
+          providerProfile.regionCode as 'GH' | 'NG',
+          providerProfile.id,
+          providerProfile.paymentMethodId // Authorization code
+        );
+
+        // Update profile with new subscription details
+        await prisma.providerProfile.update({
+          where: { userId },
+          data: {
+            paystackSubscriptionCode: result.subscriptionId,
+            paystackEmailToken: result.emailToken || null,
+            nextBillingDate: result.nextBillingDate,
+            monthlyFee: result.monthlyFee,
+          },
+        });
+      } catch (error) {
+        console.error('Error changing Paystack subscription tier:', error);
+        throw new AppError(500, 'Failed to change subscription tier');
+      }
     }
-    // TODO: Implement Paystack subscription tier change
 
     // Update database
     await prisma.providerProfile.update({
@@ -1121,8 +1190,24 @@ class SettingsService {
     ) {
       // Cancel Paystack subscription
       try {
+        // Get email token
+        const fullProfile = await prisma.providerProfile.findUnique({
+          where: { userId },
+          select: { paystackEmailToken: true },
+        });
+
+        if (!fullProfile?.paystackEmailToken) {
+          throw new AppError(
+            400,
+            'Email token not found. Cannot cancel Paystack subscription.'
+          );
+        }
+
         const { paystackService } = await import('../lib/payment');
-        await paystackService.cancelSubscription(profile.paystackSubscriptionCode);
+        await paystackService.cancelSubscription(
+          profile.paystackSubscriptionCode,
+          fullProfile.paystackEmailToken
+        );
       } catch (error) {
         console.error('Error cancelling Paystack subscription:', error);
         throw new AppError(500, 'Failed to cancel subscription');

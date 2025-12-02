@@ -244,7 +244,6 @@ export function Step6PaymentSetup({ subscriptionTier, onNext, onBack }: Step6Pay
             <PaystackCardForm
               regionCode={selectedRegion}
               subscriptionTier={subscriptionTier}
-              onSuccess={handlePaymentSuccess}
               onBack={() => setShowCardForm(false)}
             />
           )}

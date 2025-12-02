@@ -1,4 +1,5 @@
 import express, { Application } from 'express';
+import http from 'http';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
@@ -11,6 +12,8 @@ import { notFoundHandler } from './middleware/notFoundHandler';
 import { testDatabaseConnection } from './config/database';
 import logger from './utils/logger';
 import { mediaProcessorService } from './services/media-processor.service';
+import { initializeNotificationJobs } from './jobs/notifications.job';
+import { initializeSocketIO } from './config/socket.server';
 
 // Load environment variables
 dotenv.config();
@@ -38,11 +41,13 @@ import reviewRoutes from './routes/review.routes';
 import likeRoutes from './routes/like.routes';
 import favoriteRoutes from './routes/favorite.routes';
 import messageRoutes from './routes/message.routes';
+import notificationRoutes from './routes/notification.routes';
 import savedSearchRoutes from './routes/savedSearch.routes';
 import financeRoutes from './routes/finance.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import clientManagementRoutes from './routes/client-management.routes';
 import locationRoutes from './routes/location.routes';
+import subscriptionRoutes from './routes/subscription.routes';
 
 const app: Application = express();
 const PORT = process.env.PORT || 8000;
@@ -141,6 +146,7 @@ app.use('/api/v1/instagram', instagramRoutes);
 app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/upload', uploadRoutes);
 app.use('/api/v1/payment', paymentRoutes);
+app.use('/api/v1/subscription', subscriptionRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/calendar', calendarRoutes);
 app.use('/api/v1/inspiration', inspirationRoutes);
@@ -153,6 +159,7 @@ app.use('/api/v1/reviews', reviewRoutes);
 app.use('/api/v1/likes', likeRoutes);
 app.use('/api/v1/favorites', favoriteRoutes);
 app.use('/api/v1/messages', messageRoutes);
+app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/saved-searches', savedSearchRoutes);
 app.use('/api/v1/finance', financeRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
@@ -171,17 +178,28 @@ app.use(errorHandler);
 async function startServer() {
   try {
     // Test database connection
-    const dbConnected = await testDatabaseConnection();
-    if (!dbConnected) {
-      logger.error('Failed to connect to database. Exiting...');
-      process.exit(1);
-    }
+    await testDatabaseConnection();
 
-    app.listen(PORT, () => {
+    // Initialize notification jobs
+    initializeNotificationJobs();
+
+    // Create HTTP server
+    const httpServer = http.createServer(app);
+
+    // Initialize Socket.IO
+    await initializeSocketIO(httpServer);
+    logger.info('✅ Socket.IO initialized');
+
+    // Initialize cron jobs
+    const { initializeCronJobs } = await import('./jobs');
+    await initializeCronJobs();
+    logger.info('✅ Cron jobs initialized');
+
+    // Start the server
+    httpServer.listen(PORT, () => {
       logger.info(`🚀 Server running on port ${PORT}`);
-      logger.info(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
+      logger.info(`📝 Environment: ${process.env.NODE_ENV}`);
       logger.info(`🌐 Frontend URL: ${process.env.FRONTEND_URL}`);
-      logger.info(`✅ Health check: http://localhost:${PORT}/health`);
     });
 
     // Automatic recovery: Re-queue stuck/pending media after server startup

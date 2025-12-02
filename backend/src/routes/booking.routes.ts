@@ -11,6 +11,9 @@ router.use(authenticate);
 router.get('/available-slots', bookingController.getAvailableSlots);
 router.get('/available-stylists', bookingController.getAvailableStylists);
 
+// Pending reviews (MUST be before :bookingId route)
+router.get('/pending-reviews', bookingController.getPendingReviews);
+
 // Booking CRUD
 router.post('/', bookingController.createBooking);
 router.get('/', bookingController.listBookings);
@@ -29,5 +32,9 @@ router.post(
 router.post('/:bookingId/complete', bookingController.completeBooking);
 router.post('/:bookingId/no-show', bookingController.markNoShow);
 router.post('/:bookingId/assign-team-member', bookingController.assignTeamMember);
+
+// Booking photos
+router.post('/:bookingId/photos', bookingController.addBookingPhoto);
+router.delete('/:bookingId/photos/:photoId', bookingController.deleteBookingPhoto);
 
 export default router;

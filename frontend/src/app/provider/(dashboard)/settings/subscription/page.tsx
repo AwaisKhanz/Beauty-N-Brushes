@@ -24,6 +24,8 @@ import {
   Clock,
   XCircle,
   ArrowUpDown,
+  Pause,
+  Play,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
@@ -39,6 +41,7 @@ export default function SubscriptionPage() {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [changeTierModalOpen, setChangeTierModalOpen] = useState(false);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
     fetchSubscriptionInfo();
@@ -58,6 +61,40 @@ export default function SubscriptionPage() {
     }
   }
 
+  async function handlePauseSubscription() {
+    if (!confirm('Are you sure you want to pause your subscription? You will not be charged during the pause.')) {
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      await api.subscription.pause();
+      alert('Subscription paused successfully');
+      await fetchSubscriptionInfo();
+    } catch (err: unknown) {
+      alert(extractErrorMessage(err) || 'Failed to pause subscription');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleResumeSubscription() {
+    if (!confirm('Are you sure you want to resume your subscription? Billing will restart.')) {
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      await api.subscription.resume();
+      alert('Subscription resumed successfully');
+      await fetchSubscriptionInfo();
+    } catch (err: unknown) {
+      alert(extractErrorMessage(err) || 'Failed to resume subscription');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   function getStatusBadge(status: string) {
     switch (status) {
       case 'trial':
@@ -72,6 +109,13 @@ export default function SubscriptionPage() {
           <Badge variant="success" className="gap-1">
             <CheckCircle2 className="h-3 w-3" />
             Active
+          </Badge>
+        );
+      case 'paused':
+        return (
+          <Badge variant="warning" className="gap-1">
+            <Pause className="h-3 w-3" />
+            Paused
           </Badge>
         );
       case 'past_due':
@@ -148,6 +192,9 @@ export default function SubscriptionPage() {
   }
 
   const daysRemaining = getDaysRemaining(subscription.trialEndDate);
+  const isPaused = subscription.subscriptionStatus === 'paused';
+  const canPause = subscription.subscriptionStatus === 'active' && subscription.paymentProvider === 'stripe';
+  const canResume = isPaused && subscription.paymentProvider === 'stripe';
 
   return (
     <SettingsLayout
@@ -206,6 +253,15 @@ export default function SubscriptionPage() {
                 </AlertDescription>
               </Alert>
             )}
+
+            {isPaused && (
+              <Alert>
+                <Pause className="h-4 w-4" />
+                <AlertDescription>
+                  Your subscription is currently paused. No charges will be made until you resume.
+                </AlertDescription>
+              </Alert>
+            )}
           </CardContent>
         </Card>
 
@@ -254,9 +310,43 @@ export default function SubscriptionPage() {
         <Card>
           <CardHeader>
             <CardTitle>Subscription Management</CardTitle>
-            <CardDescription>Change your plan or cancel subscription</CardDescription>
+            <CardDescription>Manage your subscription plan</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Pause/Resume */}
+            {(canPause || canResume) && (
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div>
+                  <p className="font-medium">
+                    {isPaused ? 'Resume Subscription' : 'Pause Subscription'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {isPaused
+                      ? 'Restart your subscription and billing'
+                      : 'Temporarily pause billing without cancelling'}
+                  </p>
+                </div>
+                <Button
+                  variant={isPaused ? 'default' : 'outline'}
+                  onClick={isPaused ? handleResumeSubscription : handlePauseSubscription}
+                  disabled={actionLoading}
+                >
+                  {isPaused ? (
+                    <>
+                      <Play className="mr-2 h-4 w-4" />
+                      Resume
+                    </>
+                  ) : (
+                    <>
+                      <Pause className="mr-2 h-4 w-4" />
+                      Pause
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+
+            {/* Change Tier */}
             <div className="flex items-center justify-between p-4 border rounded-lg">
               <div>
                 <p className="font-medium">Change Subscription Tier</p>
@@ -272,6 +362,7 @@ export default function SubscriptionPage() {
               </Button>
             </div>
 
+            {/* Cancel */}
             <div className="flex items-center justify-between p-4 border rounded-lg border-destructive/20">
               <div>
                 <p className="font-medium text-destructive">Cancel Subscription</p>

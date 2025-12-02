@@ -10,6 +10,9 @@ router.use(authenticate);
 // Send a message
 router.post('/send', messageController.sendMessage);
 
+// Create empty conversation
+router.post('/conversations', messageController.createConversation);
+
 // Get conversations
 router.get('/conversations', messageController.getConversations);
 
