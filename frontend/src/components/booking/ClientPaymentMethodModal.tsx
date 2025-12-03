@@ -16,12 +16,14 @@ import { api } from '@/lib/api';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
+import { RegionCode, REGIONS } from '../../../../shared-constants';
+
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '');
 
 interface ClientPaymentMethodModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  regionCode: 'NA' | 'EU' | 'GH' | 'NG';
+  regionCode: RegionCode;
   onSuccess: () => void;
 }
 
@@ -35,7 +37,10 @@ export function ClientPaymentMethodModal({
   const [clientSecret, setClientSecret] = useState<string>('');
   const [loadingSetupIntent, setLoadingSetupIntent] = useState(false);
 
-  const paymentProvider = regionCode === 'NA' || regionCode === 'EU' ? 'stripe' : 'paystack';
+  const paymentProvider =
+    regionCode === REGIONS.NA.code || regionCode === REGIONS.EU.code
+      ? REGIONS.NA.paymentProvider
+      : REGIONS.GH.paymentProvider;
 
   // Reset state when region changes (even if modal is open)
   useEffect(() => {
@@ -58,7 +63,7 @@ export function ClientPaymentMethodModal({
     }
 
     // Load SetupIntent for Stripe regions
-    if (paymentProvider === 'stripe') {
+    if (paymentProvider === REGIONS.NA.paymentProvider) {
       loadSetupIntent();
     }
     // For Paystack, we initialize on button click (redirects to Paystack)
@@ -128,7 +133,7 @@ export function ClientPaymentMethodModal({
                 </span>
                 <br />
                 <span className="text-xs text-amber-600 dark:text-amber-400 mt-1 block font-medium">
-                  Note: A minimal authorization charge of {regionCode === 'GH' ? '₵1.00' : '₦1.00'}{' '}
+                  Note: A minimal authorization charge of {regionCode === REGIONS.GH.code ? '₵1.00' : '₦1.00'}{' '}
                   is required to securely save your payment method. This is a one-time verification
                   charge.
                 </span>
@@ -149,14 +154,14 @@ export function ClientPaymentMethodModal({
           <div className="p-4 border rounded-lg bg-muted/50">
             <p className="text-sm font-medium mb-2">Payment Provider:</p>
             <p className="text-sm text-muted-foreground">
-              {paymentProvider === 'stripe'
-                ? `Stripe (${regionCode === 'NA' ? 'North America' : 'Europe'})`
-                : `Paystack (${regionCode === 'GH' ? 'Ghana' : 'Nigeria'})`}
+              {paymentProvider === REGIONS.NA.paymentProvider
+                ? `Stripe (${regionCode === REGIONS.NA.code ? REGIONS.NA.name : REGIONS.EU.name})`
+                : `Paystack (${regionCode === REGIONS.GH.code ? REGIONS.GH.name : REGIONS.NG.name})`}
             </p>
           </div>
 
           {/* Stripe Payment Form */}
-          {paymentProvider === 'stripe' && (
+          {paymentProvider === REGIONS.NA.paymentProvider && (
             <>
               {loadingSetupIntent ? (
                 <div className="p-6 border rounded-lg text-center">
@@ -236,7 +241,7 @@ export function ClientPaymentMethodModal({
           )}
 
           {/* Paystack Info */}
-          {paymentProvider === 'paystack' && (
+          {paymentProvider === REGIONS.GH.paymentProvider && (
             <div className="space-y-4">
               <div className="p-6 border rounded-lg text-center">
                 <CreditCard className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
@@ -254,7 +259,7 @@ export function ClientPaymentMethodModal({
                 <AlertDescription className="text-xs">
                   <strong>Important:</strong> To save your payment method, Paystack requires a
                   minimal authorization charge of{' '}
-                  {regionCode === 'GH' ? '₵1.00 (GHS)' : '₦1.00 (NGN)'}. This is a one-time
+                  {regionCode === REGIONS.GH.code ? '₵1.00 (GHS)' : '₦1.00 (NGN)'}. This is a one-time
                   verification charge to securely save your card for future payments. You will be
                   redirected to Paystack's secure checkout page to complete this.
                 </AlertDescription>
@@ -263,7 +268,7 @@ export function ClientPaymentMethodModal({
           )}
         </div>
 
-        {paymentProvider === 'paystack' && (
+        {paymentProvider === REGIONS.GH.paymentProvider && (
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel

@@ -12,6 +12,11 @@ export interface BusinessDetailsData {
   tagline?: string;
   businessType?: string;
   description?: string;
+  // Google Places fields
+  placeId?: string;
+  formattedAddress?: string;
+  addressComponents?: Record<string, unknown>;
+  // Standard address fields
   address: string;
   city: string;
   state: string;

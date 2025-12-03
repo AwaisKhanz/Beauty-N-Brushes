@@ -24,13 +24,13 @@
  * @enum {string}
  */
 export type BookingStatus =
-  | 'pending'
-  | 'confirmed'
-  | 'cancelled_by_client'
-  | 'cancelled_by_provider'
-  | 'completed'
-  | 'no_show'
-  | 'rescheduled';
+  | 'PENDING'
+  | 'CONFIRMED'
+  | 'CANCELLED_BY_CLIENT'
+  | 'CANCELLED_BY_PROVIDER'
+  | 'COMPLETED'
+  | 'NO_SHOW'
+  | 'RESCHEDULED';
 
 /**
  * Payment status enum
@@ -77,6 +77,9 @@ export interface CreateBookingRequest {
 
   // Payment
   paymentMethodId?: string; // Stripe/Paystack payment method ID
+
+  // Region (for payment provider selection) - uses RegionCode from shared-constants
+  clientRegionCode?: string; // 'NA' | 'EU' | 'GH' | 'NG'
 }
 
 export interface UpdateBookingRequest {

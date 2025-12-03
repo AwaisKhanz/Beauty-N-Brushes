@@ -1,14 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { toast } from 'sonner';
-import { Mail, Lock, User, Briefcase, Users, Sparkles, Check, ArrowRight } from 'lucide-react';
-import { Logo } from '@/components/shared/Logo';
+import { Mail, Lock, User, Briefcase, Users, Sparkles, Check, ArrowRight, UserPlus } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -42,17 +42,24 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
+
+  // Extract invitation context from URL
+  const invitationId = searchParams.get('invitation');
+  const invitedEmail = searchParams.get('email');
+  const salonName = searchParams.get('salon');
+  const invitedRole = searchParams.get('role');
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
-      email: '',
+      email: invitedEmail || '',
       password: '',
       firstName: '',
       lastName: '',
-      role: 'CLIENT',
+      role: invitationId ? 'CLIENT' : 'CLIENT', // Team members start as CLIENT, will be upgraded to PROVIDER on acceptance
     },
   });
 
@@ -70,8 +77,15 @@ export default function RegisterPage() {
         role: values.role,
       });
 
-      // Redirect to verify email page (REQUIRED before proceeding)
-      router.push(`/verify-email?email=${encodeURIComponent(user.email)}`);
+      // If from invitation, redirect to verify email with instruction to use invitation link for login
+      if (invitationId) {
+        router.push(
+          `/verify-email?email=${encodeURIComponent(user.email)}&invitation=${invitationId}&salon=${encodeURIComponent(salonName || '')}`
+        );
+      } else {
+        // Normal flow - redirect to verify email page
+        router.push(`/verify-email?email=${encodeURIComponent(user.email)}`);
+      }
     } catch (error: unknown) {
       toast.error('Registration failed', {
         description: extractErrorMessage(error) || 'Please try again',
@@ -83,13 +97,28 @@ export default function RegisterPage() {
 
   return (
     <div className="space-y-8">
+      {/* Invitation Banner */}
+      {invitationId && salonName && (
+        <Alert className="border-primary bg-primary/5">
+          <UserPlus className="h-5 w-5 text-primary" />
+          <div>
+            <AlertTitle className="text-primary">Team Invitation</AlertTitle>
+            <AlertDescription>
+              You've been invited to join <strong>{salonName}</strong>
+              {invitedRole && ` as a ${invitedRole}`}. Complete your signup to accept the invitation.
+            </AlertDescription>
+          </div>
+        </Alert>
+      )}
+
+
       {/* Header */}
       <div className="space-y-2 text-center">
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
           <Sparkles className="w-8 h-8 text-primary" />
         </div>
         <h1 className="text-3xl font-heading font-bold text-foreground tracking-tight">
-          Join <Logo size="lg" showText className="inline" />
+          Join Beauty N Brushes
         </h1>
         <p className="text-muted-foreground text-sm">Create your account and get started today</p>
       </div>
@@ -97,14 +126,14 @@ export default function RegisterPage() {
       {/* Registration Form */}
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-          {/* Role Selection */}
-          <FormField
-            control={form.control}
-            name="role"
-            render={({ field }) => (
-              <FormItem>
+          {/* Role Selection - Hide if from invitation */}
+          {!invitationId && (
+            <FormField
+              control={form.control}
+              name="role"
+              render={({ field }) => (
+                <FormItem>
                 <FormLabel className="text-sm font-medium">I want to</FormLabel>
-                <FormControl>
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
@@ -160,11 +189,11 @@ export default function RegisterPage() {
                       </div>
                     </button>
                   </div>
-                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
+        )}
 
           {/* Name Fields */}
           <div className="grid grid-cols-2 gap-4">
@@ -174,12 +203,12 @@ export default function RegisterPage() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-sm font-medium">First Name</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <FormControl>
                       <Input placeholder="Jane" className="pl-10" {...field} disabled={loading} />
-                    </div>
-                  </FormControl>
+                    </FormControl>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}
@@ -207,18 +236,23 @@ export default function RegisterPage() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel className="text-sm font-medium">Email Address</FormLabel>
-                <FormControl>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <FormControl>
                     <Input
                       type="email"
                       placeholder="you@example.com"
-                      className="pl-10"
+                      className={cn('pl-10', invitedEmail && 'bg-muted')}
                       {...field}
-                      disabled={loading}
+                      disabled={loading || !!invitedEmail}
                     />
-                  </div>
-                </FormControl>
+                  </FormControl>
+                </div>
+                {invitedEmail && (
+                  <FormDescription className="text-xs">
+                    This email is required for your team invitation
+                  </FormDescription>
+                )}
                 <FormMessage />
               </FormItem>
             )}
@@ -231,9 +265,9 @@ export default function RegisterPage() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel className="text-sm font-medium">Password</FormLabel>
-                <FormControl>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <FormControl>
                     <Input
                       type="password"
                       placeholder="••••••••"
@@ -241,8 +275,8 @@ export default function RegisterPage() {
                       {...field}
                       disabled={loading}
                     />
-                  </div>
-                </FormControl>
+                  </FormControl>
+                </div>
                 <FormDescription className="text-xs">
                   8+ characters with uppercase, lowercase, number & special character
                 </FormDescription>
@@ -253,10 +287,10 @@ export default function RegisterPage() {
 
           <Button type="submit" variant="dark" className="w-full h-11" disabled={loading}>
             {loading ? (
-              <>
+              <span className="flex items-center">
                 <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-button-dark-foreground border-t-transparent" />
                 Creating account...
-              </>
+              </span>
             ) : (
               'Create Account'
             )}

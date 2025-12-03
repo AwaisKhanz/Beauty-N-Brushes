@@ -377,24 +377,7 @@ export default function FinancePage() {
         </Card>
       )}
 
-      {/* Platform Fee Information */}
-      <Card className="border-info/20 bg-info/5">
-        <CardContent className="p-6">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-info/10 rounded-full">
-              <DollarSign className="h-5 w-5 text-info" />
-            </div>
-            <div className="flex-1">
-              <h4 className="font-semibold mb-1">About Platform Fees</h4>
-              <p className="text-sm text-muted-foreground">
-                Platform service fees are charged to clients, not providers. You keep 100% of your
-                service prices. Fees are automatically calculated based on your region and help us
-                maintain and improve the platform.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+
     </div>
   );
 }

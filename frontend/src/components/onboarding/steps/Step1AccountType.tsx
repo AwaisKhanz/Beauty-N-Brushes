@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { User, Building2, Check } from 'lucide-react';
+import { useSubscriptionConfig } from '@/hooks/useSubscriptionConfig';
+import { SUBSCRIPTION_TIERS } from '@/constants';
 
 type AccountType = 'solo' | 'salon' | null;
 
@@ -17,6 +19,15 @@ interface Step1AccountTypeProps {
 
 export function Step1AccountType({ defaultValues, onNext, isLoading }: Step1AccountTypeProps) {
   const [selectedType, setSelectedType] = useState<AccountType>(defaultValues?.accountType || null);
+  const { config: trialConfig } = useSubscriptionConfig();
+
+  // Calculate trial duration display
+  const trialDuration = trialConfig?.trialDurationDays || 60;
+  const trialMonths = Math.floor(trialDuration / 30);
+  const trialDays = trialDuration % 30;
+  const trialDisplay = trialMonths > 0 
+    ? `${trialMonths}-month${trialMonths > 1 ? 's' : ''}`
+    : `${trialDays} days`;
 
   useEffect(() => {
     if (defaultValues?.accountType) {
@@ -66,9 +77,9 @@ export function Step1AccountType({ defaultValues, onNext, isLoading }: Step1Acco
                   <User className="h-8 w-8" />
                 </div>
                 <div>
-                  <CardTitle className="text-2xl">Solo Professional</CardTitle>
+                  <CardTitle className="text-2xl">{SUBSCRIPTION_TIERS.SOLO.name}</CardTitle>
                   <Badge variant="outline" className="mt-2 text-sm">
-                    $19/month
+                    ${SUBSCRIPTION_TIERS.SOLO.monthlyPriceUSD}/month
                   </Badge>
                 </div>
               </div>
@@ -85,10 +96,8 @@ export function Step1AccountType({ defaultValues, onNext, isLoading }: Step1Acco
           <CardContent>
             <ul className="space-y-3">
               {[
-                'Manage your own services and bookings',
-                'Set your own availability and pricing',
-                'Access to all AI-powered tools',
-                '2-month free trial',
+                ...SUBSCRIPTION_TIERS.SOLO.features,
+                trialConfig?.trialEnabled ? `${trialDisplay} free trial` : 'Get started immediately',
               ].map((feature, index) => (
                 <li key={index} className="flex items-center gap-3 text-sm">
                   <div className="h-2 w-2 rounded-full bg-primary flex-shrink-0"></div>
@@ -121,9 +130,9 @@ export function Step1AccountType({ defaultValues, onNext, isLoading }: Step1Acco
                   <Building2 className="h-8 w-8" />
                 </div>
                 <div>
-                  <CardTitle className="text-2xl">Salon/Business</CardTitle>
+                  <CardTitle className="text-2xl">{SUBSCRIPTION_TIERS.SALON.name}</CardTitle>
                   <Badge variant="outline" className="mt-2 text-sm">
-                    $49/month
+                    ${SUBSCRIPTION_TIERS.SALON.monthlyPriceUSD}/month
                   </Badge>
                 </div>
               </div>
@@ -139,12 +148,7 @@ export function Step1AccountType({ defaultValues, onNext, isLoading }: Step1Acco
           </CardHeader>
           <CardContent>
             <ul className="space-y-3">
-              {[
-                'Manage multiple stylists and locations',
-                'Team member management and permissions',
-                'Advanced booking and calendar tools',
-                'Business analytics and reporting',
-              ].map((feature, index) => (
+              {SUBSCRIPTION_TIERS.SALON.features.map((feature, index) => (
                 <li key={index} className="flex items-center gap-3 text-sm">
                   <div className="h-2 w-2 rounded-full bg-primary flex-shrink-0"></div>
                   <span className="text-muted-foreground">{feature}</span>

@@ -84,9 +84,9 @@ export function RelatedServices({ serviceId, currentServiceTitle }: RelatedServi
             <Link href={`/services/${service.id}`} className="block">
               {/* Service Image */}
               <div className="relative h-48 overflow-hidden bg-muted">
-                {service.media?.[0]?.fileUrl ? (
+                {service.featuredImage?.fileUrl ? (
                   <Image
-                    src={service.media[0].fileUrl}
+                    src={service.featuredImage.fileUrl}
                     alt={service.title}
                     fill
                     className="object-cover group-hover:scale-105 transition-transform duration-300"

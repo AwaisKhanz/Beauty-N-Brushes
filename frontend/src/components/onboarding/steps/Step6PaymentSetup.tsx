@@ -1,170 +1,158 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CreditCard, Shield, CheckCircle2, Globe } from 'lucide-react';
+import { CreditCard, Shield, CheckCircle2 } from 'lucide-react';
 import StripeCardForm from '@/components/provider/StripeCardForm';
 import PaystackCardForm from '@/components/provider/PaystackCardForm';
-import { REGIONS } from '@/constants';
+import { getPaymentInfoFromCountry } from '../../../../../shared-constants';
+import { getTierInfo } from '../../../../../shared-constants';
+import { useSubscriptionConfig } from '@/hooks/useSubscriptionConfig';
 
-type PaymentProvider = 'stripe' | 'paystack';
-type Region = 'NA' | 'EU' | 'GH' | 'NG';
 type SubscriptionTier = 'solo' | 'salon';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '');
 
 interface Step6PaymentSetupProps {
   subscriptionTier: SubscriptionTier;
+  country?: string; // Country from Business Details step
   onNext: () => Promise<void>;
   onBack: () => void;
 }
 
-export function Step6PaymentSetup({ subscriptionTier, onNext, onBack }: Step6PaymentSetupProps) {
-  const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
-  const [paymentProvider, setPaymentProvider] = useState<PaymentProvider | null>(null);
+export function Step6PaymentSetup({ subscriptionTier, country = 'US', onNext, onBack }: Step6PaymentSetupProps) {
+  const [paymentInfo, setPaymentInfo] = useState(getPaymentInfoFromCountry(country));
   const [showCardForm, setShowCardForm] = useState(false);
+  
+  // Get subscription tier details
+  const tierInfo = getTierInfo(subscriptionTier);
+  
+  // Get dynamic trial configuration
+  const { config: trialConfig } = useSubscriptionConfig();
 
-  const regions = REGIONS.reduce(
-    (acc, region) => {
-      acc[region.code as Region] = {
-        name: region.name,
-        provider: region.paymentProvider as PaymentProvider,
-        currency: region.currency,
-      };
-      return acc;
-    },
-    {} as Record<Region, { name: string; provider: PaymentProvider; currency: string }>
-  );
-
-  const handleRegionSelect = (region: Region) => {
-    setSelectedRegion(region);
-    setPaymentProvider(regions[region].provider);
-    setShowCardForm(false);
-  };
+  useEffect(() => {
+    // Update payment info if country changes
+    setPaymentInfo(getPaymentInfoFromCountry(country));
+  }, [country]);
 
   const handleContinue = () => {
-    if (selectedRegion && paymentProvider) {
-      setShowCardForm(true);
-    }
+    setShowCardForm(true);
   };
 
   const handlePaymentSuccess = async () => {
     await onNext();
   };
 
+  // Calculate trial duration display
+  const trialDuration = trialConfig?.trialDurationDays || 60;
+  const trialMonths = Math.floor(trialDuration / 30);
+  const trialDays = trialDuration % 30;
+  const trialDisplay = trialMonths > 0 
+    ? `${trialMonths}-month${trialMonths > 1 ? 's' : ''}${trialDays > 0 ? ` ${trialDays} days` : ''}`
+    : `${trialDays} days`;
+
   return (
     <div className="max-w-7xl  w-full flex flex-col items-center justify-center">
       <div className="text-center mb-8">
-        <h1 className="text-4xl font-bold mb-4">Start Your Free Trial</h1>
+        <h1 className="text-4xl font-bold mb-4">
+          {trialConfig?.trialEnabled ? 'Start Your Free Trial' : 'Payment Setup'}
+        </h1>
         <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-          Choose your region to start your 2-month free trial
+          {trialConfig?.trialEnabled 
+            ? `Complete your payment setup to start your ${trialDisplay} free trial`
+            : 'Complete your payment setup to activate your account'
+          }
         </p>
       </div>
 
       {!showCardForm ? (
         <>
-          {/* Key Benefits */}
-          <Card className="mb-6 border-primary/20 bg-primary/5 w-full">
+          {/* Key Benefits - Only show if trials are enabled */}
+          {trialConfig?.trialEnabled && (
+            <Card className="mb-6 border-primary/20 bg-primary/5 w-full">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-primary" />
+                  Free Trial Benefits
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5 text-primary" />
+                    <span className="text-sm">{trialDisplay} free trial</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5 text-primary" />
+                    <span className="text-sm">Full feature access</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5 text-primary" />
+                    <span className="text-sm">No payment required</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Selected Plan Display */}
+          <Card className="mb-6 w-full">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5 text-primary" />
-                Free Trial Benefits
-              </CardTitle>
+              <CardTitle>Your Selected Plan</CardTitle>
+              <CardDescription>Review your subscription details</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-primary" />
-                  {/* TESTING: Trial messaging commented out */}
-                  {/* <span className="text-sm">2-month free trial</span> */}
-                  <span className="text-sm">2-month free trial</span>
+              <div className="p-6 border rounded-lg bg-gradient-to-br from-primary/5 to-primary/10">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 className="text-2xl font-bold">{tierInfo.name}</h3>
+                    <p className="text-muted-foreground mt-1">
+                      {subscriptionTier === 'solo' ? 'Perfect for individual professionals' : 'Ideal for salons and teams'}
+                    </p>
+                  </div>
+                  <Badge variant="secondary" className="text-lg px-4 py-2">
+                    ${tierInfo.monthlyPriceUSD}/mo
+                  </Badge>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-primary" />
-                  <span className="text-sm">Full feature access</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-primary" />
-                  <span className="text-sm">No payment required</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-4">
+                  {tierInfo.features.map((feature, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0" />
+                      <span className="text-sm">{feature}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Region Selection */}
+          {/* Auto-Detected Payment Provider */}
           <Card className="w-full">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Globe className="h-5 w-5" />
-                Select Your Region
+                <CreditCard className="h-5 w-5" />
+                Payment Setup
               </CardTitle>
-              <CardDescription>Select your region to start your free trial</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {(['NA', 'EU', 'GH', 'NG'] as Region[]).map((region) => (
-                  <Card
-                    key={region}
-                    className={`cursor-pointer transition-all hover:shadow-lg ${
-                      selectedRegion === region
-                        ? 'ring-2 ring-primary bg-primary/5'
-                        : 'hover:border-primary/50'
-                    }`}
-                    onClick={() => handleRegionSelect(region)}
-                  >
-                    <CardContent className="p-6">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div
-                          className={`h-10 w-10 rounded-lg ${region === 'NA' || region === 'EU' ? 'bg-primary/10' : 'bg-accent/10'} flex items-center justify-center`}
-                        >
-                          <CreditCard
-                            className={`h-5 w-5 ${region === 'NA' || region === 'EU' ? 'text-primary' : 'text-accent-foreground'}`}
-                          />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold">{regions[region].name}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            {region === 'NA' && 'United States & Canada'}
-                            {region === 'EU' && 'EU countries'}
-                            {region === 'GH' && 'Mobile money & cards'}
-                            {region === 'NG' && 'Mobile money & cards'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <Badge variant="outline">
-                          {regions[region].provider === 'stripe' ? 'Stripe' : 'Paystack'}
-                        </Badge>
-                        <p className="text-xs text-muted-foreground">
-                          {regions[region].currency} payments
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-
-              {selectedRegion && (
-                <div className="mt-6 p-4 border rounded-lg bg-muted/50">
-                  <h4 className="font-semibold mb-2">Payment Setup Details</h4>
-                  <div className="space-y-1 text-sm">
-                    <p>
-                      <strong>Region:</strong> {regions[selectedRegion].name}
-                    </p>
-                    <p>
-                      <strong>Provider:</strong>{' '}
-                      {regions[selectedRegion].provider === 'stripe' ? 'Stripe' : 'Paystack'}
-                    </p>
-                    <p>
-                      <strong>Currency:</strong> {regions[selectedRegion].currency}
-                    </p>
-                    <p>
-                      <strong className="text-primary">Trial Period:</strong> 2 months free
-                    </p>
+              {/* Only show trial period if trials are enabled */}
+              {trialConfig?.trialEnabled && (
+                <div className="p-6 border rounded-lg bg-muted/50">
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium">Trial Period</span>
+                    <span className="font-semibold text-primary">{trialDisplay} free</span>
+                  </div>
+                </div>
+              )}
+              {!trialConfig?.trialEnabled && (
+                <div className="p-6 border rounded-lg bg-muted/50">
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium">Payment Required</span>
+                    {/* <span className="font-semibold text-muted-foreground">No trial available</span> */}
                   </div>
                 </div>
               )}
@@ -176,15 +164,15 @@ export function Step6PaymentSetup({ subscriptionTier, onNext, onBack }: Step6Pay
               Back
             </Button>
 
-            <Button onClick={handleContinue} disabled={!selectedRegion} className="gap-2">
-              Start Free Trial
+            <Button onClick={handleContinue} className="gap-2">
+              {trialConfig?.trialEnabled ? 'Start Free Trial' : 'Continue to Payment'}
             </Button>
           </div>
         </>
       ) : (
         <>
           {/* Card Collection Form */}
-          {paymentProvider === 'stripe' && selectedRegion && (
+          {paymentInfo.provider === 'stripe' && (
             <Elements
               stripe={stripePromise}
               options={{
@@ -231,18 +219,18 @@ export function Step6PaymentSetup({ subscriptionTier, onNext, onBack }: Step6Pay
                 },
               }}
             >
-              <StripeCardForm
-                regionCode={selectedRegion}
-                subscriptionTier={subscriptionTier}
-                onSuccess={handlePaymentSuccess}
-                onBack={() => setShowCardForm(false)}
-              />
+            <StripeCardForm
+              regionCode={paymentInfo.region}
+              subscriptionTier={subscriptionTier}
+              onSuccess={handlePaymentSuccess}
+              onBack={() => setShowCardForm(false)}
+            />
             </Elements>
           )}
 
-          {paymentProvider === 'paystack' && selectedRegion && (
+          {paymentInfo.provider === 'paystack' && (
             <PaystackCardForm
-              regionCode={selectedRegion}
+              regionCode={paymentInfo.region}
               subscriptionTier={subscriptionTier}
               onBack={() => setShowCardForm(false)}
             />

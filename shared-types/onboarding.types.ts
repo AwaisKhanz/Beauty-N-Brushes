@@ -18,18 +18,27 @@ export interface CreateAccountTypeRequest {
 export interface UpdateBusinessDetailsRequest {
   businessName: string;
   businessType?: string;
+  // Google Places fields
+  placeId?: string;
+  formattedAddress?: string;
+  addressComponents?: Record<string, unknown>;
+  // Standard location fields
   city: string;
   state: string;
-  zipCode: string;
+  zipCode?: string;
   country: string;
   addressLine1?: string;
   addressLine2?: string;
+  latitude?: number;
+  longitude?: number;
+  // Contact and other fields
   businessPhone?: string;
   websiteUrl?: string;
   instagramHandle?: string;
   yearsExperience?: number;
   tagline?: string;
   description?: string;
+  serviceSpecializations?: string[];
 }
 
 export interface SaveProfileMediaRequest {

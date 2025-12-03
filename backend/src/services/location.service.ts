@@ -49,6 +49,9 @@ class LocationService {
       businessPhone: loc.businessPhone,
       isPrimary: loc.isPrimary,
       isActive: loc.isActive,
+      placeId: loc.placeId,
+      formattedAddress: loc.formattedAddress,
+      addressComponents: loc.addressComponents,
       createdAt: loc.createdAt.toISOString(),
       updatedAt: loc.updatedAt.toISOString(),
     }));
@@ -93,6 +96,9 @@ class LocationService {
       businessPhone: location.businessPhone,
       isPrimary: location.isPrimary,
       isActive: location.isActive,
+      placeId: location.placeId,
+      formattedAddress: location.formattedAddress,
+      addressComponents: location.addressComponents,
       createdAt: location.createdAt.toISOString(),
       updatedAt: location.updatedAt.toISOString(),
     };
@@ -157,6 +163,11 @@ class LocationService {
     const location = await prisma.providerLocation.create({
       data: {
         providerId: profile.id,
+        // Google Places fields
+        placeId: data.placeId || null,
+        formattedAddress: data.formattedAddress || null,
+        addressComponents: (data.addressComponents as any) || null,
+        // Standard fields
         name: data.name || null,
         addressLine1: data.addressLine1,
         addressLine2: data.addressLine2 || null,
@@ -187,6 +198,9 @@ class LocationService {
       businessPhone: location.businessPhone,
       isPrimary: location.isPrimary,
       isActive: location.isActive,
+      placeId: location.placeId,
+      formattedAddress: location.formattedAddress,
+      addressComponents: location.addressComponents,
       createdAt: location.createdAt.toISOString(),
       updatedAt: location.updatedAt.toISOString(),
     };
@@ -272,6 +286,11 @@ class LocationService {
     const location = await prisma.providerLocation.update({
       where: { id: locationId },
       data: {
+        // Google Places fields
+        ...(data.placeId !== undefined && { placeId: data.placeId }),
+        ...(data.formattedAddress !== undefined && { formattedAddress: data.formattedAddress }),
+        ...(data.addressComponents !== undefined && { addressComponents: data.addressComponents as any }),
+        // Standard fields
         ...(data.name !== undefined && { name: data.name }),
         ...(data.addressLine1 !== undefined && { addressLine1: data.addressLine1 }),
         ...(data.addressLine2 !== undefined && { addressLine2: data.addressLine2 }),
@@ -303,6 +322,9 @@ class LocationService {
       businessPhone: location.businessPhone,
       isPrimary: location.isPrimary,
       isActive: location.isActive,
+      placeId: location.placeId,
+      formattedAddress: location.formattedAddress,
+      addressComponents: location.addressComponents,
       createdAt: location.createdAt.toISOString(),
       updatedAt: location.updatedAt.toISOString(),
     };

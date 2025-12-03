@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,8 +24,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { MapPin, Phone, /* Instagram, */ Navigation } from 'lucide-react';
+import { MapPin, Phone /* Instagram */ } from 'lucide-react';
 import { SERVICE_SPECIALIZATIONS, BUSINESS_TYPES } from '@/constants';
+import { LocationAutocomplete } from '@/components/location/LocationAutocomplete';
+import { LocationData } from '@/shared-types/google-places.types';
 
 const businessDetailsSchema = z.object({
   businessName: z.string().min(2, 'Business name must be at least 2 characters').max(255),
@@ -42,10 +43,15 @@ const businessDetailsSchema = z.object({
     .min(0, 'Years must be 0 or more')
     .max(99, 'Must be less than 100')
     .optional(),
+  // Google Places fields
+  placeId: z.string().optional(),
+  formattedAddress: z.string().optional(),
+  addressComponents: z.array(z.unknown()).optional(),
+  // Standard address fields
   address: z.string().min(5, 'Please enter a complete address'),
   city: z.string().min(2, 'City is required'),
   state: z.string().min(2, 'State is required'),
-  zipCode: z.string().min(5, 'Valid zip code is required'),
+  zipCode: z.string().optional().or(z.literal('')),
   country: z.string().default('US'),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
@@ -76,7 +82,6 @@ export function Step2BusinessDetails({
   const [selectedSpecializations, setSelectedSpecializations] = useState<string[]>(
     defaultValues?.serviceSpecializations || []
   );
-  const [isGettingLocation, setIsGettingLocation] = useState(false);
 
   const form = useForm<BusinessDetailsFormValues>({
     resolver: zodResolver(businessDetailsSchema),
@@ -120,97 +125,44 @@ export function Step2BusinessDetails({
     form.setValue('serviceSpecializations', updated);
   };
 
-  const handleUseCurrentLocation = async () => {
-    setIsGettingLocation(true);
+  const handleLocationSelect = (location: LocationData) => {
+    // Update all address fields from Google Places data
+    form.setValue('placeId', location.placeId);
+    form.setValue('formattedAddress', location.formattedAddress);
+    form.setValue('addressComponents', location.addressComponents as any);
+    // Use addressLine1 or formattedAddress for the address field
+    form.setValue('address', location.addressLine1 || location.formattedAddress || '');
+    form.setValue('city', location.city);
+    form.setValue('state', location.state);
+    form.setValue('zipCode', location.zipCode ?? '');
+    form.setValue('country', location.country);
+    form.setValue('latitude', location.latitude);
+    form.setValue('longitude', location.longitude);
+  };
+
+  const onSubmit = async (data: BusinessDetailsFormValues) => {
     try {
-      if (!navigator.geolocation) {
-        toast.error('Geolocation is not supported by your browser');
-        return;
-      }
-
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0,
-        });
-      });
-
-      const { latitude, longitude } = position.coords;
-
-      // Reverse geocode using Nominatim
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch address');
-      }
-
-      const data = await response.json();
-      const addr = data.address;
-
-      // Fill in the form with the geocoded address
-      const road = addr.road || addr.street || '';
-      const houseNumber = addr.house_number || '';
-      const address = houseNumber ? `${houseNumber} ${road}` : road;
-
-      form.setValue('address', address || addr.suburb || addr.neighbourhood || '');
-      form.setValue('city', addr.city || addr.town || addr.village || addr.municipality || '');
-      form.setValue('state', addr.state || addr.province || addr.region || '');
-      form.setValue('zipCode', addr.postcode || '');
-      form.setValue('country', addr.country || 'US');
-      form.setValue('latitude', latitude);
-      form.setValue('longitude', longitude);
-
-      toast.success('Location detected successfully!', {
-        description: 'Your address has been filled in automatically',
-      });
-    } catch (error: unknown) {
-      const geoError = error as GeolocationPositionError | Error;
-      if ('code' in geoError && geoError.code === 1) {
-        toast.error('Location permission denied', {
-          description: 'Please allow location access to use this feature',
-        });
-      } else if ('code' in geoError && geoError.code === 2) {
-        toast.error('Location unavailable', {
-          description: 'Please check your device settings',
-        });
-      } else if ('code' in geoError && geoError.code === 3) {
-        toast.error('Location request timed out', {
-          description: 'Please try again',
-        });
-      } else {
-        toast.error('Failed to get your location', {
-          description: 'Please enter your address manually',
-        });
-      }
-    } finally {
-      setIsGettingLocation(false);
+      console.log('📝 Form data being submitted:', data);
+      await onNext(data);
+    } catch (error) {
+      console.error('❌ Error submitting business details:', error);
+      // Assuming 'toast' is available globally or imported elsewhere
+      // toast.error('Failed to save business details', {
+      //   description:
+      //     error instanceof Error
+      //       ? error.message
+      //       : 'An unexpected error occurred. Please try again.',
+      // });
     }
   };
 
-  async function onSubmit(values: BusinessDetailsFormValues) {
-    await onNext({
-      businessName: values.businessName,
-      tagline: values.tagline,
-      businessType: values.businessType,
-      city: values.city,
-      state: values.state,
-      zipCode: values.zipCode,
-      country: values.country,
-      address: values.address,
-      phone: values.phone,
-      email: values.email,
-      website: values.website,
-      // instagramHandle: values.instagramHandle, // Temporarily hidden
-      description: values.description,
-      serviceSpecializations: values.serviceSpecializations,
-      yearsExperience: values.yearsExperience,
-      latitude: values.latitude,
-      longitude: values.longitude,
-    });
-  }
+  const onError = (errors: any) => {
+    console.error('❌ Form validation errors:', errors);
+    // Assuming 'toast' is available globally or imported elsewhere
+    // toast.error('Please fix the errors in the form', {
+    //   description: 'Check the highlighted fields and try again.',
+    // });
+  };
 
   return (
     <div className="max-w-7xl  w-full flex flex-col items-center justify-center">
@@ -224,7 +176,7 @@ export function Step2BusinessDetails({
       <Card className="w-full">
         <CardContent className="pt-6">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={form.handleSubmit(onSubmit, onError)} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
@@ -309,40 +261,29 @@ export function Step2BusinessDetails({
               />
 
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold flex items-center gap-2">
-                    <MapPin className="h-5 w-5" />
-                    Location Information
-                  </h3>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleUseCurrentLocation}
-                    disabled={isGettingLocation}
-                    className="gap-2"
-                  >
-                    <Navigation className="h-4 w-4" />
-                    {isGettingLocation ? 'Detecting...' : 'Use My Location'}
-                  </Button>
-                </div>
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <MapPin className="h-5 w-5" />
+                  Location Information
+                </h3>
 
-                {/* Manual Address Fields */}
+                {/* Google Places Autocomplete */}
                 <div className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="address"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Street Address *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="123 Main Street" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">
+                      Business Address *
+                    </label>
+                    <LocationAutocomplete
+                      onLocationSelect={handleLocationSelect}
+                      defaultValue={defaultValues?.address || ''}
+                      placeholder="Start typing your business address..."
+                      disabled={isLoading}
+                    />
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Start typing to see suggestions, or use your current location
+                    </p>
+                  </div>
 
+                  {/* Manual Address Fields (read-only, auto-filled) */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <FormField
                       control={form.control}
@@ -351,7 +292,7 @@ export function Step2BusinessDetails({
                         <FormItem>
                           <FormLabel>City *</FormLabel>
                           <FormControl>
-                            <Input placeholder="City" {...field} />
+                            <Input placeholder="City" {...field} readOnly className="bg-muted" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -365,7 +306,7 @@ export function Step2BusinessDetails({
                         <FormItem>
                           <FormLabel>State *</FormLabel>
                           <FormControl>
-                            <Input placeholder="State" {...field} />
+                            <Input placeholder="State" {...field} readOnly className="bg-muted" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -377,10 +318,13 @@ export function Step2BusinessDetails({
                       name="zipCode"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>ZIP Code *</FormLabel>
+                          <FormLabel>ZIP Code</FormLabel>
                           <FormControl>
-                            <Input placeholder="12345" {...field} />
+                            <Input placeholder="12345 (optional)" {...field} />
                           </FormControl>
+                          <FormDescription className="text-xs">
+                            Auto-filled from address, or enter manually
+                          </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -500,7 +444,7 @@ export function Step2BusinessDetails({
                         placeholder="e.g., 5"
                         min="0"
                         max="99"
-                        {...field}
+                        value={field.value ?? ''}
                         onChange={(e) =>
                           field.onChange(e.target.value ? Number(e.target.value) : undefined)
                         }

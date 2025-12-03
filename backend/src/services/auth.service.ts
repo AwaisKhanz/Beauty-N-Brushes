@@ -106,7 +106,7 @@ export class AuthService {
   /**
    * Login user
    */
-  async loginUser(email: string, password: string) {
+  async loginUser(email: string, password: string, clientIP?: string) {
     // Find user
     const user = await prisma.user.findUnique({
       where: { email },
@@ -128,6 +128,14 @@ export class AuthService {
       throw new Error('Email not verified. Please check your email to verify your account.');
     }
 
+    // Auto-detect region if not set
+    let regionCode = user.regionCode;
+    if (!regionCode && clientIP) {
+      const { regionDetectionService } = await import('./region-detection.service');
+      regionCode = await regionDetectionService.detectRegionFromIP(clientIP);
+      await this.updateUserRegion(user.id, regionCode);
+    }
+
     // Update last login
     await prisma.user.update({
       where: { id: user.id },
@@ -145,6 +153,7 @@ export class AuthService {
       lastName: user.lastName,
       role: user.role,
       emailVerified: user.emailVerified,
+      regionCode: regionCode || undefined,
     };
 
     return {
@@ -174,12 +183,23 @@ export class AuthService {
         emailVerified: true,
         emailNotifications: true,
         smsNotifications: true,
+        regionCode: true,
         status: true,
         createdAt: true,
       },
     });
 
     return user;
+  }
+
+  /**
+   * Update user region
+   */
+  async updateUserRegion(userId: string, regionCode: string) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { regionCode },
+    });
   }
 
   /**

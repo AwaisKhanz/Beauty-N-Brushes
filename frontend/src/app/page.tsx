@@ -11,24 +11,23 @@ import { ChatbotWidget } from '@/components/shared/ChatbotWidget';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/shared/Logo';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import {
-  Sparkles,
-  Star,
-  Calendar,
-  Shield,
-  Zap,
-  MessageSquare,
-  TrendingUp,
-  ArrowRight,
-  Image as ImageIcon,
-  Search,
-} from 'lucide-react';
+import { Sparkles, Star, Calendar, Shield, Zap, MessageSquare, TrendingUp, ArrowRight, Image as ImageIcon, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { PublicServiceResult, CategoryWithCount } from '@/shared-types/service.types';
+import { useSubscriptionConfig } from '@/hooks/useSubscriptionConfig';
 
 export default function HomePage() {
   const [featuredServices, setFeaturedServices] = useState<PublicServiceResult[]>([]);
   const [categories, setCategories] = useState<CategoryWithCount[]>([]);
+  const { config: trialConfig } = useSubscriptionConfig();
+
+  // Calculate trial duration display
+  const trialDuration = trialConfig?.trialDurationDays || 60;
+  const trialMonths = Math.floor(trialDuration / 30);
+  const trialDays = trialDuration % 30;
+  const trialDisplay = trialMonths > 0 
+    ? `${trialMonths}-Month${trialMonths > 1 ? 's' : ''}`
+    : `${trialDays} Days`;
 
   useEffect(() => {
     // Load featured services and categories
@@ -176,10 +175,15 @@ export default function HomePage() {
                       <div className="h-16 w-16 rounded-full bg-primary-foreground/20 flex items-center justify-center mx-auto">
                         <Zap className="h-8 w-8" />
                       </div>
-                      <h3 className="text-xl font-semibold">2-Month Free Trial</h3>
-                      <p className="text-sm text-primary-foreground/80">
-                        Start for free, no credit card required
-                      </p>
+                    <h3 className="text-xl font-semibold">
+                      {trialConfig?.trialEnabled ? `${trialDisplay} Free Trial` : 'Get Started Free'}
+                    </h3>
+                    <p className="text-sm text-primary-foreground/80">
+                      {trialConfig?.trialEnabled 
+                        ? 'Start for free, no credit card required'
+                        : 'No credit card required to start'
+                      }
+                    </p>
                     </div>
 
                     <div className="text-center space-y-2">

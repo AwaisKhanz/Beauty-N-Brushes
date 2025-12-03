@@ -7,6 +7,7 @@ import { emailService } from '../lib/email';
 import { env } from '../config/env';
 import { paymentConfig } from '../config/payment.config';
 import type { PaystackSubscriptionData, PaystackChargeData } from '../../../shared-types';
+import { SUBSCRIPTION_TIERS } from '../../../shared-constants';
 
 const stripe = new Stripe(paymentConfig.stripe.secretKey || '', {
   apiVersion: '2023-10-16',
@@ -16,8 +17,16 @@ const stripe = new Stripe(paymentConfig.stripe.secretKey || '', {
  * Handle Stripe webhooks
  */
 export async function handleStripeWebhook(req: Request, res: Response): Promise<void> {
+  console.log('🔔 Stripe webhook received!');
+  console.log('   Headers:', req.headers);
+  console.log('   Body type:', typeof req.body);
+  console.log('   Body length:', req.body?.length || 0);
+  
   const sig = req.headers['stripe-signature'] as string;
   const webhookSecret = paymentConfig.stripe.webhookSecret;
+
+  console.log('   Webhook secret configured:', !!webhookSecret);
+  console.log('   Signature present:', !!sig);
 
   if (!webhookSecret) {
     logger.error('Stripe webhook secret not configured');
@@ -30,6 +39,7 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
   try {
     // Verify webhook signature
     event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+    console.log('✅ Webhook signature verified! Event type:', event.type);
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
     logger.error(`Webhook signature verification failed: ${errorMessage}`);
@@ -218,7 +228,7 @@ async function handleTrialWillEnd(subscription: Stripe.Subscription): Promise<vo
         month: 'long',
         day: 'numeric',
       }),
-      monthlyFee: `$${profile.monthlyFee || (profile.isSalon ? 49 : 19)}`,
+      monthlyFee: `$${profile.monthlyFee || (profile.isSalon ? SUBSCRIPTION_TIERS.SALON.monthlyPriceUSD : SUBSCRIPTION_TIERS.SOLO.monthlyPriceUSD)}`,
       paymentMethod: '•••• •••• •••• ' + (profile.stripeCustomerId ? '****' : '****'),
       manageSubscriptionUrl: `${env.FRONTEND_URL}/dashboard/subscription`,
     });
@@ -251,7 +261,7 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice): Promise<void> {
 
   // Send payment receipt email
   if (profile) {
-    const planName = profile.isSalon ? 'Salon Plan' : 'Solo Professional Plan';
+    const planName = profile.isSalon ? SUBSCRIPTION_TIERS.SALON.name : SUBSCRIPTION_TIERS.SOLO.name;
     const amount = invoice.amount_paid ? `$${(invoice.amount_paid / 100).toFixed(2)}` : '$0.00';
 
     await emailService.sendPaymentSuccessEmail(profile.user.email, {
@@ -299,7 +309,7 @@ async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
 
   // Send payment failed notification email
   if (profile) {
-    const amount = `$${profile.monthlyFee || (profile.isSalon ? 49 : 19)}`;
+    const amount = `$${profile.monthlyFee || (profile.isSalon ? SUBSCRIPTION_TIERS.SALON.monthlyPriceUSD : SUBSCRIPTION_TIERS.SOLO.monthlyPriceUSD)}`;
 
     await emailService.sendPaymentFailedEmail(profile.user.email, {
       firstName: profile.user.firstName,
@@ -477,7 +487,7 @@ async function handleSubscriptionResumed(subscription: Stripe.Subscription): Pro
   await emailService.sendSubscriptionResumedEmail(profile.user.email, {
     firstName: profile.user.firstName,
     nextBillingDate: new Date(subscription.current_period_end * 1000).toLocaleDateString(),
-    amount: `$${profile.monthlyFee || (profile.isSalon ? 49 : 19)}`,
+    amount: `$${profile.monthlyFee || (profile.isSalon ? SUBSCRIPTION_TIERS.SALON.monthlyPriceUSD : SUBSCRIPTION_TIERS.SOLO.monthlyPriceUSD)}`,
     manageSubscriptionUrl: `${env.FRONTEND_URL}/dashboard/subscription`,
   });
 }

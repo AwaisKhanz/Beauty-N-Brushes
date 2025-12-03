@@ -6,10 +6,20 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/shared/Logo';
 import { CheckCircle, Sparkles, ArrowRight } from 'lucide-react';
-import { ROUTES, TRIAL_PERIOD_DAYS } from '@/constants';
+import { ROUTES } from '@/constants';
+import { useSubscriptionConfig } from '@/hooks/useSubscriptionConfig';
 
 export default function OnboardingCompletePage() {
   const router = useRouter();
+  const { config: trialConfig } = useSubscriptionConfig();
+
+  // Calculate trial duration display
+  const trialDuration = trialConfig?.trialDurationDays || 60;
+  const trialMonths = Math.floor(trialDuration / 30);
+  const trialDays = trialDuration % 30;
+  const trialDisplay = trialMonths > 0 
+    ? `${trialMonths}-month${trialMonths > 1 ? 's' : ''}${trialDays > 0 ? ` ${trialDays} days` : ''}`
+    : `${trialDays} days`;
 
   useEffect(() => {
     // Auto-redirect after 5 seconds
@@ -50,7 +60,10 @@ export default function OnboardingCompletePage() {
               <ul className="space-y-3 text-sm text-muted-foreground">
                 <li className="flex items-center gap-2">
                   <CheckCircle className="h-4 w-4 text-primary" />
-                  Your {TRIAL_PERIOD_DAYS}-day free trial has started
+                  {trialConfig?.trialEnabled 
+                    ? `Your ${trialDisplay} free trial has started`
+                    : 'Your account is now active'
+                  }
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle className="h-4 w-4 text-primary" />

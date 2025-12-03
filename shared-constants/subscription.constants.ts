@@ -26,8 +26,6 @@ export const SUBSCRIPTION_TIERS = {
       'Multiple locations',
       'Advanced analytics',
       'Priority support',
-      'Custom branding',
-      'API access',
     ],
   },
 } as const;
@@ -38,3 +36,12 @@ export const TRIAL_PERIOD_DAYS = 60;
 export type SubscriptionTierKey =
   | typeof SUBSCRIPTION_TIERS.SOLO.key
   | typeof SUBSCRIPTION_TIERS.SALON.key;
+
+/**
+ * Get subscription tier information by key
+ * @param tierKey - 'solo' or 'salon'
+ * @returns Subscription tier details
+ */
+export function getTierInfo(tierKey: SubscriptionTierKey) {
+  return tierKey === 'solo' ? SUBSCRIPTION_TIERS.SOLO : SUBSCRIPTION_TIERS.SALON;
+}

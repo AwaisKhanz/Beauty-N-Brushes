@@ -288,7 +288,7 @@ export default function ClientBookingsPage() {
                           </>
                         )}
 
-                        {booking.bookingStatus === 'completed' && (
+                        {booking.bookingStatus === 'COMPLETED' && (
                           <>
                             <Button variant="default" size="sm" asChild>
                               <Link href={`/client/bookings/${booking.id}/review`}>

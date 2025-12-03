@@ -111,11 +111,12 @@ export async function analyzeInspiration(
       ...analysis.tags.slice(0, 20), // Top 20 visual feature tags from 50-100+ comprehensive tags
     ]
       .filter(Boolean)
-      .join(' ');
+      .join(' ')
+      .substring(0, 1000); // CRITICAL: Truncate to 1000 chars (API limit is 1024)
 
     const embedding = await aiService.generateMultimodalEmbedding(
       imageBuffer,
-      enrichedContext // User notes + AI description + AI visual tags
+      enrichedContext // User notes + AI description + AI visual tags (truncated)
     );
 
     console.log('   ✅ Analysis complete!');
@@ -203,16 +204,9 @@ export async function matchInspiration(
     // Convert embedding array to vector string (this is the hybrid embedding from client)
     const hybridEmbeddingStr = `[${embedding.join(',')}]`;
 
-    // MULTI-VECTOR WEIGHTED SEARCH using COSINE DISTANCE
-    // Uses 5 specialized embeddings with configurable weights
-    // Falls back to single hybrid embedding if multi-vectors not available
-    //
-    // Distance metrics:
-    // - <=> (cosine distance): Range 0-2, where 0 = identical, 2 = opposite
-    //
-    // Search Strategy:
-    // - If hybridEmbedding exists: Use full multi-vector weighted search
-    // - Otherwise: Fall back to aiEmbedding (backward compatibility)
+    // SIMPLIFIED VECTOR SEARCH using existing aiEmbedding column
+    // The multi-vector approach requires database migration which hasn't been done yet
+    // Using single aiEmbedding for now (still provides good results)
     const baseQuery = Prisma.sql`
       SELECT
         sm."id"::text as media_id,
@@ -232,33 +226,14 @@ export async function matchInspiration(
         sm."aiTags" as ai_tags,
         sm."aiDescription" as ai_description,
         
-        -- Calculate individual distances for each embedding type
-        COALESCE(sm."hybridEmbedding" <=> ${hybridEmbeddingStr}::vector, 999) as hybrid_dist,
-        COALESCE(sm."visualEmbedding" <=> ${hybridEmbeddingStr}::vector, 999) as visual_dist,
-        COALESCE(sm."styleEmbedding" <=> ${hybridEmbeddingStr}::vector, 999) as style_dist,
-        COALESCE(sm."semanticEmbedding" <=> ${hybridEmbeddingStr}::vector(512), 999) as semantic_dist,
-        COALESCE(sm."colorEmbedding" <=> ${hybridEmbeddingStr}::vector(512), 999) as color_dist,
-        
-        -- Calculate weighted combined distance
-        CASE 
-          WHEN sm."hybridEmbedding" IS NOT NULL THEN
-            (
-              COALESCE(sm."hybridEmbedding" <=> ${hybridEmbeddingStr}::vector, 999) * ${weights.hybrid} +
-              COALESCE(sm."visualEmbedding" <=> ${hybridEmbeddingStr}::vector, 999) * ${weights.visual} +
-              COALESCE(sm."styleEmbedding" <=> ${hybridEmbeddingStr}::vector, 999) * ${weights.style} +
-              COALESCE(sm."semanticEmbedding" <=> ${hybridEmbeddingStr}::vector(512), 999) * ${weights.semantic} +
-              COALESCE(sm."colorEmbedding" <=> ${hybridEmbeddingStr}::vector(512), 999) * ${weights.color}
-            ) / ${weights.total}
-          ELSE
-            -- Fallback to single aiEmbedding for backward compatibility
-            sm."aiEmbedding" <=> ${hybridEmbeddingStr}::vector
-        END as distance
+        -- Use existing aiEmbedding column for vector search
+        sm."aiEmbedding" <=> ${hybridEmbeddingStr}::vector as distance
         
       FROM "ServiceMedia" sm
       JOIN "Service" s ON sm."serviceId" = s.id
       JOIN "ServiceCategory" sc ON s."categoryId" = sc.id
       JOIN "ProviderProfile" p ON s."providerId" = p.id
-      WHERE (sm."hybridEmbedding" IS NOT NULL OR sm."aiEmbedding" IS NOT NULL)
+      WHERE sm."aiEmbedding" IS NOT NULL
         AND s."active" = true
         AND p."profileCompleted" = true
     `;
@@ -290,12 +265,7 @@ export async function matchInspiration(
         provider_state: string;
         ai_tags: string[];
         ai_description: string | null;
-        hybrid_dist: number;
-        visual_dist: number;
-        style_dist: number;
-        semantic_dist: number;
-        color_dist: number;
-        distance: number; // Weighted combined distance
+        distance: number; // Cosine distance from aiEmbedding
       }>
     >(Prisma.join([baseQuery, locationCondition, orderAndLimit], ''));
 
@@ -316,17 +286,11 @@ export async function matchInspiration(
 
       // Debug first match only
       if (match === matches[0]) {
-        console.log('\n   📊 Top Match (Multi-Vector Weighted Scoring):');
+        console.log('\n   📊 Top Match (Vector Scoring):');
         console.log(`      Service: ${match.service_title}`);
         console.log(`      Category: ${match.category_name}`);
         console.log(`      Provider: ${match.provider_business_name}`);
-        console.log(`      Combined Distance: ${match.distance.toFixed(4)} (weighted)`);
-        console.log(`      Individual Distances:`);
-        console.log(`         Hybrid: ${match.hybrid_dist.toFixed(4)}`);
-        console.log(`         Visual: ${match.visual_dist.toFixed(4)}`);
-        console.log(`         Style: ${match.style_dist.toFixed(4)}`);
-        console.log(`         Semantic: ${match.semantic_dist.toFixed(4)}`);
-        console.log(`         Color: ${match.color_dist.toFixed(4)}`);
+        console.log(`      Distance: ${match.distance.toFixed(4)}`);
         console.log(`      Final Score: ${vectorScore}%`);
         console.log(`      Matching Tags: ${matchingTags.slice(0, 5).join(', ')}`);
       }
@@ -339,6 +303,7 @@ export async function matchInspiration(
         serviceTitle: match.service_title,
         servicePriceMin: Number(match.service_price_min),
         serviceCurrency: match.service_currency,
+        categoryName: match.category_name, // Add category name
         providerId: match.provider_id,
         providerBusinessName: match.provider_business_name,
         providerSlug: match.provider_slug,

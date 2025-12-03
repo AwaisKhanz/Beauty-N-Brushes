@@ -25,7 +25,7 @@ export interface SubscriptionResult {
   paymentMethodId?: string;
   last4?: string;
   cardBrand?: string;
-  trialEndDate: Date;
+  trialEndDate: Date | null; // Null if trials are disabled
   nextBillingDate: Date;
   monthlyFee: number;
 }

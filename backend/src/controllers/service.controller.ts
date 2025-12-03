@@ -455,7 +455,7 @@ export async function searchServices(
         priceMin: priceMin ? parseFloat(priceMin as string) : undefined,
         priceMax: priceMax ? parseFloat(priceMax as string) : undefined,
         rating: rating ? parseFloat(rating as string) : undefined,
-        mobileService: mobileService === 'true',
+        mobileService: mobileService === 'true' ? true : mobileService === 'false' ? false : undefined,
         isSalon: isSalon === 'true' ? true : isSalon === 'false' ? false : undefined,
         availability: availability as string,
       },

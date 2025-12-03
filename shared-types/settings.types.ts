@@ -221,6 +221,11 @@ export interface GenerateBrandThemeResponse {
 // ================================
 
 export interface UpdateLocationRequest {
+  // Google Places fields
+  placeId?: string | null;
+  formattedAddress?: string | null;
+  addressComponents?: unknown;
+  // Standard address fields
   addressLine1?: string;
   addressLine2?: string | null;
   city?: string;
@@ -235,6 +240,11 @@ export interface UpdateLocationRequest {
 export interface LocationSettingsResponse {
   message: string;
   location: {
+    // Google Places fields
+    placeId: string | null;
+    formattedAddress: string | null;
+    addressComponents: unknown;
+    // Standard address fields
     addressLine1: string | null;
     addressLine2: string | null;
     city: string;

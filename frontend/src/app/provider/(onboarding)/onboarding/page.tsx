@@ -10,7 +10,7 @@ import { OnboardingStepper, type Step } from '@/components/onboarding/Onboarding
 import { Step1AccountType } from '@/components/onboarding/steps/Step1AccountType';
 import { Step2BusinessDetails } from '@/components/onboarding/steps/Step2BusinessDetails';
 import { Step3ProfileMedia } from '@/components/onboarding/steps/Step3ProfileMedia';
-import { Step4BrandCustomization } from '@/components/onboarding/steps/Step4BrandCustomization';
+// Step4BrandCustomization hidden for now
 import { Step5Policies } from '@/components/onboarding/steps/Step5Policies';
 import { Step6PaymentSetup } from '@/components/onboarding/steps/Step6PaymentSetup';
 import { Step8Availability } from '@/components/onboarding/steps/Step8Availability';
@@ -19,7 +19,6 @@ import type {
   CreateAccountTypeRequest,
   UpdateBusinessDetailsRequest,
   SaveProfileMediaRequest,
-  UpdateBrandCustomizationRequest,
   SavePoliciesRequest,
   SetupAvailabilityRequest,
 } from '../../../../../../shared-types';
@@ -98,15 +97,12 @@ export default function OnboardingPage() {
               completed = status.steps.profileMedia;
               break;
             case 4:
-              completed = status.steps.brandCustomization;
-              break;
-            case 5:
               completed = status.steps.policies;
               break;
-            case 6:
+            case 5:
               completed = status.steps.paymentSetup;
               break;
-            case 7:
+            case 6:
               completed = status.steps.availabilitySet;
               break;
           }
@@ -125,9 +121,9 @@ export default function OnboardingPage() {
           // Update localStorage to match server status
           localStorage.setItem(ONBOARDING_STORAGE_KEY, firstIncompleteStep.id.toString());
         } else {
-          // All steps completed, stay on step 7 or redirect to dashboard
-          setCurrentStep(7);
-          localStorage.setItem(ONBOARDING_STORAGE_KEY, '7');
+          // All steps completed, stay on step 6 or redirect to dashboard
+          setCurrentStep(6);
+          localStorage.setItem(ONBOARDING_STORAGE_KEY, '6');
         }
 
         // Set default values for prefilling
@@ -210,17 +206,13 @@ export default function OnboardingPage() {
           setDefaultValues((prev) => ({ ...prev, ...(data as SaveProfileMediaRequest) }));
           break;
         case 4:
-          await api.onboarding.updateBrandCustomization(data as UpdateBrandCustomizationRequest);
-          setDefaultValues((prev) => ({ ...prev, ...(data as UpdateBrandCustomizationRequest) }));
-          break;
-        case 5:
           await api.onboarding.savePolicies(data as SavePoliciesRequest);
           setDefaultValues((prev) => ({ ...prev, policies: data as SavePoliciesRequest }));
           break;
-        case 6:
+        case 5:
           // Payment handled by child component
           break;
-        case 7:
+        case 6:
           await api.onboarding.setupAvailability(data as SetupAvailabilityRequest);
           // Complete onboarding
           await api.onboarding.complete();
@@ -234,7 +226,7 @@ export default function OnboardingPage() {
       setSteps(updatedSteps);
 
       // Move to next step
-      if (stepId < 7) {
+      if (stepId < 6) {
         const nextStep = stepId + 1;
         setCurrentStep(nextStep);
         localStorage.setItem(ONBOARDING_STORAGE_KEY, nextStep.toString());
@@ -274,7 +266,7 @@ export default function OnboardingPage() {
       {/* Progress Bar */}
       <ProgressBar
         currentStep={currentStep}
-        totalSteps={7}
+        totalSteps={6}
         stepLabel={currentStepData?.label || ''}
       />
 
@@ -327,13 +319,10 @@ export default function OnboardingPage() {
           )}
 
           {currentStep === 4 && (
-            <Step4BrandCustomization
+            <Step5Policies
               defaultValues={{
-                brandColorPrimary: defaultValues.brandColorPrimary,
-                brandColorSecondary: defaultValues.brandColorSecondary,
-                brandColorAccent: defaultValues.brandColorAccent,
-                brandFontHeading: defaultValues.brandFontHeading,
-                brandFontBody: defaultValues.brandFontBody,
+                ...defaultValues.policies,
+                businessName: defaultValues.businessName,
               }}
               onNext={(data) => handleNext(4, data)}
               onBack={handleBack}
@@ -342,28 +331,17 @@ export default function OnboardingPage() {
           )}
 
           {currentStep === 5 && (
-            <Step5Policies
-              defaultValues={{
-                ...defaultValues.policies,
-                businessName: defaultValues.businessName,
-              }}
-              onNext={(data) => handleNext(5, data)}
+            <Step6PaymentSetup
+              subscriptionTier={defaultValues.accountType === 'salon' ? 'salon' : 'solo'}
+              country={defaultValues.country || 'US'}
+              onNext={() => handleNext(5, {})}
               onBack={handleBack}
-              isLoading={isSaving}
             />
           )}
 
           {currentStep === 6 && (
-            <Step6PaymentSetup
-              subscriptionTier={defaultValues.accountType === 'salon' ? 'salon' : 'solo'}
-              onNext={() => handleNext(6, {})}
-              onBack={handleBack}
-            />
-          )}
-
-          {currentStep === 7 && (
             <Step8Availability
-              onNext={(data) => handleNext(7, data)}
+              onNext={(data) => handleNext(6, data)}
               onBack={handleBack}
               isLoading={isSaving}
             />

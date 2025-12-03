@@ -10,7 +10,7 @@ import { AppError } from '../middleware/errorHandler';
  */
 export async function attachProviderContext(
   req: AuthRequest,
-  res: Response,
+  _res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
@@ -38,7 +38,7 @@ export async function attachProviderContext(
 export function requirePermission(
   permission: 'team' | 'finances' | 'settings' | 'bookings' | 'services'
 ) {
-  return async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  return async (req: AuthRequest, _res: Response, next: NextFunction): Promise<void> => {
     try {
       const context = (req as any).providerContext as ProviderContext;
 
@@ -62,7 +62,7 @@ export function requirePermission(
  */
 export async function requireOwner(
   req: AuthRequest,
-  res: Response,
+  _res: Response,
   next: NextFunction
 ): Promise<void> {
   try {

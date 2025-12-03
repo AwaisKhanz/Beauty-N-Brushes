@@ -45,14 +45,21 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
+import { LocationAutocomplete } from '@/components/location/LocationAutocomplete';
 import type {
   CreateLocationRequest,
   UpdateLocationManagementRequest,
   ProviderLocation,
 } from '@/shared-types/location.types';
+import type { LocationData } from '@/shared-types/google-places.types';
 
 const locationSchema = z.object({
   name: z.string().max(255).optional(),
+  // Google Places fields
+  placeId: z.string().optional(),
+  formattedAddress: z.string().optional(),
+  addressComponents: z.unknown().optional(),
+  // Standard address fields
   addressLine1: z.string().min(1, 'Address is required').max(255),
   addressLine2: z.string().max(255).optional().or(z.literal('')),
   city: z.string().min(1, 'City is required').max(100),
@@ -60,6 +67,8 @@ const locationSchema = z.object({
   zipCode: z.string().min(1, 'Zip code is required').max(20),
   country: z.string().min(1, 'Country is required').max(50),
   businessPhone: z.string().max(20).optional().or(z.literal('')),
+  latitude: z.number().optional().nullable(),
+  longitude: z.number().optional().nullable(),
   isPrimary: z.boolean().optional(),
 });
 
@@ -79,6 +88,9 @@ export default function LocationsPage() {
     resolver: zodResolver(locationSchema),
     defaultValues: {
       name: '',
+      placeId: '',
+      formattedAddress: '',
+      addressComponents: undefined,
       addressLine1: '',
       addressLine2: '',
       city: '',
@@ -86,6 +98,8 @@ export default function LocationsPage() {
       zipCode: '',
       country: 'US',
       businessPhone: '',
+      latitude: null,
+      longitude: null,
       isPrimary: false,
     },
   });
@@ -112,6 +126,9 @@ export default function LocationsPage() {
     setEditingLocation(null);
     form.reset({
       name: '',
+      placeId: '',
+      formattedAddress: '',
+      addressComponents: undefined,
       addressLine1: '',
       addressLine2: '',
       city: '',
@@ -119,6 +136,8 @@ export default function LocationsPage() {
       zipCode: '',
       country: 'US',
       businessPhone: '',
+      latitude: null,
+      longitude: null,
       isPrimary: false,
     });
     setIsDialogOpen(true);
@@ -128,13 +147,18 @@ export default function LocationsPage() {
     setEditingLocation(location);
     form.reset({
       name: location.name || '',
+      placeId: location.placeId || '',
+      formattedAddress: location.formattedAddress || '',
+      addressComponents: location.addressComponents,
       addressLine1: location.addressLine1,
-      addressLine2: location.addressLine2 || '',
+      addressLine2: location.addressLine2 || undefined,
       city: location.city,
       state: location.state,
-      zipCode: location.zipCode,
+      zipCode: location.zipCode || '', // Convert null to empty string for required form field
       country: location.country,
-      businessPhone: location.businessPhone || '',
+      businessPhone: location.businessPhone || undefined,
+      latitude: location.latitude || undefined,
+      longitude: location.longitude || undefined,
       isPrimary: location.isPrimary,
     });
     setIsDialogOpen(true);
@@ -158,6 +182,20 @@ export default function LocationsPage() {
     }
   }
 
+  const handleLocationSelect = (location: LocationData) => {
+    // Update all address fields from Google Places data
+    form.setValue('placeId', location.placeId);
+    form.setValue('formattedAddress', location.formattedAddress);
+    form.setValue('addressComponents', location.addressComponents as unknown as Record<string, unknown>);
+    form.setValue('addressLine1', location.addressLine1);
+    form.setValue('city', location.city);
+    form.setValue('state', location.state);
+    form.setValue('zipCode', location.zipCode);
+    form.setValue('country', location.country);
+    form.setValue('latitude', location.latitude);
+    form.setValue('longitude', location.longitude);
+  };
+
   async function onSubmit(values: LocationFormValues) {
     try {
       setSaving(true);
@@ -167,6 +205,11 @@ export default function LocationsPage() {
       if (editingLocation) {
         const updateData: UpdateLocationManagementRequest = {
           name: values.name || undefined,
+          // Google Places fields
+          placeId: values.placeId,
+          formattedAddress: values.formattedAddress,
+          addressComponents: values.addressComponents as any,
+          // Standard fields
           addressLine1: values.addressLine1,
           addressLine2: values.addressLine2 || null,
           city: values.city,
@@ -174,6 +217,8 @@ export default function LocationsPage() {
           zipCode: values.zipCode,
           country: values.country,
           businessPhone: values.businessPhone || null,
+          latitude: values.latitude,
+          longitude: values.longitude,
           isPrimary: values.isPrimary || false,
           isActive: true,
         };
@@ -182,6 +227,11 @@ export default function LocationsPage() {
       } else {
         const createData: CreateLocationRequest = {
           name: values.name || undefined,
+          // Google Places fields
+          placeId: values.placeId,
+          formattedAddress: values.formattedAddress,
+          addressComponents: values.addressComponents as any,
+          // Standard fields
           addressLine1: values.addressLine1,
           addressLine2: values.addressLine2 || null,
           city: values.city,
@@ -189,6 +239,8 @@ export default function LocationsPage() {
           zipCode: values.zipCode,
           country: values.country,
           businessPhone: values.businessPhone || null,
+          latitude: values.latitude,
+          longitude: values.longitude,
           isPrimary: values.isPrimary || false,
         };
         await api.locations.create(createData);
@@ -281,12 +333,16 @@ export default function LocationsPage() {
                       )}
                     </CardTitle>
                     <CardDescription className="mt-2">
-                      {location.addressLine1}
-                      {location.addressLine2 && `, ${location.addressLine2}`}
-                      <br />
-                      {location.city}, {location.state} {location.zipCode}
-                      <br />
-                      {location.country}
+                      {location.formattedAddress || (
+                        <>
+                          {location.addressLine1}
+                          {location.addressLine2 && `, ${location.addressLine2}`}
+                          <br />
+                          {location.city}, {location.state} {location.zipCode}
+                          <br />
+                          {location.country}
+                        </>
+                      )}
                     </CardDescription>
                   </div>
                 </div>
@@ -352,20 +408,18 @@ export default function LocationsPage() {
                 )}
               />
 
-              {/* Address Line 1 */}
-              <FormField
-                control={form.control}
-                name="addressLine1"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Address Line 1 *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="123 Main Street" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {/* Google Places Autocomplete */}
+              <div className="space-y-2">
+                <FormLabel>Business Address *</FormLabel>
+                <LocationAutocomplete
+                  onLocationSelect={handleLocationSelect}
+                  defaultValue={form.watch('formattedAddress') || ''}
+                  placeholder="Search for your business address..."
+                />
+                <FormDescription>
+                  Start typing to search for your address using Google Places
+                </FormDescription>
+              </div>
 
               {/* Address Line 2 */}
               <FormField
@@ -382,7 +436,7 @@ export default function LocationsPage() {
                 )}
               />
 
-              {/* City, State, Zip */}
+              {/* City, State, Zip - Read-only */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
@@ -391,7 +445,7 @@ export default function LocationsPage() {
                     <FormItem>
                       <FormLabel>City *</FormLabel>
                       <FormControl>
-                        <Input placeholder="New York" {...field} />
+                        <Input {...field} readOnly className="bg-muted" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -405,7 +459,7 @@ export default function LocationsPage() {
                     <FormItem>
                       <FormLabel>State/Province *</FormLabel>
                       <FormControl>
-                        <Input placeholder="NY" {...field} />
+                        <Input {...field} readOnly className="bg-muted" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -419,7 +473,7 @@ export default function LocationsPage() {
                     <FormItem>
                       <FormLabel>Zip/Postal Code *</FormLabel>
                       <FormControl>
-                        <Input placeholder="10001" {...field} />
+                        <Input {...field} readOnly className="bg-muted" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -427,7 +481,7 @@ export default function LocationsPage() {
                 />
               </div>
 
-              {/* Country */}
+              {/* Country - Read-only */}
               <FormField
                 control={form.control}
                 name="country"
@@ -435,9 +489,9 @@ export default function LocationsPage() {
                   <FormItem>
                     <FormLabel>Country *</FormLabel>
                     <FormControl>
-                      <Input placeholder="US" {...field} />
+                      <Input {...field} readOnly className="bg-muted" />
                     </FormControl>
-                    <FormDescription>2-letter country code (e.g., US, GH, NG)</FormDescription>
+                    <FormDescription>Auto-populated from address</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

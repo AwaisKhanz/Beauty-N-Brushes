@@ -33,7 +33,7 @@ import { CancelBookingModal } from '@/components/booking/CancelBookingModal';
 import { RebookServiceModal } from '@/components/booking/RebookServiceModal';
 import { TipPaymentModal } from '@/components/booking/TipPaymentModal';
 import { BookingPhotos } from '@/components/booking/BookingPhotos';
-import { exportBookingToCalendar } from '@/lib/calendar-export';
+// import { exportBookingToCalendar } from '@/lib/calendar-export'; // TODO: Add export to calendar feature
 import { toast } from 'sonner';
 
 export default function ClientBookingDetailPage() {
@@ -93,25 +93,26 @@ export default function ClientBookingDetailPage() {
     setTipPaymentModalOpen(true);
   }
 
-  function handleExportToCalendar() {
-    if (booking) {
-      exportBookingToCalendar(booking);
-      toast.success('Added to calendar');
-    }
-  }
+  // TODO: Add export to calendar button
+  // function handleExportToCalendar() {
+  //   if (booking) {
+  //     exportBookingToCalendar(booking);
+  //     toast.success('Added to calendar');
+  //   }
+  // }
 
   function getStatusColor(status: string) {
     switch (status) {
-      case 'pending':
+      case 'PENDING':
         return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'confirmed':
+      case 'CONFIRMED':
         return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'completed':
+      case 'COMPLETED':
         return 'bg-green-100 text-green-800 border-green-200';
-      case 'cancelled_by_client':
-      case 'cancelled_by_provider':
+      case 'CANCELLED_BY_CLIENT':
+      case 'CANCELLED_BY_PROVIDER':
         return 'bg-red-100 text-red-800 border-red-200';
-      case 'no_show':
+      case 'NO_SHOW':
         return 'bg-gray-100 text-gray-800 border-gray-200';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
@@ -120,16 +121,16 @@ export default function ClientBookingDetailPage() {
 
   function getStatusIcon(status: string) {
     switch (status) {
-      case 'pending':
+      case 'PENDING':
         return <Clock className="h-4 w-4" />;
-      case 'confirmed':
+      case 'CONFIRMED':
         return <CheckCircle className="h-4 w-4" />;
-      case 'completed':
+      case 'COMPLETED':
         return <CheckCircle className="h-4 w-4" />;
-      case 'cancelled_by_client':
-      case 'cancelled_by_provider':
+      case 'CANCELLED_BY_CLIENT':
+      case 'CANCELLED_BY_PROVIDER':
         return <X className="h-4 w-4" />;
-      case 'no_show':
+      case 'NO_SHOW':
         return <AlertCircle className="h-4 w-4" />;
       default:
         return <Clock className="h-4 w-4" />;
@@ -192,18 +193,18 @@ export default function ClientBookingDetailPage() {
     );
   }
 
-  const canReschedule = ['pending', 'confirmed'].includes(booking.bookingStatus);
-  const canCancel = ['pending', 'confirmed'].includes(booking.bookingStatus);
+  const canReschedule = ['PENDING', 'CONFIRMED'].includes(booking.bookingStatus);
+  const canCancel = ['PENDING', 'CONFIRMED'].includes(booking.bookingStatus);
   const canPayBalance =
-    booking.bookingStatus === 'confirmed' && booking.totalAmount - booking.depositAmount > 0;
+    booking.bookingStatus === 'CONFIRMED' && booking.totalAmount - booking.depositAmount > 0;
   const canRebook = [
-    'completed',
-    'cancelled_by_client',
-    'cancelled_by_provider',
-    'no_show',
+    'COMPLETED',
+    'CANCELLED_BY_CLIENT',
+    'CANCELLED_BY_PROVIDER',
+    'NO_SHOW',
   ].includes(booking.bookingStatus);
-  const canReview = booking.bookingStatus === 'completed';
-  const canTip = booking.bookingStatus === 'completed' && booking.tipAmount === 0;
+  const canReview = booking.bookingStatus === 'COMPLETED';
+  const canTip = booking.bookingStatus === 'COMPLETED' && booking.tipAmount === 0;
 
   return (
     <div className="space-y-6">
@@ -214,10 +215,6 @@ export default function ClientBookingDetailPage() {
           Back to Bookings
         </Button>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handleExportToCalendar} className="gap-2">
-            <Calendar className="h-4 w-4" />
-            Add to Calendar
-          </Button>
           <Button
             variant="outline"
             className="gap-2"
@@ -315,7 +312,7 @@ export default function ClientBookingDetailPage() {
             <BookingPhotos
               bookingId={booking.id}
               photos={booking.photos}
-              canUpload={['confirmed', 'completed'].includes(booking.bookingStatus)}
+              canUpload={['CONFIRMED', 'COMPLETED'].includes(booking.bookingStatus)}
               canDelete={true}
               onUpdate={fetchBooking}
             />
@@ -351,7 +348,7 @@ export default function ClientBookingDetailPage() {
                   <div className="flex items-center gap-2 text-sm">
                     <Phone className="h-4 w-4 text-muted-foreground" />
                     <span>
-                      {booking.bookingStatus === 'confirmed'
+                      {booking.bookingStatus === 'CONFIRMED'
                         ? booking.provider?.businessPhone || 'Not provided'
                         : 'Available after booking confirmation'}
                     </span>

@@ -16,6 +16,7 @@ import { AlertCircle, Check, Loader2, TrendingUp, TrendingDown } from 'lucide-re
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
 import type { ChangeTierRequest } from '@/shared-types/settings.types';
+import { SUBSCRIPTION_TIERS } from '@/constants';
 
 interface ChangeTierModalProps {
   open: boolean;
@@ -27,29 +28,14 @@ interface ChangeTierModalProps {
 
 const TIER_INFO = {
   solo: {
-    name: 'Solo Professional',
-    price: 19,
-    features: [
-      'Personal booking page',
-      'Unlimited services',
-      'Calendar integration',
-      'Client messaging',
-      'Analytics dashboard',
-      'Mobile app access',
-    ],
+    name: SUBSCRIPTION_TIERS.SOLO.name,
+    price: SUBSCRIPTION_TIERS.SOLO.monthlyPriceUSD,
+    features: SUBSCRIPTION_TIERS.SOLO.features,
   },
   salon: {
-    name: 'Salon',
-    price: 49,
-    features: [
-      'Everything in Solo, plus:',
-      'Multiple team members (up to 10)',
-      'Team management dashboard',
-      'Individual stylist profiles',
-      'Team performance analytics',
-      'Centralized booking management',
-      'Priority support',
-    ],
+    name: SUBSCRIPTION_TIERS.SALON.name,
+    price: SUBSCRIPTION_TIERS.SALON.monthlyPriceUSD,
+    features: SUBSCRIPTION_TIERS.SALON.features,
   },
 };
 

@@ -50,6 +50,7 @@ export interface InspirationMatch {
   serviceTitle: string;
   servicePriceMin: number;
   serviceCurrency: string;
+  categoryName?: string; // Service category name
 
   // Provider Info
   providerId: string;

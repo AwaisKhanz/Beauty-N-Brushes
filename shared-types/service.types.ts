@@ -172,6 +172,7 @@ export interface Service {
   subcategory?: ServiceCategory | null;
   addons: ServiceAddon[];
   media: ServiceMedia[];
+  featuredImage?: ServiceMedia;
   _count?: {
     bookings: number;
   };

@@ -15,6 +15,7 @@ import type {
   ChangeTierRequest,
   CancelSubscriptionRequest,
 } from '../../../shared-types';
+import { SUBSCRIPTION_TIERS } from '../../../shared-constants';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
   apiVersion: '2023-10-16',
@@ -975,7 +976,7 @@ class SettingsService {
     }
 
     // Calculate new monthly fee
-    const newMonthlyFee = data.newTier === 'solo' ? 19.0 : 49.0;
+    const newMonthlyFee = data.newTier === 'solo' ? SUBSCRIPTION_TIERS.SOLO.monthlyPriceUSD : SUBSCRIPTION_TIERS.SALON.monthlyPriceUSD;
 
     // Update subscription in payment provider
     if (profile.paymentProvider === 'STRIPE' && profile.stripeSubscriptionId) {

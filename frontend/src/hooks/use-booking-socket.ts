@@ -12,7 +12,7 @@ interface BookingSocketData {
   type: string;
   booking: {
     id: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
   timestamp?: string;
 }
@@ -168,15 +168,16 @@ export function useBookingSocket() {
 
   // Handle booking photo added event
   const handleBookingPhotoAdded = useCallback((data: BookingSocketData) => {
+    const photoType = (data.booking.photoType as string) || 'booking';
     toast({
       title: 'New Photo Added',
-      description: `${data.booking.uploaderName} added a ${data.booking.photoType.toLowerCase()} photo`,
+      description: `${data.booking.uploaderName} added a ${photoType.toLowerCase()} photo`,
       variant: 'default',
     });
 
     // Invalidate bookings query
     invalidateBooking(data.booking.id);
-  }, [toast, invalidateBookings, invalidateBooking]);
+  }, [toast, invalidateBooking]);
 
   // Set up Socket.IO listeners
   useEffect(() => {

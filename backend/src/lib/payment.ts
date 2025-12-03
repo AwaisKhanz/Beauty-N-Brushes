@@ -10,7 +10,6 @@ import {
   REGIONS,
   REGIONAL_SERVICE_FEES,
   SUBSCRIPTION_TIERS,
-  TRIAL_PERIOD_DAYS,
   EXCHANGE_RATES,
 } from '../../../shared-constants';
 
@@ -55,6 +54,27 @@ export function getRegionalCurrency(regionCode: RegionCode): string {
 }
 
 /**
+ * Convert currency amount
+ */
+export function convertCurrency(amount: number, fromCurrency: string, toCurrency: string): number {
+  if (fromCurrency === toCurrency) {
+    return amount;
+  }
+
+  const rateKey = `${fromCurrency}_${toCurrency}`;
+  // Use type assertion or check if key exists in EXCHANGE_RATES
+  const rate = (EXCHANGE_RATES as any)[rateKey];
+
+  if (!rate) {
+    // Fallback or throw error if conversion rate is not found
+    console.warn(`No exchange rate found for ${fromCurrency} to ${toCurrency}. Returning original amount.`);
+    return amount;
+  }
+
+  return amount * rate;
+}
+
+/**
  * Stripe Service for subscription management
  */
 export class StripeService {
@@ -72,6 +92,7 @@ export class StripeService {
 
   /**
    * Create provider subscription
+   * @param trialDurationDays - Optional trial duration in days. If not provided, no trial is applied.
    */
   async createProviderSubscription(
     email: string,
@@ -79,7 +100,9 @@ export class StripeService {
     lastName: string,
     paymentMethodId: string,
     tier: SubscriptionTier,
-    providerId: string
+    providerId: string,
+    trialDurationDays?: number | null,
+    existingCustomerId?: string
   ): Promise<SubscriptionResult> {
     // Determine monthly fee from shared constants
     const monthlyFee =
@@ -95,65 +118,99 @@ export class StripeService {
       throw new Error(`Stripe price ID not configured for ${tier} tier`);
     }
 
-    // Attach payment method to customer first (required by Stripe)
-    // First create customer
-    const customer = await this.stripe.customers.create({
-      email,
-      name: `${firstName} ${lastName}`,
+    let customerId = existingCustomerId;
+
+    // If no existing customer, create one and attach payment method
+    if (!customerId) {
+      // Create customer
+      const customer = await this.stripe.customers.create({
+        email,
+        name: `${firstName} ${lastName}`,
+        metadata: {
+          providerId,
+          tier,
+        },
+      });
+      customerId = customer.id;
+
+      // Attach payment method to customer
+      await this.stripe.paymentMethods.attach(paymentMethodId, {
+        customer: customerId,
+      });
+    } else {
+      // If using existing customer, payment method should already be attached via SetupIntent
+      // But we verify/attach just in case it's not (e.g. if passed directly)
+      try {
+        const paymentMethod = await this.stripe.paymentMethods.retrieve(paymentMethodId);
+        if (paymentMethod.customer !== customerId) {
+          await this.stripe.paymentMethods.attach(paymentMethodId, {
+            customer: customerId,
+          });
+        }
+      } catch (error) {
+        // Ignore "already attached" errors if it's the same customer
+        // If it's a different customer, Stripe will throw and we let it bubble up
+        console.log('Payment method attachment check:', error);
+      }
+    }
+
+    // Set as default payment method
+    await this.stripe.customers.update(customerId, {
+      invoice_settings: {
+        default_payment_method: paymentMethodId,
+      },
       metadata: {
         providerId,
         tier,
       },
     });
 
-    // Attach payment method to customer
-    await this.stripe.paymentMethods.attach(paymentMethodId, {
-      customer: customer.id,
-    });
-
-    // Set as default payment method
-    await this.stripe.customers.update(customer.id, {
-      invoice_settings: {
-        default_payment_method: paymentMethodId,
-      },
-    });
-
-    // Create subscription with trial period from shared constants
+    // Create subscription with optional trial period
     // Payment method is already attached and set as default, so subscription will charge after trial
-    const subscription = await this.stripe.subscriptions.create(
-      {
-        customer: customer.id,
-        items: [{ price: priceId }],
-        trial_period_days: TRIAL_PERIOD_DAYS,
-        payment_behavior: 'default_incomplete', // Best practice: handle failed payments properly
-        trial_settings: {
-          end_behavior: {
-            missing_payment_method: 'cancel', // Auto-cancel if no payment method at trial end
-          },
-        },
-        expand: ['latest_invoice.payment_intent'],
-        metadata: {
-          providerId,
-          tier,
-        },
+    const subscriptionParams: Stripe.SubscriptionCreateParams = {
+      customer: customerId,
+      items: [{ price: priceId }],
+      // If no trial, charge immediately. If trial, defer payment until trial ends
+      payment_behavior: trialDurationDays && trialDurationDays > 0 ? 'default_incomplete' : 'allow_incomplete',
+      expand: ['latest_invoice.payment_intent'],
+      metadata: {
+        providerId,
+        tier,
       },
+    };
+
+    // Add trial period if provided
+    if (trialDurationDays && trialDurationDays > 0) {
+      subscriptionParams.trial_period_days = trialDurationDays;
+      subscriptionParams.trial_settings = {
+        end_behavior: {
+          missing_payment_method: 'cancel', // Auto-cancel if no payment method at trial end
+        },
+      };
+    }
+
+    const subscription = await this.stripe.subscriptions.create(
+      subscriptionParams,
       {
-        idempotencyKey: `subscription_${providerId}_${tier}`, // Prevent duplicate subscriptions
+        idempotencyKey: `subscription_${providerId}_${tier}_${Date.now()}`, // Prevent duplicate subscriptions but allow retries
       }
     );
 
     // Get payment method details
     const paymentMethod = await this.stripe.paymentMethods.retrieve(paymentMethodId);
 
-    // Calculate trial end date from shared constants
-    const trialEndDate = new Date();
-    trialEndDate.setDate(trialEndDate.getDate() + TRIAL_PERIOD_DAYS);
+    // Calculate trial end date based on provided duration
+    let trialEndDate: Date | null = null;
+    if (trialDurationDays && trialDurationDays > 0) {
+      trialEndDate = new Date();
+      trialEndDate.setDate(trialEndDate.getDate() + trialDurationDays);
+    }
 
-    // Next billing date is same as trial end date
-    const nextBillingDate = new Date(trialEndDate);
+    // Next billing date is same as trial end date (or now if no trial)
+    const nextBillingDate = trialEndDate ? new Date(trialEndDate) : new Date();
 
     return {
-      customerId: customer.id,
+      customerId: customerId,
       subscriptionId: subscription.id,
       paymentMethodId: paymentMethodId,
       last4: paymentMethod.card?.last4,
@@ -202,6 +259,7 @@ export class PaystackService {
   /**
    * Create provider subscription
    * This method now properly creates a Paystack subscription with authorization code
+   * @param trialDurationDays - Optional trial duration in days. If not provided, no trial is applied.
    */
   async createProviderSubscription(
     email: string,
@@ -210,7 +268,8 @@ export class PaystackService {
     tier: SubscriptionTier,
     regionCode: RegionCode,
     providerId: string,
-    authorizationCode?: string // Authorization code from payment transaction
+    authorizationCode?: string, // Authorization code from payment transaction
+    trialDurationDays?: number | null
   ): Promise<SubscriptionResult> {
     // Determine monthly fee in local currency from shared constants
     const baseMonthlyFee =
@@ -334,15 +393,18 @@ export class PaystackService {
       }
     }
 
-    // Calculate trial end date from shared constants
-    const trialEndDate = new Date();
-    trialEndDate.setDate(trialEndDate.getDate() + TRIAL_PERIOD_DAYS);
+    // Calculate trial end date based on provided duration
+    let trialEndDate: Date | null = null;
+    if (trialDurationDays && trialDurationDays > 0) {
+      trialEndDate = new Date();
+      trialEndDate.setDate(trialEndDate.getDate() + trialDurationDays);
+    }
 
     // If authorization code is provided, create subscription immediately
     // Otherwise, return customer and plan info for later subscription creation
     let subscriptionCode = '';
     let emailToken = '';
-    let nextBillingDate = trialEndDate;
+    let nextBillingDate = trialEndDate || new Date(); // Use now if no trial
 
     if (authorizationCode) {
       // Create subscription with authorization code
@@ -356,7 +418,7 @@ export class PaystackService {
           customer: customerCode,
           plan: planCode,
           authorization: authorizationCode,
-          start_date: trialEndDate.toISOString(), // Start billing after trial
+          start_date: trialEndDate ? trialEndDate.toISOString() : new Date().toISOString(), // Start billing immediately if no trial
         }),
       });
 

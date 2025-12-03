@@ -34,7 +34,7 @@ export default function LeaveReviewPage() {
       setBooking(res.data.booking);
 
       // Check if booking is eligible for review
-      if (res.data.booking.bookingStatus !== 'completed') {
+      if (res.data.booking.bookingStatus !== 'COMPLETED') {
         setError('You can only review completed bookings');
       }
     } catch (err: unknown) {

@@ -195,9 +195,9 @@ export default function ProviderBookingDetailPage() {
     );
   }
 
-  const canConfirm = booking.bookingStatus === 'pending';
-  const canMarkCompleted = booking.bookingStatus === 'confirmed';
-  const canMarkNoShow = ['pending', 'confirmed'].includes(booking.bookingStatus);
+  const canConfirm = booking.bookingStatus === 'PENDING';
+  const canMarkCompleted = booking.bookingStatus === 'CONFIRMED';
+  const canMarkNoShow = ['PENDING', 'CONFIRMED'].includes(booking.bookingStatus);
 
   return (
     <div className="space-y-6">

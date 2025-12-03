@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { toast } from 'sonner';
-import { Mail, Lock, ArrowRight } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Info } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Logo } from '@/components/shared/Logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,13 +33,19 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
+
+  // Extract invitation context from URL
+  const invitationId = searchParams.get('invitation');
+  const invitedEmail = searchParams.get('email');
+  const salonName = searchParams.get('salon');
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: '',
+      email: invitedEmail || '',
       password: '',
     },
   });
@@ -48,6 +55,19 @@ export default function LoginPage() {
       setLoading(true);
 
       const user = await login({ email: values.email, password: values.password });
+
+      // If from invitation, validate email and redirect
+      if (invitationId && invitedEmail) {
+        if (user.email.toLowerCase() !== invitedEmail.toLowerCase()) {
+          toast.error('Email mismatch', {
+            description: `Please log in with ${invitedEmail} to accept this invitation`,
+          });
+          return;
+        }
+        // Redirect to invitation page
+        router.push(`/team/accept-invitation/${invitationId}`);
+        return;
+      }
 
       // Check if there's a redirect URL stored (from failed API calls)
       const redirectUrl = localStorage.getItem('redirectAfterLogin');
@@ -70,6 +90,19 @@ export default function LoginPage() {
 
   return (
     <div className="space-y-8">
+      {/* Invitation Alert */}
+      {invitationId && salonName && invitedEmail && (
+        <Alert className="border-blue-200 bg-blue-50">
+          <Info className="h-4 w-4 text-blue-600" />
+          <div>
+            <AlertDescription>
+              Log in with <strong>{invitedEmail}</strong> to accept your team invitation to{' '}
+              <strong>{salonName}</strong>
+            </AlertDescription>
+          </div>
+        </Alert>
+      )}
+
       {/* Header */}
       <div className="space-y-2 text-center">
         <h1 className="text-3xl font-heading font-bold text-foreground tracking-tight">
@@ -90,9 +123,9 @@ export default function LoginPage() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel className="text-sm font-medium">Email Address</FormLabel>
-                <FormControl>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <FormControl>
                     <Input
                       type="email"
                       placeholder="you@example.com"
@@ -100,8 +133,8 @@ export default function LoginPage() {
                       {...field}
                       disabled={loading}
                     />
-                  </div>
-                </FormControl>
+                  </FormControl>
+                </div>
                 <FormMessage />
               </FormItem>
             )}
@@ -121,9 +154,9 @@ export default function LoginPage() {
                     Forgot password?
                   </Link>
                 </div>
-                <FormControl>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <FormControl>
                     <Input
                       type="password"
                       placeholder="••••••••"
@@ -131,8 +164,8 @@ export default function LoginPage() {
                       {...field}
                       disabled={loading}
                     />
-                  </div>
-                </FormControl>
+                  </FormControl>
+                </div>
                 <FormMessage />
               </FormItem>
             )}
@@ -140,10 +173,10 @@ export default function LoginPage() {
 
           <Button type="submit" variant="dark" className="w-full h-11" disabled={loading}>
             {loading ? (
-              <>
+              <span className="flex items-center">
                 <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-button-dark-foreground border-t-transparent" />
                 Signing in...
-              </>
+              </span>
             ) : (
               'Sign In'
             )}

@@ -12,7 +12,6 @@ import {
   ChevronRight,
   // Palette, // Temporarily hidden with Branding
   MapPin,
-  FileText,
 } from 'lucide-react';
 import Link from 'next/link';
 

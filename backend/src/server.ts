@@ -47,7 +47,7 @@ import financeRoutes from './routes/finance.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import clientManagementRoutes from './routes/client-management.routes';
 import locationRoutes from './routes/location.routes';
-import subscriptionRoutes from './routes/subscription.routes';
+import regionRoutes from './routes/region.routes';
 
 const app: Application = express();
 const PORT = process.env.PORT || 8000;
@@ -146,7 +146,6 @@ app.use('/api/v1/instagram', instagramRoutes);
 app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/upload', uploadRoutes);
 app.use('/api/v1/payment', paymentRoutes);
-app.use('/api/v1/subscription', subscriptionRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/calendar', calendarRoutes);
 app.use('/api/v1/inspiration', inspirationRoutes);
@@ -164,6 +163,7 @@ app.use('/api/v1/saved-searches', savedSearchRoutes);
 app.use('/api/v1/finance', financeRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/clients', clientManagementRoutes);
+app.use('/api/v1/region', regionRoutes);
 
 // 404 handler
 app.use(notFoundHandler);

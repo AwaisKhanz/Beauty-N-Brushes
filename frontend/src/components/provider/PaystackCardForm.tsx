@@ -4,8 +4,10 @@ import { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, CreditCard, Loader2 } from 'lucide-react';
+import { SUBSCRIPTION_TIERS } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
+import { useSubscriptionConfig } from '@/hooks/useSubscriptionConfig';
 
 interface PaystackCardFormProps {
   regionCode: string;
@@ -21,6 +23,17 @@ export default function PaystackCardForm({
   const { user } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  
+  // Get dynamic trial configuration
+  const { config: trialConfig } = useSubscriptionConfig();
+  
+  // Calculate trial duration display
+  const trialDuration = trialConfig?.trialDurationDays || 60;
+  const trialMonths = Math.floor(trialDuration / 30);
+  const trialDays = trialDuration % 30;
+  const trialDisplay = trialMonths > 0 
+    ? `${trialMonths}-month${trialMonths > 1 ? 's' : ''}${trialDays > 0 ? ` ${trialDays} days` : ''}`
+    : `${trialDays} days`;
 
   const handlePaystackSetup = async () => {
     if (!user?.email) {
@@ -35,7 +48,7 @@ export default function PaystackCardForm({
       // Calculate subscription amount in local currency
       // Solo: $19 USD = ~₵237.50 GHS or ~₦29,450 NGN
       // Salon: $49 USD = ~₵612.50 GHS or ~₦75,975 NGN
-      const baseAmount = subscriptionTier === 'solo' ? 19 : 49;
+      const baseAmount = subscriptionTier === 'solo' ? SUBSCRIPTION_TIERS.SOLO.monthlyPriceUSD : SUBSCRIPTION_TIERS.SALON.monthlyPriceUSD;
       const exchangeRate = regionCode === 'GH' ? 12.5 : 1550; // GHS:NGN exchange rates
       const amount = baseAmount * exchangeRate;
 
@@ -70,7 +83,9 @@ export default function PaystackCardForm({
           <CreditCard className="h-5 w-5" />
           Payment Setup - Paystack
         </CardTitle>
-        <CardDescription>Start your free trial with Paystack</CardDescription>
+        <CardDescription>
+          {trialConfig?.trialEnabled ? `Start your ${trialDisplay} free trial with Paystack` : 'Setup payment with Paystack'}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-6">
@@ -81,8 +96,10 @@ export default function PaystackCardForm({
               <p className="font-medium">Secure Payment Setup</p>
             </div>
             <p>
-              Complete payment to start your 2-month free trial. Your card will be charged after
-              the trial period ends.
+              {trialConfig?.trialEnabled 
+                ? `Complete payment to start your ${trialDisplay} free trial. Your card will be charged after the trial period ends.`
+                : 'Complete payment to activate your account. Your card will be charged immediately.'
+              }
             </p>
             <p className="text-xs mt-2 text-muted-foreground">
               Secure payment powered by Paystack. Cancel anytime.
@@ -97,10 +114,21 @@ export default function PaystackCardForm({
 
           <div className="border-t pt-6">
             <div className="space-y-2 text-sm text-muted-foreground mb-6">
-              <p>• 2-month free trial period</p>
-              <p>• Payment method required for setup</p>
-              <p>• Charged after trial ends</p>
-              <p>• Cancel anytime during trial</p>
+              {trialConfig?.trialEnabled ? (
+                <>
+                  <p>• {trialDisplay} free trial period</p>
+                  <p>• Payment method required for setup</p>
+                  <p>• Charged after trial ends</p>
+                  <p>• Cancel anytime during trial</p>
+                </>
+              ) : (
+                <>
+                  <p>• No trial period</p>
+                  <p>• Payment method required</p>
+                  <p>• Charged immediately</p>
+                  <p>• Cancel anytime</p>
+                </>
+              )}
             </div>
 
             <div className="flex justify-between">

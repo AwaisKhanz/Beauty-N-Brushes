@@ -3,6 +3,8 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { api } from '@/lib/api';
+import { RegionDetection } from '@/lib/region-detection';
+import type { RegionCode } from '../../../shared-constants';
 import type {
   AuthUser,
   LoginRequest,
@@ -15,6 +17,8 @@ interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
   isAuthenticated: boolean;
+  regionCode: RegionCode;
+  regionLoading: boolean;
   login: (data: LoginRequest) => Promise<AuthUser>;
   register: (data: RegisterRequest) => Promise<AuthUser>;
   logout: () => void;
@@ -27,40 +31,49 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Public routes that don't require authentication
-const PUBLIC_ROUTES = [
-  '/login',
-  '/register',
-  '/forgot-password',
-  '/reset-password',
-  '/verify-email',
-  '/',
-];
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [regionCode, setRegionCode] = useState<RegionCode>('NA');
+  const [regionLoading, setRegionLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
   const hasCheckedAuth = useRef(false);
 
+  // Initialize region whenever user changes
   useEffect(() => {
-    // Only check auth once on mount, and skip if on public routes
+    initializeRegion();
+  }, [user]);
+
+  useEffect(() => {
+    // Only check auth once on mount
     if (hasCheckedAuth.current) return;
 
-    const isPublicRoute = PUBLIC_ROUTES.some(
-      (route) => pathname === route || pathname?.startsWith('/reset-password/')
-    );
-
-    if (!isPublicRoute) {
-      checkAuth();
-    } else {
-      // For public routes, just set loading to false without checking auth
-      setLoading(false);
-    }
+    // Always check auth to ensure header displays correct state
+    checkAuth();
 
     hasCheckedAuth.current = true;
   }, [pathname]);
+
+  /**
+   * Initialize region detection
+   * Priority: user.regionCode > localStorage cache > API detection > fallback
+   */
+  const initializeRegion = async () => {
+    try {
+      setRegionLoading(true);
+      const detectedRegion = await RegionDetection.getUserRegion(
+        user ? { regionCode: user.regionCode || undefined } : null
+      );
+      setRegionCode(detectedRegion);
+    } catch (error) {
+      console.error('Failed to initialize region:', error);
+      // Fallback to NA
+      setRegionCode('NA');
+    } finally {
+      setRegionLoading(false);
+    }
+  };
 
   const checkAuth = async () => {
     try {
@@ -113,6 +126,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Even if logout API fails, continue with client cleanup
     } finally {
       setUser(null);
+      // Clear region cache on logout
+      RegionDetection.clearCache();
       router.push('/login');
     }
   };
@@ -158,6 +173,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     loading,
     isAuthenticated: !!user,
+    regionCode,
+    regionLoading,
     login,
     register,
     logout,

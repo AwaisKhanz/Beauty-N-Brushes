@@ -457,6 +457,15 @@ class TeamService {
   async acceptInvitation(userId: string, invitationId: string) {
     const invitation = await prisma.teamMember.findUnique({
       where: { id: invitationId },
+      include: {
+        provider: {
+          select: {
+            id: true,
+            businessName: true,
+            slug: true,
+          },
+        },
+      },
     });
 
     if (!invitation) {
@@ -465,6 +474,28 @@ class TeamService {
 
     if (invitation.invitationAccepted) {
       throw new AppError(400, 'This invitation has already been accepted');
+    }
+
+    // SECURITY: Verify the logged-in user's email matches the invitation email
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, role: true },
+    });
+
+    if (!user) {
+      throw new AppError(404, 'User not found');
+    }
+
+    const invitationEmail = invitation.invitationEmail || invitation.email;
+    if (!invitationEmail) {
+      throw new AppError(400, 'Invitation email not found');
+    }
+
+    if (user.email.toLowerCase() !== invitationEmail.toLowerCase()) {
+      throw new AppError(
+        403,
+        'This invitation was sent to a different email address. Please log in with the invited email or create an account with that email.'
+      );
     }
 
     // Update both TeamMember and User in transaction
@@ -488,7 +519,13 @@ class TeamService {
       }),
     ]);
 
-    return teamMember;
+    // Return team member with provider context
+    return {
+      teamMember,
+      provider: invitation.provider,
+      message: `Welcome to ${invitation.provider.businessName}!`,
+      redirectUrl: '/provider/dashboard',
+    };
   }
 
   /**

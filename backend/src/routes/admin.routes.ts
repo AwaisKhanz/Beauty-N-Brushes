@@ -6,6 +6,7 @@
 import { Router, Response } from 'express';
 import { authenticate } from '../middleware/authenticate';
 import { mediaProcessorService } from '../services/media-processor.service';
+import * as subscriptionConfigController from '../controllers/subscription-config.controller';
 import type { AuthRequest } from '../types';
 
 const router = Router();
@@ -128,5 +129,17 @@ router.get('/health', async (_req: AuthRequest, res: Response) => {
     });
   }
 });
+
+/**
+ * GET /api/v1/admin/subscription-config
+ * Get subscription configuration (trial settings)
+ */
+router.get('/subscription-config', subscriptionConfigController.getSubscriptionConfig);
+
+/**
+ * PUT /api/v1/admin/subscription-config
+ * Update subscription configuration (admin only)
+ */
+router.put('/subscription-config', subscriptionConfigController.updateSubscriptionConfig);
 
 export default router;

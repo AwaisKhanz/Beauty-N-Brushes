@@ -5,7 +5,7 @@
 
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
-import { calculateServiceFee } from '../lib/payment';
+import { calculateServiceFee, getRegionalCurrency } from '../lib/payment';
 import { emailService } from '../lib/email';
 import { env } from '../config/env';
 import { calendarSyncService } from './calendar-sync.service';
@@ -24,43 +24,52 @@ import type {
   RespondToRescheduleRequest,
 } from '../../../shared-types';
 import type { RegionCode } from '../types/payment.types';
+import { convertCurrency } from '../lib/payment';
 
 class BookingService {
   /**
    * Create booking with team member assignment support
    */
   async createBooking(userId: string, data: CreateBookingRequest) {
+    // Get client's saved region preference
+    const client = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { 
+        regionCode: true,
+        preferredPaymentProvider: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+      }
+    });
+
+    if (!client) {
+      throw new AppError(404, 'Client not found');
+    }
+
+    // Determine region: use saved preference OR request data OR default to US
+    const clientRegion = client.regionCode || data.clientRegionCode || 'US';
+    
+    // Determine payment provider based on CLIENT's region
+    const paymentProvider = this.getPaymentProviderForRegion(clientRegion);
+    
     // Get service with provider info and addons
     const service = await prisma.service.findUnique({
       where: { id: data.serviceId },
-      select: {
-        id: true,
-        title: true,
-        priceMin: true,
-        durationMinutes: true,
-        // Deposits are ALWAYS mandatory per requirements
-        depositType: true,
-        depositAmount: true,
-        // Mobile/Home service configuration
-        mobileServiceAvailable: true,
-        homeServiceFee: true,
-        active: true,
+      include: {
         provider: {
           select: {
             id: true,
-            isSalon: true,
-            teamMemberLimit: true,
-            regionCode: true,
+            businessName: true,
             currency: true,
-            paymentProvider: true,
             instantBookingEnabled: true,
+            isSalon: true,
+            regionCode: true,
           },
         },
+        addons: true,
         category: {
           select: { name: true },
-        },
-        addons: {
-          where: { isActive: true },
         },
       },
     });
@@ -73,18 +82,29 @@ class BookingService {
       throw new AppError(400, 'Service is not available for booking');
     }
 
-    // Calculate base service price
+    // Calculate base service price (convert if needed)
+    const clientCurrency = getRegionalCurrency(clientRegion as RegionCode);
     let servicePrice = Number(service.priceMin);
+
+    // Convert currency if client region differs from provider region
+    if (service.provider.currency !== clientCurrency) {
+      servicePrice = convertCurrency(servicePrice, service.provider.currency, clientCurrency);
+    }
 
     // Calculate add-ons total
     let addonsTotal = 0;
     const selectedAddons = [];
     if (data.selectedAddonIds && data.selectedAddonIds.length > 0) {
       for (const addonId of data.selectedAddonIds) {
-        const addon = service.addons.find((a) => a.id === addonId);
+        const addon = service.addons.find((a) => a.id === addonId && a.isActive); // Ensure addon is active
         if (addon) {
           selectedAddons.push(addon);
-          addonsTotal += Number(addon.addonPrice);
+          let addonPrice = Number(addon.addonPrice);
+          // Convert addon price if needed
+          if (service.provider.currency !== clientCurrency) {
+            addonPrice = convertCurrency(addonPrice, service.provider.currency, clientCurrency);
+          }
+          addonsTotal += addonPrice;
         }
       }
     }
@@ -93,25 +113,36 @@ class BookingService {
     let homeServiceFee = 0;
     if (data.homeServiceRequested && service.mobileServiceAvailable && service.homeServiceFee) {
       homeServiceFee = Number(service.homeServiceFee);
+      // Convert home service fee if needed
+      if (service.provider.currency !== clientCurrency) {
+        homeServiceFee = convertCurrency(homeServiceFee, service.provider.currency, clientCurrency);
+      }
     }
 
     // TOTAL BOOKING AMOUNT = service + add-ons + home service fee
     const totalBookingAmount = servicePrice + addonsTotal + homeServiceFee;
 
     // Calculate deposit (based on service + add-ons)
-    const depositAmount =
-      service.depositType === 'PERCENTAGE'
-        ? (totalBookingAmount * Number(service.depositAmount)) / 100
-        : Number(service.depositAmount);
+    let finalDepositAmount: number;
+    if (service.depositType === 'PERCENTAGE') {
+       finalDepositAmount = (totalBookingAmount * Number(service.depositAmount)) / 100;
+    } else { // Flat amount
+      let depositAmount = Number(service.depositAmount);
+      // Convert flat deposit amount if needed
+      if (service.provider.currency !== clientCurrency) {
+        depositAmount = convertCurrency(depositAmount, service.provider.currency, clientCurrency);
+      }
+      finalDepositAmount = depositAmount;
+    }
 
     // ✅ CRITICAL FIX: Calculate service fee on TOTAL BOOKING AMOUNT (not just deposit)
     const serviceFee = calculateServiceFee(
       totalBookingAmount,
-      service.provider.regionCode as RegionCode
+      clientRegion as RegionCode // Use client region for fee calculation
     );
 
     // Total amount client pays NOW = deposit + service fee
-    const totalAmount = depositAmount + serviceFee;
+    const totalAmount = finalDepositAmount + serviceFee;
 
     // Handle team member assignment for salon bookings
     let assignedTeamMemberId: string | null = null;
@@ -169,11 +200,12 @@ class BookingService {
         appointmentTime: data.appointmentTime,
         appointmentEndTime: endTime,
         servicePrice: totalBookingAmount, // ✅ Total service + add-ons + home service (NOT including service fee)
-        depositAmount,
+        depositAmount: finalDepositAmount,
         serviceFee, // ✅ Fee on total booking amount
         totalAmount, // ✅ Deposit + service fee (what client pays now)
-        currency: service.provider.currency,
-        paymentProvider: service.provider.paymentProvider,
+        currency: clientCurrency, // Use client's region currency
+        paymentProvider: paymentProvider, // ✅ Based on CLIENT's region, not provider's
+        clientRegionCode: clientRegion, // Track which region was used
         bookingStatus,
         paymentStatus: 'PENDING',
         bookingType,
@@ -530,6 +562,18 @@ class BookingService {
     const date = new Date();
     date.setHours(hours, mins + minutes);
     return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  }
+
+  /**
+   * Determine payment provider based on region
+   */
+  private getPaymentProviderForRegion(regionCode: string): 'STRIPE' | 'PAYSTACK' {
+    // Ghana and Nigeria use Paystack
+    if (regionCode === 'GH' || regionCode === 'NG') {
+      return 'PAYSTACK';
+    }
+    // All other regions use Stripe
+    return 'STRIPE';
   }
 
   /**

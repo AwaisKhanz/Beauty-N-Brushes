@@ -19,6 +19,7 @@ import type {
   CookieOptions,
 } from '../types/auth.types';
 import { env } from '../config/env';
+import { regionDetectionService } from '../services/region-detection.service';
 
 /**
  * Cookie configuration helper
@@ -51,8 +52,15 @@ export async function register(req: Request, res: Response, next: NextFunction):
     // Validate request body
     const validatedData = validate(registerSchema, req.body) as RegisterRequest;
 
+    // Auto-detect region from IP
+    const clientIP = regionDetectionService.getClientIP(req);
+    const detectedRegion = await regionDetectionService.detectRegionFromIP(clientIP);
+
     // Register user
     const user = await authService.registerUser(validatedData);
+
+    // Update user with detected region
+    await authService.updateUserRegion(user.id, detectedRegion);
 
     // Generate access token
     const accessToken = authService.generateToken(user.id, user.email, user.role);
@@ -67,6 +75,7 @@ export async function register(req: Request, res: Response, next: NextFunction):
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
+        regionCode: detectedRegion,
       },
       message: 'Registration successful. Please check your email to verify your account.',
       emailVerified: user.emailVerified,
@@ -94,8 +103,11 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
     // Validate request body
     const validatedData = validate(loginSchema, req.body) as LoginRequest;
 
+    // Get client IP for region detection
+    const clientIP = regionDetectionService.getClientIP(req);
+
     // Login user
-    const result = await authService.loginUser(validatedData.email, validatedData.password);
+    const result = await authService.loginUser(validatedData.email, validatedData.password, clientIP);
 
     // Generate access token
     const accessToken = authService.generateToken(

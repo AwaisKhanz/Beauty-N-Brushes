@@ -18,7 +18,6 @@ import {
   MessageCircle,
   Instagram,
   CheckCircle,
-  Calendar,
   Award,
   Sparkles,
   Globe,
@@ -207,12 +206,7 @@ export default function ProviderProfilePage() {
 
                       {/* Action Buttons */}
                       <div className="flex flex-wrap gap-3">
-                        <LoginGate action="book an appointment with this provider">
-                          <Button variant="dark" size="lg" className="gap-2">
-                            <Calendar className="h-5 w-5" />
-                            Book Appointment
-                          </Button>
-                        </LoginGate>
+                       
 
                         <LoginGate action="send a message to this provider">
                           <Button 
@@ -240,19 +234,14 @@ export default function ProviderProfilePage() {
             {/* Main Content Area */}
             <div className="lg:col-span-3">
               <Tabs defaultValue="services" className="space-y-8">
-                <TabsList className="grid w-full max-w-md grid-cols-3 h-12 bg-background/60 backdrop-blur border border-primary/10">
+                <TabsList className="grid w-full max-w-md grid-cols-2 h-12 bg-background/60 backdrop-blur border border-primary/10">
                   <TabsTrigger
                     value="services"
                     className="data-[state=active]:bg-primary data-[state=active]:text-white"
                   >
                     Services
                   </TabsTrigger>
-                  <TabsTrigger
-                    value="portfolio"
-                    className="data-[state=active]:bg-primary data-[state=active]:text-white"
-                  >
-                    Portfolio
-                  </TabsTrigger>
+  
                   <TabsTrigger
                     value="about"
                     className="data-[state=active]:bg-primary data-[state=active]:text-white"
@@ -290,53 +279,6 @@ export default function ProviderProfilePage() {
                   )}
                 </TabsContent>
 
-                {/* Portfolio Tab */}
-                <TabsContent value="portfolio" className="space-y-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-2xl md:text-3xl font-heading font-bold text-foreground">
-                      Portfolio{' '}
-                      <span className="text-primary">({provider.portfolioImages.length})</span>
-                    </h2>
-                  </div>
-
-                  {provider.portfolioImages.length > 0 ? (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                      {provider.portfolioImages.map((image) => (
-                        <div
-                          key={image.id}
-                          className="relative aspect-square rounded-xl overflow-hidden bg-muted group cursor-pointer ring-1 ring-primary/10 hover:ring-primary/30 transition-all"
-                        >
-                          <Image
-                            src={image.imageUrl}
-                            alt={image.caption || provider.businessName}
-                            fill
-                            className="object-cover group-hover:scale-110 transition-transform duration-500"
-                            sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
-                          />
-                          {image.caption && (
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-button-dark/90 to-transparent p-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <p className="text-white text-sm font-medium line-clamp-2">
-                                {image.caption}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <Card className="border-primary/10">
-                      <CardContent className="py-16 text-center">
-                        <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-4">
-                          <Instagram className="h-8 w-8 text-accent" />
-                        </div>
-                        <h3 className="font-semibold text-lg mb-2">Portfolio Coming Soon</h3>
-                        <p className="text-muted-foreground">
-                          This provider is building their portfolio. Check back later!
-                        </p>
-                      </CardContent>
-                    </Card>
-                  )}
-                </TabsContent>
 
                 {/* About Tab */}
                 <TabsContent value="about" className="space-y-6">
@@ -460,12 +402,7 @@ export default function ProviderProfilePage() {
                   <CardTitle className="text-lg">Quick Actions</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <LoginGate action="book an appointment">
-                    <Button variant="dark" size="lg" className="w-full gap-2 h-12">
-                      <Calendar className="h-5 w-5" />
-                      Book Now
-                    </Button>
-                  </LoginGate>
+     
 
                   <LoginGate action="send a message">
                     <Button 

@@ -11,10 +11,10 @@ export const ONBOARDING_STEPS = [
     completed: false,
   },
   { id: 3, label: 'Profile Media', description: 'Upload photos', completed: false },
-  { id: 4, label: 'Brand Customization', description: 'Customize your colors', completed: false },
-  { id: 5, label: 'Policies', description: 'Set business policies', completed: false },
-  { id: 6, label: 'Payment Setup', description: 'Setup subscription', completed: false },
-  { id: 7, label: 'Availability', description: 'Set your schedule', completed: false },
+  // Step 4 (Brand Customization) hidden for now
+  { id: 4, label: 'Policies', description: 'Set business policies', completed: false },
+  { id: 5, label: 'Payment Setup', description: 'Setup subscription', completed: false },
+  { id: 6, label: 'Availability', description: 'Set your schedule', completed: false },
 ] as const;
 
 export const ONBOARDING_STORAGE_KEY = 'onboarding_current_step';

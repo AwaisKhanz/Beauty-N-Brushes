@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { extractErrorMessage } from '@/lib/error-utils';
+import { useSubscriptionConfig } from '@/hooks/useSubscriptionConfig';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '');
 
@@ -27,6 +28,17 @@ export default function StripeCardForm({
   const [error, setError] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loadingSetupIntent, setLoadingSetupIntent] = useState(false);
+  
+  // Get dynamic trial configuration
+  const { config: trialConfig } = useSubscriptionConfig();
+  
+  // Calculate trial duration display
+  const trialDuration = trialConfig?.trialDurationDays || 60;
+  const trialMonths = Math.floor(trialDuration / 30);
+  const trialDays = trialDuration % 30;
+  const trialDisplay = trialMonths > 0 
+    ? `${trialMonths}-month${trialMonths > 1 ? 's' : ''}${trialDays > 0 ? ` ${trialDays} days` : ''}`
+    : `${trialDays} days`;
 
   // Load SetupIntent on mount
   useEffect(() => {
@@ -56,7 +68,9 @@ export default function StripeCardForm({
           <CreditCard className="h-5 w-5" />
           Payment Setup - Stripe
         </CardTitle>
-        <CardDescription>Start your free trial with Stripe</CardDescription>
+        <CardDescription>
+          {trialConfig?.trialEnabled ? `Start your ${trialDisplay} free trial with Stripe` : 'Setup payment with Stripe'}
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* PAYMENT NOTICE */}
@@ -66,8 +80,10 @@ export default function StripeCardForm({
             <p className="font-medium">Secure Payment Setup</p>
           </div>
           <p>
-            Complete payment setup to start your 2-month free trial. Your card will be charged after
-            the trial period ends.
+            {trialConfig?.trialEnabled 
+              ? `Complete payment setup to start your ${trialDisplay} free trial. Your card will be charged after the trial period ends.`
+              : 'Complete payment setup to activate your account. Your card will be charged immediately.'
+            }
           </p>
           <p className="text-xs mt-2 text-muted-foreground">
             Secure payment powered by Stripe. Cancel anytime.
@@ -137,9 +153,12 @@ export default function StripeCardForm({
             <StripePaymentForm
               regionCode={regionCode}
               subscriptionTier={subscriptionTier}
+              clientSecret={clientSecret}
               onSuccess={onSuccess}
               onBack={onBack}
               onError={(err) => setError(err)}
+              trialConfig={trialConfig}
+              trialDisplay={trialDisplay}
             />
           </Elements>
         ) : (
@@ -162,15 +181,21 @@ export default function StripeCardForm({
 function StripePaymentForm({
   regionCode,
   subscriptionTier,
+  clientSecret,
   onSuccess,
   onBack,
   onError,
+  trialConfig,
+  trialDisplay,
 }: {
   regionCode: string;
   subscriptionTier: 'solo' | 'salon';
+  clientSecret: string;
   onSuccess: () => void;
   onBack: () => void;
   onError: (error: string) => void;
+  trialConfig: { trialEnabled: boolean; trialDurationDays: number } | null;
+  trialDisplay: string;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -187,40 +212,81 @@ function StripePaymentForm({
       setProcessing(true);
       onError('');
 
-      // Confirm SetupIntent
-      const { error, setupIntent } = await stripe.confirmSetup({
-        elements,
-        redirect: 'if_required',
+      console.log('🔍 Checking SetupIntent status...');
+      
+      // Retrieve the SetupIntent to check its current status
+      const { setupIntent: retrievedIntent, error: retrieveError } = await stripe.retrieveSetupIntent(
+        clientSecret
+      );
+
+      console.log('📋 Retrieved SetupIntent:', {
+        id: retrievedIntent?.id,
+        status: retrievedIntent?.status,
+        payment_method: retrievedIntent?.payment_method,
       });
 
-      if (error) {
-        onError(error.message || 'Failed to save payment method');
+      if (retrieveError) {
+        console.error('❌ Error retrieving SetupIntent:', retrieveError);
+        onError(retrieveError.message || 'Failed to retrieve payment setup');
         return;
       }
 
-      if (setupIntent && setupIntent.payment_method) {
-        // Get payment method ID
-        const paymentMethodId =
-          typeof setupIntent.payment_method === 'string'
-            ? setupIntent.payment_method
-            : setupIntent.payment_method.id;
+      let paymentMethodId: string | null = null;
 
+      // Check if SetupIntent is already succeeded
+      if (retrievedIntent?.status === 'succeeded') {
+        console.log('✅ SetupIntent already succeeded, skipping confirmation');
+        // Already confirmed, just extract the payment method and proceed
+        paymentMethodId =
+          typeof retrievedIntent.payment_method === 'string'
+            ? retrievedIntent.payment_method
+            : retrievedIntent.payment_method?.id || null;
+        
+        console.log('💳 Using existing payment method:', paymentMethodId);
+      } else {
+        console.log('🔄 SetupIntent not yet confirmed, confirming now...');
+        // Not yet confirmed, confirm it now
+        const { error, setupIntent } = await stripe.confirmSetup({
+          elements,
+          redirect: 'if_required',
+        });
+
+        if (error) {
+          console.error('❌ Error confirming SetupIntent:', error);
+          onError(error.message || 'Failed to save payment method');
+          return;
+        }
+
+        paymentMethodId =
+          typeof setupIntent?.payment_method === 'string'
+            ? setupIntent.payment_method
+            : setupIntent?.payment_method?.id || null;
+        
+        console.log('✅ SetupIntent confirmed, payment method:', paymentMethodId);
+      }
+
+      if (paymentMethodId) {
+        console.log('🚀 Creating subscription with payment method:', paymentMethodId);
         // Create subscription with payment method
         try {
           await api.onboarding.setupPayment({
             regionCode: regionCode as 'NA' | 'EU' | 'GH' | 'NG',
             subscriptionTier,
-            paymentMethodId, // Use actual payment method ID
+            paymentMethodId,
           });
 
+          console.log('✅ Subscription created successfully');
           onSuccess();
         } catch (err: unknown) {
+          console.error('❌ Error creating subscription:', err);
           onError(extractErrorMessage(err) || 'Failed to setup payment. Please try again.');
         }
       } else {
+        console.error('❌ No payment method ID found');
         onError('No payment method was saved');
       }
     } catch (err: unknown) {
+      console.error('❌ Unexpected error:', err);
       onError(extractErrorMessage(err) || 'Failed to save payment method');
     } finally {
       setProcessing(false);
@@ -235,10 +301,21 @@ function StripePaymentForm({
 
       <div className="border-t pt-6">
         <div className="space-y-2 text-sm text-muted-foreground mb-6">
-          <p>• 2-month free trial period</p>
-          <p>• Payment method required for setup</p>
-          <p>• Charged after trial ends</p>
-          <p>• Cancel anytime during trial</p>
+          {trialConfig?.trialEnabled ? (
+            <>
+              <p>• {trialDisplay} free trial period</p>
+              <p>• Payment method required for setup</p>
+              <p>• Charged after trial ends</p>
+              <p>• Cancel anytime during trial</p>
+            </>
+          ) : (
+            <>
+              <p>• No trial period</p>
+              <p>• Payment method required</p>
+              <p>• Charged immediately</p>
+              <p>• Cancel anytime</p>
+            </>
+          )}
         </div>
 
         <div className="flex justify-between">

@@ -30,6 +30,7 @@ model User {
   smsNotifications        Boolean            @default(true)
   regionCode              String?
   preferredCurrency       String?
+  preferredPaymentProvider PaymentProvider? // STRIPE or PAYSTACK based on region
   // Client payment method fields
   stripeCustomerId        String?            @unique
   paystackCustomerCode    String?            @unique
@@ -72,8 +73,13 @@ model ProviderProfile {
   addressLine2             String?
   city                     String
   state                    String
-  zipCode                  String
+  zipCode                  String?
   country                  String                 @default("US")
+  // Google Places Integration
+  placeId                  String?
+  formattedAddress         String?
+  addressComponents        Json?
+  // Coordinates
   latitude                 Decimal?               @db.Decimal(10, 8)
   longitude                Decimal?               @db.Decimal(11, 8)
   businessEmail            String?
@@ -234,11 +240,16 @@ model ProviderLocation {
   id            String          @id @default(uuid())
   providerId    String
   name          String? // "Main Location", "Downtown Branch", etc.
+  // Google Places Integration
+  placeId       String?
+  formattedAddress String?
+  addressComponents Json?
+  // Standard address fields
   addressLine1  String
   addressLine2  String?
   city          String
   state         String
-  zipCode       String
+  zipCode       String?
   country       String
   latitude      Decimal?        @db.Decimal(10, 8)
   longitude     Decimal?        @db.Decimal(11, 8)
@@ -252,6 +263,7 @@ model ProviderLocation {
   @@index([providerId])
   @@index([isPrimary])
   @@index([isActive])
+  @@index([placeId])
 }
 
 model ServiceCategory {
@@ -451,6 +463,7 @@ model Booking {
   tipPaymentMethod      String? // 'online', 'cash'
   currency              String              @default("USD")
   paymentProvider       PaymentProvider
+  clientRegionCode      String? // Track which region client selected for this booking
   paymentStatus         PaymentStatus       @default(PENDING)
   stripePaymentIntentId String?
   stripeChargeId        String?
@@ -847,6 +860,18 @@ enum PaymentStatus {
   FULLY_PAID
   REFUNDED
   PARTIALLY_REFUNDED
+}
+
+// Subscription Configuration (Singleton)
+// Stores global trial configuration that applies to all new provider signups
+model SubscriptionConfig {
+  id                 String   @id @default("default") // Singleton pattern - only one record
+  trialEnabled       Boolean  @default(true) // Whether trials are enabled globally
+  trialDurationDays  Int      @default(60) // Number of days for trial period
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("subscription_config")
 }
 
 enum PaymentProvider {

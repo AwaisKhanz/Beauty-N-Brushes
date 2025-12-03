@@ -1,6 +1,7 @@
 import { prisma } from '../config/database';
-import type { PaymentProvider, SubscriptionTier } from '@prisma/client';
+import { PaymentProvider, SubscriptionTier, Prisma } from '@prisma/client';
 import { stripeService, paystackService, getPaymentProvider } from '../lib/payment';
+import { subscriptionService } from './subscription.service';
 import { emailService } from '../lib/email';
 import { env } from '../config/env';
 import type { RegionCode } from '../types/payment.types';
@@ -12,7 +13,7 @@ import type {
   AvailabilityScheduleData,
   OnboardingStatus,
 } from '../types/onboarding.types';
-import { SUBSCRIPTION_TIERS, TRIAL_PERIOD_DAYS, REGIONS } from '../../../shared-constants';
+import { SUBSCRIPTION_TIERS, REGIONS } from '../../../shared-constants';
 
 export class OnboardingService {
   /**
@@ -68,7 +69,6 @@ export class OnboardingService {
         subscriptionTier,
         subscriptionStatus: 'TRIAL',
         profileCompleted: false,
-        // Default to North America Stripe for now - will be updated in payment setup
         paymentProvider: 'STRIPE' as PaymentProvider,
         regionCode: 'NA',
         currency: 'USD',
@@ -127,6 +127,13 @@ export class OnboardingService {
         state: data.state,
         zipCode: data.zipCode,
         country: data.country,
+        // Google Places fields
+        placeId: data.placeId,
+        formattedAddress: data.formattedAddress,
+        addressComponents: data.addressComponents as Prisma.InputJsonValue | undefined,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        // Contact and other fields
         businessEmail: data.businessEmail,
         businessPhone: data.phone,
         instagramHandle: data.instagramHandle,
@@ -151,6 +158,11 @@ export class OnboardingService {
         where: { id: existingLocation.id },
         data: {
           name: 'Primary Location',
+          // Google Places fields
+          placeId: data.placeId,
+          formattedAddress: data.formattedAddress,
+          addressComponents: data.addressComponents as Prisma.InputJsonValue | undefined,
+          // Standard address fields
           addressLine1: data.address,
           addressLine2: null,
           city: data.city,
@@ -168,6 +180,11 @@ export class OnboardingService {
         data: {
           providerId: profile.id,
           name: 'Primary Location',
+          // Google Places fields
+          placeId: data.placeId,
+          formattedAddress: data.formattedAddress,
+          addressComponents: data.addressComponents as Prisma.InputJsonValue | undefined,
+          // Standard address fields
           addressLine1: data.address,
           addressLine2: null,
           city: data.city,
@@ -281,14 +298,15 @@ export class OnboardingService {
       // TRIAL MODE: Skip Stripe API calls for trial setup
       if (paymentMethodId === 'stripe_trial') {
         // Create trial subscription without payment method
+        const trialEndDate = await subscriptionService.getTrialEndDate();
         subscriptionResult = {
           customerId: `trial_customer_${profile.id}`,
           subscriptionId: `trial_sub_${profile.id}`,
           paymentMethodId: 'stripe_trial',
           last4: null,
           cardBrand: null,
-          trialEndDate: new Date(Date.now() + TRIAL_PERIOD_DAYS * 24 * 60 * 60 * 1000),
-          nextBillingDate: new Date(Date.now() + TRIAL_PERIOD_DAYS * 24 * 60 * 60 * 1000),
+          trialEndDate: trialEndDate || new Date(),
+          nextBillingDate: trialEndDate || new Date(),
           monthlyFee:
             tier === 'solo'
               ? SUBSCRIPTION_TIERS.SOLO.monthlyPriceUSD
@@ -300,13 +318,19 @@ export class OnboardingService {
           throw new Error('Payment method ID required for Stripe');
         }
 
+        // Get trial duration from config
+        const config = await subscriptionService.getSubscriptionConfig();
+        const trialDurationDays = config.trialEnabled ? config.trialDurationDays : null;
+
         subscriptionResult = await stripeService.createProviderSubscription(
           profile.user.email,
           profile.user.firstName,
           profile.user.lastName,
           paymentMethodId,
           tier,
-          profile.id
+          profile.id,
+          trialDurationDays,
+          profile.stripeCustomerId || undefined
         );
       }
 
@@ -336,6 +360,7 @@ export class OnboardingService {
       // TRIAL MODE: Skip Paystack API calls for trial setup
       if (paymentMethodId === 'paystack_trial') {
         // Create trial subscription without payment method
+        const trialEndDate = await subscriptionService.getTrialEndDate();
         subscriptionResult = {
           customerId: `trial_customer_${profile.id}`,
           subscriptionId: `trial_sub_${profile.id}`,
@@ -343,8 +368,8 @@ export class OnboardingService {
           paymentMethodId: 'paystack_trial',
           last4: null,
           cardBrand: null,
-          trialEndDate: new Date(Date.now() + TRIAL_PERIOD_DAYS * 24 * 60 * 60 * 1000),
-          nextBillingDate: new Date(Date.now() + TRIAL_PERIOD_DAYS * 24 * 60 * 60 * 1000),
+          trialEndDate: trialEndDate || new Date(),
+          nextBillingDate: trialEndDate || new Date(),
           monthlyFee:
             tier === 'solo'
               ? SUBSCRIPTION_TIERS.SOLO.monthlyPriceUSD
@@ -624,14 +649,16 @@ export class OnboardingService {
     });
 
     // Send welcome email
-    const trialEndDate = new Date(Date.now() + TRIAL_PERIOD_DAYS * 24 * 60 * 60 * 1000);
+    const trialEndDate = await subscriptionService.getTrialEndDate();
 
     await emailService.sendWelcomeEmail(profile.user.email, profile.user.firstName, {
-      trialEndDate: trialEndDate.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      }),
+      trialEndDate: trialEndDate
+        ? trialEndDate.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })
+        : 'N/A',
       bookingPageUrl: `${env.FRONTEND_URL}/@${profile.slug}`,
       dashboardUrl: `${env.FRONTEND_URL}/dashboard`,
     });

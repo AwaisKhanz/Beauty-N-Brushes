@@ -14,6 +14,8 @@ export default function VerifyEmailPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const email = searchParams.get('email');
+  const invitationId = searchParams.get('invitation');
+  const salonName = searchParams.get('salon');
   const { resendVerification } = useAuth();
 
   const [isResending, setIsResending] = useState(false);
@@ -51,6 +53,17 @@ export default function VerifyEmailPage() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-br from-primary/5 via-accent/5 to-secondary/5">
       <div className="max-w-md w-full">
+        {/* Team Invitation Banner */}
+        {invitationId && salonName && (
+          <div className="mb-6 p-4 bg-primary/10 border border-primary/20 rounded-lg">
+            <h3 className="font-semibold text-primary mb-1">Team Invitation</h3>
+            <p className="text-sm text-muted-foreground">
+              After verifying your email, you'll need to log in to accept your invitation to{' '}
+              <strong>{decodeURIComponent(salonName)}</strong>.
+            </p>
+          </div>
+        )}
+
         <div className="text-center mb-8">
           <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
             <Mail className="h-8 w-8 text-primary" />
@@ -95,7 +108,9 @@ export default function VerifyEmailPage() {
                   <span className="text-xs font-semibold text-primary-foreground">3</span>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  You'll be redirected to continue your onboarding
+                  {invitationId
+                    ? 'Log in to accept your team invitation'
+                    : "You'll be redirected to continue your onboarding"}
                 </p>
               </div>
             </div>
@@ -109,22 +124,35 @@ export default function VerifyEmailPage() {
                 disabled={isResending}
               >
                 {isResending ? (
-                  <>
+                  <span className="flex items-center">
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                     Sending...
-                  </>
+                  </span>
                 ) : (
-                  <>
+                  <span className="flex items-center">
                     <RefreshCw className="h-4 w-4 mr-2" />
                     Resend Verification Email
-                  </>
+                  </span>
                 )}
               </Button>
             </div>
 
             <div className="pt-4 border-t">
-              <Button variant="ghost" className="w-full" onClick={() => router.push('/login')}>
-                Back to Login
+              <Button
+                variant="ghost"
+                className="w-full"
+                onClick={() => {
+                  if (invitationId && email) {
+                    // Redirect to login with invitation params
+                    router.push(
+                      `/login?invitation=${invitationId}&email=${encodeURIComponent(email)}&salon=${encodeURIComponent(salonName || '')}`
+                    );
+                  } else {
+                    router.push('/login');
+                  }
+                }}
+              >
+                {invitationId ? 'Go to Login (with invitation)' : 'Back to Login'}
               </Button>
             </div>
           </CardContent>

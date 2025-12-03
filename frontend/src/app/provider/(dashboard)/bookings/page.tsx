@@ -99,11 +99,11 @@ export default function BookingsPage() {
 
   const filteredBookings = bookings.filter((booking) => {
     if (statusFilter === 'all') return true;
-    if (statusFilter === 'pending') return booking.bookingStatus === 'pending';
-    if (statusFilter === 'confirmed') return booking.bookingStatus === 'confirmed';
-    if (statusFilter === 'completed') return booking.bookingStatus === 'completed';
+    if (statusFilter === 'pending') return booking.bookingStatus === 'PENDING';
+    if (statusFilter === 'confirmed') return booking.bookingStatus === 'CONFIRMED';
+    if (statusFilter === 'completed') return booking.bookingStatus === 'COMPLETED';
     if (statusFilter === 'cancelled')
-      return ['cancelled_by_client', 'cancelled_by_provider'].includes(booking.bookingStatus);
+      return ['CANCELLED_BY_CLIENT', 'CANCELLED_BY_PROVIDER'].includes(booking.bookingStatus);
     return true;
   });
 
@@ -113,12 +113,12 @@ export default function BookingsPage() {
 
   const stats = {
     total: bookings.length,
-    pending: bookings.filter((b) => b.bookingStatus === 'pending').length,
-    confirmed: bookings.filter((b) => b.bookingStatus === 'confirmed').length,
-    completed: bookings.filter((b) => b.bookingStatus === 'completed').length,
+    pending: bookings.filter((b) => b.bookingStatus === 'PENDING').length,
+    confirmed: bookings.filter((b) => b.bookingStatus === 'CONFIRMED').length,
+    completed: bookings.filter((b) => b.bookingStatus === 'COMPLETED').length,
     totalRevenue: bookings.reduce((sum, b) => sum + b.totalAmount, 0),
     pendingRevenue: bookings
-      .filter((b) => ['pending', 'confirmed'].includes(b.bookingStatus))
+      .filter((b) => ['PENDING', 'CONFIRMED'].includes(b.bookingStatus))
       .reduce((sum, b) => sum + calculateBalanceOwed(b), 0),
   };
 

@@ -221,7 +221,12 @@ import type {
   GetNotificationsResponse,
   MarkAsReadResponse as NotificationMarkAsReadResponse,
   GetUnreadCountResponse,
+  AcceptInvitationResponse,
+  // Subscription Config
+  SubscriptionConfigResponse,
+  UpdateSubscriptionConfigRequest,
 } from '../../../shared-types';
+import { RegionCode, PaymentProvider } from '../../../shared-constants';
 
 export const api = {
   // ============================================
@@ -493,12 +498,13 @@ export const api = {
     updatePassword: (data: { currentPassword: string; newPassword: string }) =>
       apiClient.put<{ data: { message: string } }>('/users/password', data),
 
-    updateRegion: (data: { regionCode: 'NA' | 'EU' | 'GH' | 'NG' }) =>
+    updateRegion: (data: { regionCode: RegionCode }) =>
       apiClient.put<{
         data: {
           message: string;
           regionCode: string;
           currency: string;
+          paymentProvider: PaymentProvider;
         };
       }>('/users/region', data),
 
@@ -716,6 +722,22 @@ export const api = {
           };
         };
       }>('/subscription/cancel', data),
+  },
+
+  // ============================================
+  // Subscription Config APIs (Admin + Public)
+  // ============================================
+  subscriptionConfig: {
+    // Get subscription configuration (public - anyone can view)
+    get: () =>
+      apiClient.get<{ data: { config: SubscriptionConfigResponse } }>('/onboarding/subscription-config'),
+
+    // Update subscription configuration (admin only)
+    update: (data: UpdateSubscriptionConfigRequest) =>
+      apiClient.put<{ data: { config: SubscriptionConfigResponse } }>(
+        '/admin/subscription-config',
+        data
+      ),
   },
 
   // ============================================

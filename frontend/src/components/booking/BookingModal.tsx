@@ -35,7 +35,7 @@ interface BookingModalProps {
 
 export function BookingModal({ open, onOpenChange, service }: BookingModalProps) {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, regionCode } = useAuth(); // Get auto-detected region from context
   const [step, setStep] = useState<'date' | 'time' | 'stylist' | 'details' | 'payment' | 'success'>(
     'date'
   );
@@ -226,6 +226,7 @@ export function BookingModal({ open, onOpenChange, service }: BookingModalProps)
         homeServiceRequested: homeServiceRequested,
         specialRequests: specialRequests || undefined,
         referencePhotoUrls: referencePhotoUrls.length > 0 ? referencePhotoUrls : undefined,
+        clientRegionCode: regionCode, // Use auto-detected region from context
         // Salon stylist selection
         assignedTeamMemberId: selectedStylist || undefined,
         anyAvailableStylist: anyAvailableStylist,

@@ -14,8 +14,10 @@ import { AlertCircle, CreditCard, Bell, Lock, Trash2, Globe } from 'lucide-react
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 import { ClientPaymentMethodModal } from '@/components/booking/ClientPaymentMethodModal';
 import { RegionSelectionModal } from '@/components/settings/RegionSelectionModal';
+import { REGIONS } from '../../../../../../shared-constants';
 
 interface UserSettings {
   id: string;
@@ -34,6 +36,7 @@ interface PaymentMethod {
 }
 
 export default function ClientSettingsPage() {
+  const { regionCode } = useAuth(); // Get auto-detected region from context
   const [_userData, setUserData] = useState<UserSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -48,7 +51,6 @@ export default function ClientSettingsPage() {
   const [savingPassword, setSavingPassword] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(true);
-  const [regionCode, setRegionCode] = useState<'NA' | 'EU' | 'GH' | 'NG' | null>(null);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [regionModalOpen, setRegionModalOpen] = useState(false);
 
@@ -116,14 +118,7 @@ export default function ClientSettingsPage() {
       setUserData(res.data.user);
       setEmailNotifications(res.data.user.emailNotifications ?? true);
       setSmsNotifications(res.data.user.smsNotifications ?? true);
-      
-      // Set regionCode from user data if available
-      if (res.data.user.regionCode) {
-        setRegionCode(res.data.user.regionCode as 'NA' | 'EU' | 'GH' | 'NG');
-      } else {
-        // No region set - will show region selection modal
-        setRegionCode(null);
-      }
+      // Region is now managed by AuthContext
     } catch (err: unknown) {
       setError(extractErrorMessage(err) || 'Failed to load settings');
     } finally {
@@ -136,9 +131,6 @@ export default function ClientSettingsPage() {
       setLoadingPaymentMethods(true);
       const res = await api.users.getPaymentMethods();
       setPaymentMethods(res.data.paymentMethods || []);
-      if (res.data.regionCode) {
-        setRegionCode(res.data.regionCode as 'NA' | 'EU' | 'GH' | 'NG');
-      }
     } catch (err: unknown) {
       // Silently fail - payment methods are optional
       console.error('Failed to load payment methods:', err);
@@ -294,8 +286,8 @@ export default function ClientSettingsPage() {
                   <CardTitle>Payment Methods</CardTitle>
                   <CardDescription>
                     {regionCode
-                      ? `Manage your saved payment methods (${regionCode === 'NA' ? 'North America' : regionCode === 'EU' ? 'Europe' : regionCode === 'GH' ? 'Ghana' : 'Nigeria'})`
-                      : 'Select your region first to enable payment methods'}
+                      ? `Automatically detected region: ${REGIONS[regionCode].name} (${REGIONS[regionCode].currency})`
+                      : 'Detecting your region...'}
                   </CardDescription>
                 </div>
               </div>
@@ -307,7 +299,7 @@ export default function ClientSettingsPage() {
                   className="gap-2"
                 >
                   <Globe className="h-4 w-4" />
-                  Change Region
+                  Override
                 </Button>
               )}
             </div>
@@ -315,14 +307,10 @@ export default function ClientSettingsPage() {
           <CardContent>
             {!regionCode ? (
               <div className="text-center py-8">
-                <Globe className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <Globe className="h-12 w-12 mx-auto mb-4 opacity-50 animate-pulse" />
                 <p className="text-sm text-muted-foreground mb-4">
-                  Please select your region to enable payment methods
+                  Detecting your region automatically...
                 </p>
-                <Button onClick={() => setRegionModalOpen(true)} variant="outline">
-                  <Globe className="h-4 w-4 mr-2" />
-                  Select Region
-                </Button>
               </div>
             ) : (
               <>
@@ -347,7 +335,7 @@ export default function ClientSettingsPage() {
                         {method.last4 ? `•••• ${method.last4}` : ''}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        {method.type === 'stripe' ? 'Stripe' : 'Paystack'}
+                        {method.type === REGIONS.NA.paymentProvider ? 'Stripe' : 'Paystack'}
                       </p>
                     </div>
                   </div>

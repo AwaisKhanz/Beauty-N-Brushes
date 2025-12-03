@@ -13,12 +13,12 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, Globe, Loader2, CreditCard } from 'lucide-react';
 import { extractErrorMessage } from '@/lib/error-utils';
 import { api } from '@/lib/api';
-import { REGIONS_ARRAY } from '../../../../shared-constants';
+import { REGIONS_ARRAY, RegionCode, REGIONS } from '../../../../shared-constants';
 
 interface RegionSelectionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  currentRegion?: string | null;
+  currentRegion?: RegionCode | null;
   onSuccess: () => void;
 }
 
@@ -28,7 +28,7 @@ export function RegionSelectionModal({
   currentRegion,
   onSuccess,
 }: RegionSelectionModalProps) {
-  const [selectedRegion, setSelectedRegion] = useState<string | null>(currentRegion || null);
+  const [selectedRegion, setSelectedRegion] = useState<RegionCode | null>(currentRegion || null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -43,7 +43,7 @@ export function RegionSelectionModal({
       setError('');
 
       await api.users.updateRegion({
-        regionCode: selectedRegion as 'NA' | 'EU' | 'GH' | 'NG',
+        regionCode: selectedRegion,
       });
 
       onSuccess();
@@ -80,13 +80,13 @@ export function RegionSelectionModal({
           <div className="space-y-2">
             {REGIONS_ARRAY.map((region) => {
               const isSelected = selectedRegion === region.code;
-              const paymentProvider = region.paymentProvider === 'stripe' ? 'Stripe' : 'Paystack';
+              const paymentProvider = region.paymentProvider === REGIONS.NA.paymentProvider ? 'Stripe' : 'Paystack';
 
               return (
                 <button
                   key={region.code}
                   type="button"
-                  onClick={() => setSelectedRegion(region.code)}
+                  onClick={() => setSelectedRegion(region.code as RegionCode)}
                   className={`w-full p-4 border-2 rounded-lg text-left transition-all ${
                     isSelected
                       ? 'border-primary bg-primary/5 shadow-md'

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import type { LocationData } from '@/components/shared/LocationAutocomplete';
+import type { LocationData } from '../../../shared-types';
 
 interface UseLocationOptions {
   enableGeolocation?: boolean;
@@ -54,7 +54,10 @@ export function useLocation(options: UseLocationOptions = {}): UseLocationReturn
   const [currentLocation, setCurrentLocation] = useState<LocationData | null>(
     options.defaultLocation
       ? {
-          address: options.defaultLocation.address || '',
+          placeId: '',
+          formattedAddress: '',
+          addressComponents: [],
+          addressLine1: options.defaultLocation.addressLine1 || '',
           city: options.defaultLocation.city || '',
           state: options.defaultLocation.state || '',
           zipCode: options.defaultLocation.zipCode || '',
@@ -142,7 +145,10 @@ export function useLocation(options: UseLocationOptions = {}): UseLocationReturn
         }
 
         const location: LocationData = {
-          address: streetAddress || city || displayParts[0] || '',
+          placeId: '',
+          formattedAddress: data.display_name,
+          addressComponents: [],
+          addressLine1: streetAddress || city || displayParts[0] || '',
           city: city || displayParts[0] || '',
           state: state,
           zipCode: address.postcode || address.postal_code || '',
@@ -221,7 +227,10 @@ export function useLocation(options: UseLocationOptions = {}): UseLocationReturn
           }
 
           return {
-            address: streetAddress || city || displayParts[0] || '',
+            placeId: '',
+            formattedAddress: result.display_name,
+            addressComponents: [],
+            addressLine1: streetAddress || city || displayParts[0] || '',
             city: city || displayParts[0] || '',
             state: state,
             zipCode: result.address.postcode || result.address.postal_code || '',

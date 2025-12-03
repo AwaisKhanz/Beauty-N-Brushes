@@ -1,10 +1,14 @@
 import { Router } from 'express';
 import * as onboardingController from '../controllers/onboarding.controller';
+import * as subscriptionConfigController from '../controllers/subscription-config.controller';
 import { authenticate } from '../middleware/authenticate';
 
 const router = Router();
 
-// All onboarding routes require authentication
+// Public endpoint - anyone can view trial configuration
+router.get('/subscription-config', subscriptionConfigController.getSubscriptionConfig);
+
+// All other onboarding routes require authentication
 router.use(authenticate);
 
 // Account type selection

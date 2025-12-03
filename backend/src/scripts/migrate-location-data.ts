@@ -66,7 +66,7 @@ async function migrateLocationData() {
             country: profile.country || 'US',
             latitude: profile.latitude,
             longitude: profile.longitude,
-            phone: profile.businessPhone,
+            businessPhone: profile.businessPhone,
             isPrimary: true,
             isActive: true,
           },

@@ -18,6 +18,9 @@ export * from './upload.types';
 // Payment Types
 export * from './payment.types';
 
+// Subscription Types
+export * from './subscription.types';
+
 // Webhook Types
 export * from './webhook.types';
 export * from './team.types';
@@ -39,6 +42,9 @@ export * from './settings.types';
 
 // Location Types
 export * from './location.types';
+
+// Google Places Types
+export * from './google-places.types';
 
 // Team Types
 export * from './team.types';
