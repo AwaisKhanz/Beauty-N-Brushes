@@ -266,7 +266,7 @@ export function BasicInfoStep({ form, isEdit }: BasicInfoStepProps) {
                 <Select
                   value={selectedTemplate?.id || ''}
                   onValueChange={(value) => {
-                    const template = templatesToShow.find((t) => t.id === value);
+                    const template = templatesToShow.find((t:any) => t.id === value);
                     if (template) {
                       handleTemplateSelect(template);
                     }

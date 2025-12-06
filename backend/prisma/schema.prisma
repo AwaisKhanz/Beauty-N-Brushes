@@ -8,53 +8,53 @@ datasource db {
 }
 
 model User {
-  id                      String             @id @default(uuid())
-  email                   String             @unique
-  emailVerified           Boolean            @default(false)
-  phone                   String?
-  phoneVerified           Boolean            @default(false)
-  passwordHash            String?
-  role                    UserRole
-  firstName               String
-  lastName                String
-  avatarUrl               String?
-  bio                     String?
-  hairType                String?
-  hairTexture             String?
-  hairPreferences         String?
-  dateOfBirth             DateTime?
-  oauthProvider           String?
-  oauthId                 String?
-  status                  UserStatus         @default(ACTIVE)
-  emailNotifications      Boolean            @default(true)
-  smsNotifications        Boolean            @default(true)
-  regionCode              String?
-  preferredCurrency       String?
+  id                       String             @id @default(uuid())
+  email                    String             @unique
+  emailVerified            Boolean            @default(false)
+  phone                    String?
+  phoneVerified            Boolean            @default(false)
+  passwordHash             String?
+  role                     UserRole
+  firstName                String
+  lastName                 String
+  avatarUrl                String?
+  bio                      String?
+  hairType                 String?
+  hairTexture              String?
+  hairPreferences          String?
+  dateOfBirth              DateTime?
+  oauthProvider            String?
+  oauthId                  String?
+  status                   UserStatus         @default(ACTIVE)
+  emailNotifications       Boolean            @default(true)
+  smsNotifications         Boolean            @default(true)
+  regionCode               String?
+  preferredCurrency        String?
   preferredPaymentProvider PaymentProvider? // STRIPE or PAYSTACK based on region
   // Client payment method fields
-  stripeCustomerId        String?            @unique
-  paystackCustomerCode    String?            @unique
-  paymentMethodId         String?
-  last4Digits             String?
-  cardBrand               String?
-  createdAt               DateTime           @default(now())
-  updatedAt               DateTime           @updatedAt
-  lastLoginAt             DateTime?
-  resetToken              String?            @unique
-  resetTokenExpiry        DateTime?
-  verificationToken       String?            @unique
-  verificationTokenExpiry DateTime?
-  bookingsAsClient        Booking[]          @relation("ClientBookings")
-  favorites               Favorite[]
-  InspirationImage        InspirationImage[]
-  messagesAsSender        Message[]          @relation("SenderMessages")
-  conversationsAsClient   Conversation[]     @relation("ClientConversations")
-  providerProfile         ProviderProfile?
-  reviews                 Review[]
-  savedSearches           SavedSearch[]
-  teamMemberProfiles      TeamMember[]
-  clientNotes             ClientNote[]       @relation("ClientNotes")
-  bookingPhotos           BookingPhoto[]     @relation("BookingPhotos")
+  stripeCustomerId         String?            @unique
+  paystackCustomerCode     String?            @unique
+  paymentMethodId          String?
+  last4Digits              String?
+  cardBrand                String?
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
+  lastLoginAt              DateTime?
+  resetToken               String?            @unique
+  resetTokenExpiry         DateTime?
+  verificationToken        String?            @unique
+  verificationTokenExpiry  DateTime?
+  bookingsAsClient         Booking[]          @relation("ClientBookings")
+  favorites                Favorite[]
+  InspirationImage         InspirationImage[]
+  messagesAsSender         Message[]          @relation("SenderMessages")
+  conversationsAsClient    Conversation[]     @relation("ClientConversations")
+  providerProfile          ProviderProfile?
+  reviews                  Review[]
+  savedSearches            SavedSearch[]
+  teamMemberProfiles       TeamMember[]
+  clientNotes              ClientNote[]       @relation("ClientNotes")
+  bookingPhotos            BookingPhoto[]     @relation("BookingPhotos")
 
   @@index([email])
   @@index([role])
@@ -237,28 +237,28 @@ model TeamMember {
 }
 
 model ProviderLocation {
-  id            String          @id @default(uuid())
-  providerId    String
-  name          String? // "Main Location", "Downtown Branch", etc.
+  id                String          @id @default(uuid())
+  providerId        String
+  name              String? // "Main Location", "Downtown Branch", etc.
   // Google Places Integration
-  placeId       String?
-  formattedAddress String?
+  placeId           String?
+  formattedAddress  String?
   addressComponents Json?
   // Standard address fields
-  addressLine1  String
-  addressLine2  String?
-  city          String
-  state         String
-  zipCode       String?
-  country       String
-  latitude      Decimal?        @db.Decimal(10, 8)
-  longitude     Decimal?        @db.Decimal(11, 8)
-  businessPhone String?
-  isPrimary     Boolean         @default(false)
-  isActive      Boolean         @default(true)
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  provider      ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  addressLine1      String
+  addressLine2      String?
+  city              String
+  state             String
+  zipCode           String?
+  country           String
+  latitude          Decimal?        @db.Decimal(10, 8)
+  longitude         Decimal?        @db.Decimal(11, 8)
+  businessPhone     String?
+  isPrimary         Boolean         @default(false)
+  isActive          Boolean         @default(true)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  provider          ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@index([providerId])
   @@index([isPrimary])
@@ -369,8 +369,8 @@ model ServiceMedia {
   moderationStatus String                 @default("pending")
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
-  // HIGH-QUALITY VISUAL EMBEDDINGS (1408-dimensional for maximum accuracy)
-  aiEmbedding      Unsupported("vector")? @default(dbgenerated("(array_fill(0, ARRAY[1408]))::vector")) // PRIMARY: Style-enriched (image + context, 98% accuracy)
+  // HIGH-QUALITY VISUAL EMBEDDINGS (512-dimensional for optimal PostgreSQL indexing)
+  aiEmbedding      Unsupported("vector")? @default(dbgenerated("(array_fill(0, ARRAY[512]))::vector")) // PRIMARY: Style-enriched (image + context, 98% accuracy)
   visualEmbedding  Unsupported("vector")? // BACKUP: Visual-only (pure pixel similarity)
   service          Service                @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
@@ -496,6 +496,11 @@ model Booking {
   // Review tracking
   reviewReminderSent    Boolean             @default(false)
   reviewDeadline        DateTime? // 7 days after completion
+  
+  // Payment reminder tracking (Phase 2)
+  paymentReminderSent   Boolean             @default(false)
+  paymentReminderSentAt DateTime?
+  
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
   client                User                @relation("ClientBookings", fields: [clientId], references: [id])
@@ -750,7 +755,7 @@ model InspirationImage {
   notes            String?
   isFavorite       Boolean                @default(false)
   createdAt        DateTime               @default(now())
-  aiEmbedding      Unsupported("vector")? @default(dbgenerated("(array_fill(0, ARRAY[1408]))::vector"))
+  aiEmbedding      Unsupported("vector")? @default(dbgenerated("(array_fill(0, ARRAY[512]))::vector"))
   User             User                   @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([aiEmbedding], map: "InspirationImage_aiEmbedding_ivfflat_idx")
@@ -855,23 +860,43 @@ enum BookingStatus {
 }
 
 enum PaymentStatus {
-  PENDING
-  DEPOSIT_PAID
-  FULLY_PAID
-  REFUNDED
+  AWAITING_DEPOSIT // Booking created, deposit not paid yet
+  PENDING // Legacy status, being phased out
+  DEPOSIT_PAID // Deposit paid, balance pending
+  FULLY_PAID // All payments completed
+  REFUNDED // Payment refunded
+  FAILED // Payment failed
   PARTIALLY_REFUNDED
 }
 
 // Subscription Configuration (Singleton)
 // Stores global trial configuration that applies to all new provider signups
 model SubscriptionConfig {
-  id                 String   @id @default("default") // Singleton pattern - only one record
-  trialEnabled       Boolean  @default(true) // Whether trials are enabled globally
-  trialDurationDays  Int      @default(60) // Number of days for trial period
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                String   @id @default("default") // Singleton pattern - only one record
+  trialEnabled      Boolean  @default(true) // Whether trials are enabled globally
+  trialDurationDays Int      @default(60) // Number of days for trial period
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@map("subscription_config")
+}
+
+// Platform Configuration
+// Stores configurable platform settings (service fees, etc.)
+model PlatformConfig {
+  id          String   @id @default(cuid())
+  key         String   @unique // e.g., "SERVICE_FEE_BASE", "SERVICE_FEE_PERCENTAGE"
+  value       String // Store as string, parse as needed
+  dataType    String // "number", "boolean", "string"
+  category    String // "payment", "booking", "general"
+  description String?
+  updatedBy   String? // userId of admin who last updated
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([key])
+  @@map("platform_config")
 }
 
 enum PaymentProvider {

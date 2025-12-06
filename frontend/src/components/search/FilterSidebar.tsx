@@ -204,15 +204,15 @@ export function FilterSidebar({
             <div className="space-y-3">
               <Label>Distance (miles)</Label>
               <Slider
-                value={[localFilters.radius || 25]}
+                value={[localFilters.radius || 200]}
                 onValueChange={([value]) => setLocalFilters({ ...localFilters, radius: value })}
-                max={50}
+                max={500}
                 min={1}
-                step={1}
+                step={5}
                 className="py-4"
               />
               <div className="text-sm text-center text-muted-foreground">
-                Within {localFilters.radius || 25} miles
+                Within {localFilters.radius || 200} miles
               </div>
             </div>
             <Separator />

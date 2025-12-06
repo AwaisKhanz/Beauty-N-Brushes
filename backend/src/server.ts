@@ -12,7 +12,6 @@ import { notFoundHandler } from './middleware/notFoundHandler';
 import { testDatabaseConnection } from './config/database';
 import logger from './utils/logger';
 import { mediaProcessorService } from './services/media-processor.service';
-import { initializeNotificationJobs } from './jobs/notifications.job';
 import { initializeSocketIO } from './config/socket.server';
 
 // Load environment variables
@@ -48,6 +47,8 @@ import analyticsRoutes from './routes/analytics.routes';
 import clientManagementRoutes from './routes/client-management.routes';
 import locationRoutes from './routes/location.routes';
 import regionRoutes from './routes/region.routes';
+import platformRoutes from './routes/platform.routes';
+import currencyRoutes from './routes/currency.routes';
 
 const app: Application = express();
 const PORT = process.env.PORT || 8000;
@@ -122,6 +123,14 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // ================================
+// Region Detection Middleware
+// ================================
+// Automatically detect client region from IP on all API requests
+// Makes region info available via req.clientRegion
+import { detectRegionMiddleware } from './middleware/region-detection';
+app.use('/api', detectRegionMiddleware);
+
+// ================================
 // Routes
 // ================================
 
@@ -164,6 +173,9 @@ app.use('/api/v1/finance', financeRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/clients', clientManagementRoutes);
 app.use('/api/v1/region', regionRoutes);
+app.use('/api/v1/platform', platformRoutes);
+app.use('/api/v1/currency', currencyRoutes);
+
 
 // 404 handler
 app.use(notFoundHandler);
@@ -179,9 +191,7 @@ async function startServer() {
   try {
     // Test database connection
     await testDatabaseConnection();
-
-    // Initialize notification jobs
-    initializeNotificationJobs();
+    logger.info('✅ Database connected');
 
     // Create HTTP server
     const httpServer = http.createServer(app);

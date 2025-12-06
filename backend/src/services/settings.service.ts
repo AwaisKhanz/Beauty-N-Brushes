@@ -53,6 +53,21 @@ class SettingsService {
         // Business Details
         businessType: true,
         timezone: true,
+        // Business Address
+        addressLine1: true,
+        addressLine2: true,
+        city: true,
+        state: true,
+        zipCode: true,
+        country: true,
+        businessPhone: true,
+        businessEmail: true,
+        // Google Places
+        placeId: true,
+        formattedAddress: true,
+        addressComponents: true,
+        latitude: true,
+        longitude: true,
         user: {
           select: {
             avatarUrl: true,
@@ -105,8 +120,24 @@ class SettingsService {
       facebookUrl?: string | null;
       coverPhotoUrl?: string | null;
       // Business Details
+      // Business Details
       businessType?: string | null;
       timezone?: string | null;
+      // Business Address
+      addressLine1?: string;
+      addressLine2?: string | null;
+      city?: string;
+      state?: string;
+      zipCode?: string | null;
+      country?: string;
+      businessPhone?: string | null;
+      businessEmail?: string | null;
+      // Google Places
+      placeId?: string | null;
+      formattedAddress?: string | null;
+      addressComponents?: any;
+      latitude?: number | null;
+      longitude?: number | null;
       updatedAt: Date;
     } = {
       updatedAt: new Date(),
@@ -124,6 +155,21 @@ class SettingsService {
     // Business Details
     if (data.businessType !== undefined) profileUpdateData.businessType = data.businessType;
     if (data.timezone !== undefined) profileUpdateData.timezone = data.timezone;
+    // Business Address
+    if (data.addressLine1 !== undefined) profileUpdateData.addressLine1 = data.addressLine1;
+    if (data.addressLine2 !== undefined) profileUpdateData.addressLine2 = data.addressLine2;
+    if (data.city !== undefined) profileUpdateData.city = data.city;
+    if (data.state !== undefined) profileUpdateData.state = data.state;
+    if (data.zipCode !== undefined) profileUpdateData.zipCode = data.zipCode;
+    if (data.country !== undefined) profileUpdateData.country = data.country;
+    if (data.businessPhone !== undefined) profileUpdateData.businessPhone = data.businessPhone;
+    if (data.businessEmail !== undefined) profileUpdateData.businessEmail = data.businessEmail;
+    // Google Places
+    if (data.placeId !== undefined) profileUpdateData.placeId = data.placeId;
+    if (data.formattedAddress !== undefined) profileUpdateData.formattedAddress = data.formattedAddress;
+    if (data.addressComponents !== undefined) profileUpdateData.addressComponents = data.addressComponents;
+    if (data.latitude !== undefined) profileUpdateData.latitude = data.latitude;
+    if (data.longitude !== undefined) profileUpdateData.longitude = data.longitude;
 
     // Update user avatar if profile photo provided
     if (data.profilePhotoUrl !== undefined) {
@@ -162,6 +208,21 @@ class SettingsService {
         // Business Details
         businessType: true,
         timezone: true,
+        // Business Address
+        addressLine1: true,
+        addressLine2: true,
+        city: true,
+        state: true,
+        zipCode: true,
+        country: true,
+        businessPhone: true,
+        businessEmail: true,
+        // Google Places
+        placeId: true,
+        formattedAddress: true,
+        addressComponents: true,
+        latitude: true,
+        longitude: true,
       },
     });
 
@@ -387,6 +448,7 @@ class SettingsService {
         cardBrand: true,
         stripeCustomerId: true,
         paystackCustomerCode: true,
+        stripeSubscriptionId: true,
       },
     });
 
@@ -397,8 +459,23 @@ class SettingsService {
     // Fetch billing history
     const billingHistory = [];
 
-    // For Stripe regions, fetch invoices
+    let cancelAtPeriodEnd = false;
+    let stripeNextBillingDate: Date | null = null;
+
+    // For Stripe regions, fetch invoices and subscription status
     if (profile.paymentProvider === 'STRIPE' && profile.stripeCustomerId) {
+      // Check subscription status for cancel_at_period_end
+      if (profile.stripeSubscriptionId) {
+        try {
+          const subscription = await stripe.subscriptions.retrieve(profile.stripeSubscriptionId);
+          cancelAtPeriodEnd = subscription.cancel_at_period_end;
+          stripeNextBillingDate = new Date(subscription.current_period_end * 1000);
+        } catch (error) {
+          console.error('Error fetching Stripe subscription:', error);
+        }
+      }
+
+      // Skip invoice fetching for trial placeholder customers
       // Skip invoice fetching for trial placeholder customers
       const isTrialPlaceholder = profile.stripeCustomerId.startsWith('trial_customer_');
       
@@ -437,8 +514,9 @@ class SettingsService {
         | 'paused'
         | 'cancelled'
         | 'expired',
+      cancelAtPeriodEnd,
       trialEndDate: profile.trialEndDate?.toISOString() || null,
-      nextBillingDate: profile.nextBillingDate?.toISOString() || null,
+      nextBillingDate: stripeNextBillingDate?.toISOString() || profile.nextBillingDate?.toISOString() || null,
       monthlyFee: Number(profile.monthlyFee || 0),
       currency: profile.currency || 'USD',
       paymentProvider: profile.paymentProvider?.toLowerCase() as 'stripe' | 'paystack',
@@ -1228,6 +1306,35 @@ class SettingsService {
       message: 'Subscription cancelled successfully',
       cancelledAt: new Date().toISOString(),
       accessUntil: profile.nextBillingDate?.toISOString() || new Date().toISOString(),
+    };
+  }
+  /**
+   * Resume subscription (un-cancel)
+   */
+  async resumeSubscription(userId: string) {
+    const profile = await prisma.providerProfile.findUnique({
+      where: { userId },
+    });
+
+    if (!profile) {
+      throw new AppError(404, 'Provider profile not found');
+    }
+
+    if (profile.paymentProvider === 'STRIPE' && profile.stripeSubscriptionId) {
+      try {
+        await stripe.subscriptions.update(profile.stripeSubscriptionId, {
+          cancel_at_period_end: false,
+        });
+      } catch (error) {
+        console.error('Error resuming Stripe subscription:', error);
+        throw new AppError(500, 'Failed to resume subscription');
+      }
+    } else {
+      throw new AppError(400, 'Resuming subscription not supported for this provider');
+    }
+
+    return {
+      message: 'Subscription resumed successfully. Your plan will continue.',
     };
   }
 }

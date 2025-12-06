@@ -13,7 +13,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Clock, AlertCircle, Loader2, CheckCircle2, Upload, X } from 'lucide-react';
+import { Clock, AlertCircle, Loader2, CheckCircle2, Upload, X, CreditCard, Smartphone, Building2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import Image from 'next/image';
 import { extractErrorMessage } from '@/lib/error-utils';
@@ -22,10 +22,18 @@ import type { TimeSlot } from '@/shared-types/booking.types';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { useAuth } from '@/contexts/AuthContext';
+import { fetchPlatformFeeConfig } from '@/lib/platform-fee';
+import { MobileMoneyForm } from '../payment/MobileMoneyForm';
+import { BankTransferForm } from '../payment/BankTransferForm';
+import { REGIONS } from '../../../../shared-constants';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '');
 
-import type { AvailableStylist } from '../../../../shared-types';
+interface PlatformFeeConfig {
+  base: number;
+  percentage: number;
+  cap: number;
+}
 
 interface BookingModalProps {
   open: boolean;
@@ -36,17 +44,14 @@ interface BookingModalProps {
 export function BookingModal({ open, onOpenChange, service }: BookingModalProps) {
   const router = useRouter();
   const { user, regionCode } = useAuth(); // Get auto-detected region from context
-  const [step, setStep] = useState<'date' | 'time' | 'stylist' | 'details' | 'payment' | 'success'>(
+  const [step, setStep] = useState<'date' | 'time' | 'details' | 'payment_method' | 'payment' | 'success'>(
     'date'
   );
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
-  const [selectedStylist, setSelectedStylist] = useState<string>('');
-  const [anyAvailableStylist, setAnyAvailableStylist] = useState(false);
-  const [availableStylists, setAvailableStylists] = useState<AvailableStylist[]>([]);
-  const [loadingStylists, setLoadingStylists] = useState(false);
+
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
   const [homeServiceRequested, setHomeServiceRequested] = useState(false);
   const [specialRequests, setSpecialRequests] = useState('');
@@ -58,6 +63,35 @@ export function BookingModal({ open, onOpenChange, service }: BookingModalProps)
   const [contactPhone, setContactPhone] = useState('');
   const [error, setError] = useState('');
   const [clientSecret, setClientSecret] = useState<string>('');
+  
+  // Phase 4: Payment method selection
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'mobile_money' | 'bank_transfer'>('card');
+  const [bookingId, setBookingId] = useState<string>('');
+  
+  // Get currency from region
+  const currency = regionCode && REGIONS[regionCode as keyof typeof REGIONS] 
+    ? REGIONS[regionCode as keyof typeof REGIONS].currency 
+    : 'USD';
+
+  
+  // Platform fee config from backend
+  const [feeConfig, setFeeConfig] = useState<PlatformFeeConfig>({
+    base: 1.25,
+    percentage: 3.6,
+    cap: 8.0,
+  });
+
+  console.log(feeConfig);
+
+  // Fetch platform fee config on mount
+  useEffect(() => {
+    async function loadFeeConfig() {
+      const config = await fetchPlatformFeeConfig();
+      setFeeConfig(config);
+    }
+
+    loadFeeConfig();
+  }, []);
 
   // Initialize contact info from user profile when modal opens
   useEffect(() => {
@@ -101,35 +135,25 @@ export function BookingModal({ open, onOpenChange, service }: BookingModalProps)
         service.id,
         dateStr
       );
-      setAvailableSlots(response.data.slots);
+      setAvailableSlots(response.data.slots || []);
     } catch (err: unknown) {
-      setError(extractErrorMessage(err) || 'Failed to load available slots');
+      setError(extractErrorMessage(err) || 'Failed to load available time slots');
     } finally {
       setLoadingSlots(false);
     }
   }
 
-  // Load available stylists for salon bookings (called after time selection)
-  async function loadAvailableStylists() {
-    if (!service.provider?.isSalon) return;
+  // async function handlePhotoUpload(files: FileList | null) {
+  //   if (!files || files.length === 0) return;
 
-    try {
-      setLoadingStylists(true);
-      setError('');
-      const dateStr = selectedDate!.toISOString().split('T')[0];
-      const response = await api.bookings.getAvailableStylists({
-        providerId: service.provider.id,
-        date: dateStr,
-        time: selectedTime,
-        duration: service.durationMinutes,
-      });
-      setAvailableStylists(response.data.stylists);
-    } catch (err: unknown) {
-      setError(extractErrorMessage(err) || 'Failed to load available stylists');
-    } finally {
-      setLoadingStylists(false);
-    }
-  }
+  //   const fileArray = Array.from(files);
+  //   if (referencePhotos.length + fileArray.length > 5) {
+  //     setError('Maximum 5 photos allowed');
+  //     return;
+  //   }
+
+  //   setReferencePhotos([...referencePhotos, ...fileArray]);
+  // }
 
   // Handle time selection - load stylists if salon
   function handleTimeSelect(time: string) {
@@ -137,16 +161,13 @@ export function BookingModal({ open, onOpenChange, service }: BookingModalProps)
   }
 
   // Move to next step after time selection
+  // Move to next step after time selection
   function proceedFromTimeStep() {
-    if (service.provider?.isSalon) {
-      loadAvailableStylists();
-      setStep('stylist');
-    } else {
-      setStep('details');
-    }
+    setStep('details');
   }
 
-  // Calculate total price (service + add-ons)
+  // Calculate total price (service + add-ons) in USD
+  // Backend will convert to client's currency using live exchange rates
   const calculateTotal = () => {
     let total = Number(service.priceMin);
     selectedAddons.forEach((addonId) => {
@@ -156,13 +177,24 @@ export function BookingModal({ open, onOpenChange, service }: BookingModalProps)
     return total;
   };
 
-  // Calculate deposit amount (always required)
+  // Calculate platform fee (using dynamic config from backend) in USD
+  // Backend will convert to client's currency using live exchange rates
+  const calculatePlatformFee = () => {
+    const total = calculateTotal();
+    const calculated = feeConfig.base + (total * feeConfig.percentage) / 100;
+    return Math.min(calculated, feeConfig.cap);
+  };
+
+  // Calculate deposit amount (always required) in USD
+  // Backend will convert to client's currency using live exchange rates
   const calculateDeposit = () => {
     const total = calculateTotal();
+    const platformFee = calculatePlatformFee();
     if (service.depositType === 'PERCENTAGE') {
-      return (total * Number(service.depositAmount)) / 100;
+      const percentage = (total * Number(service.depositAmount)) / 100;
+      return percentage + platformFee;
     }
-    return Number(service.depositAmount);
+    return Number(service.depositAmount) + platformFee;
   };
 
   // Handle reference photo selection
@@ -226,15 +258,16 @@ export function BookingModal({ open, onOpenChange, service }: BookingModalProps)
         homeServiceRequested: homeServiceRequested,
         specialRequests: specialRequests || undefined,
         referencePhotoUrls: referencePhotoUrls.length > 0 ? referencePhotoUrls : undefined,
-        clientRegionCode: regionCode, // Use auto-detected region from context
-        // Salon stylist selection
-        assignedTeamMemberId: selectedStylist || undefined,
-        anyAvailableStylist: anyAvailableStylist,
+        // ✅ SECURITY: Region is detected SERVER-SIDE via middleware - never send from frontend
+        // Salon stylist selection - always default to any available since we removed selection
+        assignedTeamMemberId: undefined,
+        anyAvailableStylist: service.provider?.isSalon ? true : false,
       });
 
       const newBookingId = bookingResponse.data.booking.id;
+      setBookingId(newBookingId);
 
-      // Deposits are ALWAYS required per requirements
+      // Phase 4: For Paystack regions, show payment method selection
       const paymentResponse = await api.payment.initializeBookingPayment({
         bookingId: newBookingId,
       });
@@ -243,8 +276,8 @@ export function BookingModal({ open, onOpenChange, service }: BookingModalProps)
         setClientSecret(paymentResponse.data.clientSecret || '');
         setStep('payment');
       } else {
-        // Paystack - redirect to authorization URL
-        window.location.href = paymentResponse.data.authorizationUrl || '';
+        // Paystack - show payment method selection (Phase 4)
+        setStep('payment_method');
       }
     } catch (err: unknown) {
       setError(extractErrorMessage(err) || 'Failed to create booking');
@@ -258,7 +291,10 @@ export function BookingModal({ open, onOpenChange, service }: BookingModalProps)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent 
+        className="max-w-2xl max-h-[90vh] overflow-y-auto"
+        onInteractOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>Book {service.title}</DialogTitle>
         </DialogHeader>
@@ -338,138 +374,22 @@ export function BookingModal({ open, onOpenChange, service }: BookingModalProps)
             </div>
 
             <Button className="w-full" disabled={!selectedTime} onClick={proceedFromTimeStep}>
-              {service.provider?.isSalon
-                ? 'Continue to Stylist Selection'
-                : 'Continue to Booking Details'}
-            </Button>
-          </div>
-        )}
-
-        {/* Step 3: Select Stylist (Salon Only) */}
-        {step === 'stylist' && service.provider?.isSalon && (
-          <div className="space-y-4">
-            <Button variant="ghost" onClick={() => setStep('time')} size="sm">
-              ← Back to Time Selection
-            </Button>
-
-            <div>
-              <h3 className="font-medium mb-2">Select a Stylist</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Choose a specific stylist or let the salon assign one for you
-              </p>
-
-              {loadingStylists ? (
-                <div className="space-y-2">
-                  <Skeleton className="h-20 w-full" />
-                  <Skeleton className="h-20 w-full" />
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {/* Any Available Stylist Option */}
-                  <div
-                    className={`p-4 border-2 rounded-lg cursor-pointer transition-colors ${
-                      anyAvailableStylist
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border hover:border-primary/50'
-                    }`}
-                    onClick={() => {
-                      setAnyAvailableStylist(true);
-                      setSelectedStylist('');
-                    }}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">Any Available Stylist</p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          The salon will assign the next available stylist for you
-                        </p>
-                      </div>
-                      {anyAvailableStylist && <CheckCircle2 className="h-5 w-5 text-primary" />}
-                    </div>
-                  </div>
-
-                  {/* Available Stylists List */}
-                  {availableStylists.length > 0 && (
-                    <>
-                      <Separator />
-                      <p className="text-sm font-medium">Or choose a specific stylist:</p>
-                      {availableStylists.map((stylist) => (
-                        <div
-                          key={stylist.id}
-                          className={`p-4 border-2 rounded-lg cursor-pointer transition-colors ${
-                            selectedStylist === stylist.id
-                              ? 'border-primary bg-primary/5'
-                              : 'border-border hover:border-primary/50'
-                          } ${!stylist.isAvailable ? 'opacity-50 cursor-not-allowed' : ''}`}
-                          onClick={() => {
-                            if (stylist.isAvailable) {
-                              setSelectedStylist(stylist.id);
-                              setAnyAvailableStylist(false);
-                            }
-                          }}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              {stylist.avatarUrl ? (
-                                <Image
-                                  src={stylist.avatarUrl}
-                                  alt={stylist.displayName}
-                                  width={40}
-                                  height={40}
-                                  className="rounded-full"
-                                />
-                              ) : (
-                                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                                  <span className="text-sm font-semibold text-primary">
-                                    {stylist.displayName.charAt(0)}
-                                  </span>
-                                </div>
-                              )}
-                              <div>
-                                <p className="font-medium">{stylist.displayName}</p>
-                                {stylist.specializations.length > 0 && (
-                                  <p className="text-xs text-muted-foreground">
-                                    {stylist.specializations.slice(0, 2).join(', ')}
-                                  </p>
-                                )}
-                                {!stylist.isAvailable && (
-                                  <Badge variant="secondary" className="text-xs mt-1">
-                                    Not available
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                            {selectedStylist === stylist.id && (
-                              <CheckCircle2 className="h-5 w-5 text-primary" />
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <Button
-              className="w-full"
-              disabled={!anyAvailableStylist && !selectedStylist}
-              onClick={() => setStep('details')}
-            >
               Continue to Booking Details
             </Button>
           </div>
         )}
+
+
 
         {/* Step 4: Add-ons and Details */}
         {step === 'details' && (
           <div className="space-y-4">
             <Button
               variant="ghost"
-              onClick={() => setStep(service.provider?.isSalon ? 'stylist' : 'time')}
+              onClick={() => setStep('time')}
               size="sm"
             >
-              ← Back to {service.provider?.isSalon ? 'Stylist Selection' : 'Time Selection'}
+              ← Back to Time Selection
             </Button>
 
             {/* Contact Information - Required */}
@@ -545,7 +465,7 @@ export function BookingModal({ open, onOpenChange, service }: BookingModalProps)
                         )}
                         <div className="flex items-center gap-2 mt-1">
                           <Badge variant="outline" className="text-xs">
-                            +{service.currency} {addon.addonPrice}
+                            +${addon.addonPrice}
                           </Badge>
                           {addon.addonDurationMinutes > 0 && (
                             <Badge variant="outline" className="text-xs">
@@ -701,7 +621,7 @@ export function BookingModal({ open, onOpenChange, service }: BookingModalProps)
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Service Price:</span>
                   <span>
-                    {service.currency} {service.priceMin}
+                    ${service.priceMin}
                   </span>
                 </div>
 
@@ -713,7 +633,7 @@ export function BookingModal({ open, onOpenChange, service }: BookingModalProps)
                         <div key={addon.id} className="flex justify-between text-sm">
                           <span className="text-muted-foreground">+ {addon.addonName}:</span>
                           <span>
-                            {service.currency} {addon.addonPrice}
+                            ${addon.addonPrice}
                           </span>
                         </div>
                       ) : null;
@@ -721,22 +641,33 @@ export function BookingModal({ open, onOpenChange, service }: BookingModalProps)
                     <div className="flex justify-between font-medium">
                       <span>Subtotal:</span>
                       <span>
-                        {service.currency} {calculateTotal()}
+                        ${calculateTotal().toFixed(2)}
                       </span>
                     </div>
                   </>
                 )}
 
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Platform Fee:</span>
+                  <span>${calculatePlatformFee().toFixed(2)}</span>
+                </div>
+
+                <Separator />
+                <div className="flex justify-between font-semibold">
+                  <span>Total Amount:</span>
+                  <span>${(calculateTotal() + calculatePlatformFee()).toFixed(2)}</span>
+                </div>
+
                 <Separator />
                 <div className="flex justify-between font-semibold text-primary">
                   <span>Deposit Due Now:</span>
                   <span>
-                    {service.currency} {calculateDeposit().toFixed(2)}
+                    ${calculateDeposit().toFixed(2)}
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {service.depositType === 'PERCENTAGE'
-                    ? `${service.depositAmount}% of total price`
+                    ? `${service.depositAmount}% of total amount`
                     : 'Flat deposit amount'}
                 </p>
               </div>
@@ -748,44 +679,170 @@ export function BookingModal({ open, onOpenChange, service }: BookingModalProps)
           </div>
         )}
 
-        {/* Step 4: Payment (Stripe only - Paystack redirects) */}
-        {step === 'payment' && clientSecret && (
-          <Elements
-            stripe={stripePromise}
-            options={{
-              clientSecret,
-              appearance: {
-                theme: document.documentElement.classList.contains('dark') ? 'night' : 'stripe',
-                variables: {
-                  colorPrimary: '#B06F64',
-                  colorBackground: document.documentElement.classList.contains('dark')
-                    ? '#1a1a1a'
-                    : '#ffffff',
-                  colorText: document.documentElement.classList.contains('dark')
-                    ? '#ffffff'
-                    : '#2A3F4D',
-                  colorDanger: '#EF4444',
-                  fontFamily: 'system-ui, sans-serif',
-                  borderRadius: '8px',
-                  spacingUnit: '4px',
-                },
-                rules: {
-                  '.Input': {
-                    backgroundColor: document.documentElement.classList.contains('dark')
-                      ? '#2a2a2a'
-                      : '#f8f9fa',
-                    border: '1px solid #B06F64',
-                    borderRadius: '8px',
-                    color: document.documentElement.classList.contains('dark')
-                      ? '#ffffff'
-                      : '#2A3F4D',
-                    fontSize: '16px',
-                    padding: '12px',
-                  },
-                  '.Input:focus': {
-                    borderColor: '#B06F64',
-                    boxShadow: '0 0 0 2px rgba(176, 111, 100, 0.2)',
-                  },
+        {/* Step 3.5: Payment Method Selection (Paystack only - Phase 4) */}
+        {step === 'payment_method' && (
+          <div className="space-y-6">
+            <Button variant="ghost" onClick={() => setStep('details')} size="sm">
+              ← Back to Details
+            </Button>
+
+            <div>
+              <h3 className="font-medium mb-4">Select Payment Method</h3>
+              <p className="text-sm text-muted-foreground mb-6">
+                Choose how you'd like to pay for your booking
+              </p>
+
+              <div className="grid gap-3">
+                {/* Card Payment - Always available */}
+                <button
+                  onClick={() => setPaymentMethod('card')}
+                  className={`p-4 border-2 rounded-lg flex items-center justify-between transition-all ${
+                    paymentMethod === 'card'
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <CreditCard className="h-6 w-6 text-foreground" />
+                    <div className="text-left">
+                      <p className="font-medium text-foreground">Card Payment</p>
+                      <p className="text-xs text-muted-foreground">
+                        Pay with debit or credit card
+                      </p>
+                    </div>
+                  </div>
+                  {paymentMethod === 'card' && (
+                    <CheckCircle2 className="h-5 w-5 text-primary" />
+                  )}
+                </button>
+
+                {/* Mobile Money - Ghana only */}
+                {currency === 'GHS' && (
+                  <button
+                    onClick={() => setPaymentMethod('mobile_money')}
+                    className={`p-4 border-2 rounded-lg flex items-center justify-between transition-all ${
+                      paymentMethod === 'mobile_money'
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Smartphone className="h-6 w-6 text-foreground" />
+                      <div className="text-left">
+                        <p className="font-medium text-foreground">Mobile Money</p>
+                        <p className="text-xs text-muted-foreground">
+                          MTN, Vodafone, AirtelTigo
+                        </p>
+                      </div>
+                    </div>
+                    {paymentMethod === 'mobile_money' && (
+                      <CheckCircle2 className="h-5 w-5 text-primary" />
+                    )}
+                  </button>
+                )}
+
+                {/* Bank Transfer - Nigeria only */}
+                {currency === 'NGN' && (
+                  <button
+                    onClick={() => setPaymentMethod('bank_transfer')}
+                    className={`p-4 border-2 rounded-lg flex items-center justify-between transition-all ${
+                      paymentMethod === 'bank_transfer'
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Building2 className="h-6 w-6 text-foreground" />
+                      <div className="text-left">
+                        <p className="font-medium text-foreground">Bank Transfer</p>
+                        <p className="text-xs text-muted-foreground">
+                          Instant bank transfer
+                        </p>
+                      </div>
+                    </div>
+                    {paymentMethod === 'bank_transfer' && (
+                      <CheckCircle2 className="h-5 w-5 text-primary" />
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <Button
+              className="w-full"
+              onClick={async () => {
+                // For card payment with Paystack, redirect to authorization URL
+                if (paymentMethod === 'card') {
+                  try {
+                    const paymentResponse = await api.payment.initializeBookingPayment({
+                      bookingId: bookingId,
+                    });
+                    
+                    if (paymentResponse.data.authorizationUrl) {
+                      window.location.href = paymentResponse.data.authorizationUrl;
+                    } else {
+                      setError('Failed to initialize payment');
+                    }
+                  } catch (err: unknown) {
+                    setError(extractErrorMessage(err) || 'Failed to initialize payment');
+                  }
+                } else {
+                  // For mobile money and bank transfer, go to payment step
+                  setStep('payment');
+                }
+              }}
+            >
+              Continue to Payment
+            </Button>
+          </div>
+        )}
+
+        {/* Step 4: Payment */}
+        {step === 'payment' && (
+          <div className="space-y-4">
+            <Button variant="ghost" onClick={() => setStep('payment_method')} size="sm">
+              ← Back to Payment Method
+            </Button>
+
+            {/* Stripe Card Payment */}
+            {paymentMethod === 'card' && clientSecret && (
+              <Elements
+                stripe={stripePromise}
+                options={{
+                  clientSecret,
+                  appearance: {
+                    theme: document.documentElement.classList.contains('dark') ? 'night' : 'stripe',
+                    variables: {
+                      colorPrimary: '#B06F64',
+                      colorBackground: document.documentElement.classList.contains('dark')
+                        ? '#1a1a1a'
+                        : '#ffffff',
+                      colorText: document.documentElement.classList.contains('dark')
+                        ? '#ffffff'
+                        : '#2A3F4D',
+                      colorDanger: '#EF4444',
+                      fontFamily: 'system-ui, sans-serif',
+                      borderRadius: '8px',
+                      spacingUnit: '4px',
+                    },
+                    rules: {
+                      '.Input': {
+                        backgroundColor: document.documentElement.classList.contains('dark')
+                          ? '#2a2a2a'
+                          : '#f8f9fa',
+                        border: '1px solid #B06F64',
+                        borderRadius: '8px',
+                        color: document.documentElement.classList.contains('dark')
+                          ? '#ffffff'
+                          : '#2A3F4D',
+                        fontSize: '16px',
+                        padding: '12px',
+                      },
+                      '.Input:focus': {
+                        borderColor: '#B06F64',
+                        boxShadow: '0 0 0 2px rgba(176, 111, 100, 0.2)',
+                      },
+
                   '.Label': {
                     color: document.documentElement.classList.contains('dark')
                       ? '#ffffff'
@@ -798,15 +855,50 @@ export function BookingModal({ open, onOpenChange, service }: BookingModalProps)
             }}
           >
             <PaymentForm
-              service={service}
-              onSuccess={() => setStep('success')}
+              depositAmount={calculateDeposit()}
+              _onSuccess={() => setStep('success')}
               onError={(err) => setError(err)}
             />
           </Elements>
         )}
 
-        {/* Step 5: Success */}
-        {step === 'success' && (
+        {/* Mobile Money Payment (Paystack - Ghana) - Phase 4 */}
+        {paymentMethod === 'mobile_money' && currency === 'GHS' && user && (
+          <MobileMoneyForm
+            amount={calculateDeposit()}
+            currency={currency as 'GHS'}
+            bookingId={bookingId}
+            _onSuccess={() => {
+              setStep('success');
+            }}
+            onError={(error) => {
+              setError(error.message);
+            }}
+          />
+        )}
+
+        {/* Bank Transfer Payment (Paystack - Nigeria) - Phase 4 */}
+        {paymentMethod === 'bank_transfer' && currency === 'NGN' && user && (
+          <BankTransferForm
+            amount={calculateDeposit()}
+            currency={currency as 'NGN'}
+            bookingId={bookingId}
+            customerEmail={user.email}
+            customerName={`${user.firstName} ${user.lastName}`}
+            onSuccess={() => {
+              setStep('success');
+            }}
+            onError={(error) => {
+              setError(error.message);
+            }}
+          />
+        )}
+      </div>
+    )}
+
+    {/* Step 5: Success */}
+    {step === 'success' && (
+
           <div className="text-center py-8 space-y-4">
             <div className="flex justify-center">
               <div className="rounded-full bg-success/10 p-3">
@@ -862,12 +954,12 @@ export function BookingModal({ open, onOpenChange, service }: BookingModalProps)
 
 // Payment Form Component (Stripe)
 function PaymentForm({
-  service,
-  onSuccess,
+  depositAmount,
+  _onSuccess,
   onError,
 }: {
-  service: Service;
-  onSuccess: () => void;
+  depositAmount: number;
+  _onSuccess: () => void;
   onError: (error: string) => void;
 }) {
   const stripe = useStripe();
@@ -896,7 +988,7 @@ function PaymentForm({
       if (error) {
         onError(error.message || 'Payment failed');
       } else {
-        onSuccess();
+        _onSuccess();
       }
     } catch (err: unknown) {
       onError(extractErrorMessage(err) || 'Payment failed');
@@ -920,7 +1012,7 @@ function PaymentForm({
         <div className="flex justify-between items-center">
           <span className="font-medium">Total Due Now:</span>
           <span className="text-xl font-bold text-primary">
-            {service.currency} {service.depositAmount}
+            ${depositAmount.toFixed(2)}
           </span>
         </div>
       </div>

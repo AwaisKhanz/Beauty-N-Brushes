@@ -2,15 +2,13 @@ import Stripe from 'stripe';
 import { paymentConfig } from '../config/payment.config';
 import type {
   PaymentProvider,
-  RegionCode,
   SubscriptionTier,
   SubscriptionResult,
 } from '../types/payment.types';
 import {
   REGIONS,
-  REGIONAL_SERVICE_FEES,
   SUBSCRIPTION_TIERS,
-  EXCHANGE_RATES,
+  type RegionCode,
 } from '../../../shared-constants';
 
 // Re-export for convenience
@@ -37,42 +35,26 @@ export function getPaymentProvider(regionCode: RegionCode): PaymentProvider {
 
 /**
  * Calculate service fee charged to client
+ * Fetches fee configuration from database for flexibility
  */
-export function calculateServiceFee(bookingAmount: number, regionCode: RegionCode): number {
-  const feeStructure = REGIONAL_SERVICE_FEES[regionCode];
-  if (!feeStructure) throw new Error(`Unknown region: ${regionCode}`);
-
-  const calculated = feeStructure.base + (bookingAmount * feeStructure.percentage) / 100;
-  return Math.min(calculated, feeStructure.cap);
+export async function calculateServiceFee(bookingAmount: number): Promise<number> {
+  const { platformConfigService } = await import('../services/platform-config.service');
+  const feeConfig = await platformConfigService.getServiceFeeConfig();
+  
+  const calculated = feeConfig.base + (bookingAmount * feeConfig.percentage) / 100;
+  return Math.min(calculated, feeConfig.cap);
 }
 
 /**
  * Get currency for region
+ * ✅ All regions now use USD
  */
-export function getRegionalCurrency(regionCode: RegionCode): string {
-  return REGIONAL_SERVICE_FEES[regionCode].currency;
+export function getRegionalCurrency(_regionCode: RegionCode): string {
+  return 'USD'; // All regions use USD
 }
 
-/**
- * Convert currency amount
- */
-export function convertCurrency(amount: number, fromCurrency: string, toCurrency: string): number {
-  if (fromCurrency === toCurrency) {
-    return amount;
-  }
+// Currency conversion removed - all transactions in USD
 
-  const rateKey = `${fromCurrency}_${toCurrency}`;
-  // Use type assertion or check if key exists in EXCHANGE_RATES
-  const rate = (EXCHANGE_RATES as any)[rateKey];
-
-  if (!rate) {
-    // Fallback or throw error if conversion rate is not found
-    console.warn(`No exchange rate found for ${fromCurrency} to ${toCurrency}. Returning original amount.`);
-    return amount;
-  }
-
-  return amount * rate;
-}
 
 /**
  * Stripe Service for subscription management
@@ -271,17 +253,13 @@ export class PaystackService {
     authorizationCode?: string, // Authorization code from payment transaction
     trialDurationDays?: number | null
   ): Promise<SubscriptionResult> {
-    // Determine monthly fee in local currency from shared constants
-    const baseMonthlyFee =
-      tier === 'solo'
-        ? SUBSCRIPTION_TIERS.SOLO.monthlyPriceUSD
-        : SUBSCRIPTION_TIERS.SALON.monthlyPriceUSD;
-    const currency = getRegionalCurrency(regionCode);
-
-    // Currency conversion using shared exchange rates
-    const monthlyFee = Math.round(
-      baseMonthlyFee * (EXCHANGE_RATES[currency as keyof typeof EXCHANGE_RATES] || 1)
-    );
+    // Get base monthly fee for tier
+    const monthlyFee = tier === 'solo' 
+      ? SUBSCRIPTION_TIERS.SOLO.monthlyPriceUSD 
+      : SUBSCRIPTION_TIERS.SALON.monthlyPriceUSD;
+    
+    // ✅ All fees in USD - no conversion needed
+    const currency = 'USD'; // Paystack will handle currency conversion based on customer's card
 
     // Create or get customer
     let customerCode: string;

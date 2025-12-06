@@ -33,6 +33,7 @@ import type {
   UpdateBusinessDetailsSettingsRequest,
   BusinessDetailsResponse,
 } from '@/shared-types/settings.types';
+import { BUSINESS_TYPES } from '../../../../../../../shared-constants';
 
 const businessDetailsSchema = z.object({
   businessType: z.string().optional(),
@@ -56,13 +57,6 @@ const TIMEZONES = [
   { value: 'Africa/Lagos', label: 'Nigeria (WAT)' },
 ];
 
-const BUSINESS_TYPES = [
-  { value: 'individual', label: 'Individual Professional' },
-  { value: 'salon', label: 'Salon' },
-  { value: 'spa', label: 'Spa' },
-  { value: 'mobile', label: 'Mobile Services' },
-  { value: 'studio', label: 'Studio' },
-];
 
 export default function BusinessDetailsPage() {
   const [loading, setLoading] = useState(true);

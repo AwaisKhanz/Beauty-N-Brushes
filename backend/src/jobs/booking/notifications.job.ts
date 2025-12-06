@@ -1,12 +1,12 @@
 /**
- * Notification Jobs Service
+ * Notification Jobs
  * Handles automated email notifications for bookings
  */
 
-import { prisma } from '../config/database';
-import { emailService } from '../lib/email';
-import { env } from '../config/env';
-import logger from '../utils/logger';
+import { prisma } from '../../config/database';
+import { emailService } from '../../lib/email';
+import { env } from '../../config/env';
+import logger from '../../utils/logger';
 
 /**
  * Send 24-hour appointment reminders
@@ -28,7 +28,7 @@ export async function send24HourReminders(): Promise<void> {
         bookingStatus: {
           in: ['CONFIRMED', 'PENDING'],
         },
-        reminder1hSent: false, // Using existing field
+        reminder24hSent: false,
       },
       include: {
         client: {
@@ -62,15 +62,15 @@ export async function send24HourReminders(): Promise<void> {
       },
     });
 
-    logger.info(`Found ${upcomingBookings.length} bookings for 24h reminders`);
+    logger.info(`[CRON] Found ${upcomingBookings.length} bookings for 24h reminders`);
 
     for (const booking of upcomingBookings) {
       try {
-        const location = booking.homeServiceFee && Number(booking.homeServiceFee) > 0
+        const location = booking.homeServiceRequested
           ? 'Home Service'
           : `${booking.provider?.locations[0]?.addressLine1 || ''}, ${booking.provider?.city || ''}, ${booking.provider?.state || ''}`;
 
-        const directionsUrl = booking.homeServiceFee && Number(booking.homeServiceFee) > 0
+        const directionsUrl = booking.homeServiceRequested
           ? ''
           : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
 
@@ -98,18 +98,18 @@ export async function send24HourReminders(): Promise<void> {
         // Mark as reminded
         await prisma.booking.update({
           where: { id: booking.id },
-          data: { reminder1hSent: true }, // Using existing field
+          data: { reminder24hSent: true },
         });
 
-        logger.info(`Sent 24h reminder for booking ${booking.id}`);
+        logger.info(`[CRON] Sent 24h reminder for booking ${booking.id}`);
       } catch (error) {
-        logger.error(`Failed to send 24h reminder for booking ${booking.id}:`, error);
+        logger.error(`[CRON] Failed to send 24h reminder for booking ${booking.id}:`, error);
       }
     }
 
-    logger.info(`Completed 24h reminder job: ${upcomingBookings.length} reminders sent`);
+    logger.info(`[CRON] 24h reminders complete: ${upcomingBookings.length} sent`);
   } catch (error) {
-    logger.error('Error in send24HourReminders job:', error);
+    logger.error('[CRON] Error in send24HourReminders job:', error);
     throw error;
   }
 }
@@ -135,6 +135,7 @@ export async function sendReviewReminders(): Promise<void> {
         reviewDeadline: {
           gte: now, // Still within review window
         },
+        reviewReminderSent: false,
         review: null, // No review yet
       },
       include: {
@@ -157,7 +158,7 @@ export async function sendReviewReminders(): Promise<void> {
       },
     });
 
-    logger.info(`Found ${completedBookings.length} bookings for review reminders`);
+    logger.info(`[CRON] Found ${completedBookings.length} bookings for review reminders`);
 
     for (const booking of completedBookings) {
       try {
@@ -180,47 +181,15 @@ export async function sendReviewReminders(): Promise<void> {
           data: { reviewReminderSent: true },
         });
 
-        logger.info(`Sent review reminder for booking ${booking.id}`);
+        logger.info(`[CRON] Sent review reminder for booking ${booking.id}`);
       } catch (error) {
-        logger.error(`Failed to send review reminder for booking ${booking.id}:`, error);
+        logger.error(`[CRON] Failed to send review reminder for booking ${booking.id}:`, error);
       }
     }
 
-    logger.info(`Completed review reminder job: ${completedBookings.length} reminders sent`);
+    logger.info(`[CRON] Review reminders complete: ${completedBookings.length} sent`);
   } catch (error) {
-    logger.error('Error in sendReviewReminders job:', error);
+    logger.error('[CRON] Error in sendReviewReminders job:', error);
     throw error;
   }
-}
-
-/**
- * Initialize notification jobs
- * This should be called when the server starts
- */
-export function initializeNotificationJobs(): void {
-  // Run 24-hour reminders every hour
-  setInterval(() => {
-    send24HourReminders().catch((error) => {
-      logger.error('24h reminder job failed:', error);
-    });
-  }, 60 * 60 * 1000); // Every hour
-
-  // Run review reminders every 6 hours
-  setInterval(() => {
-    sendReviewReminders().catch((error) => {
-      logger.error('Review reminder job failed:', error);
-    });
-  }, 6 * 60 * 60 * 1000); // Every 6 hours
-
-  // Run initial check on startup (after 1 minute)
-  setTimeout(() => {
-    send24HourReminders().catch((error) => {
-      logger.error('Initial 24h reminder job failed:', error);
-    });
-    sendReviewReminders().catch((error) => {
-      logger.error('Initial review reminder job failed:', error);
-    });
-  }, 60 * 1000); // After 1 minute
-
-  logger.info('✅ Notification jobs initialized');
 }

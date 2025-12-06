@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { SettingsLayout } from '@/components/settings/SettingsLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,21 +18,21 @@ import {
 } from '@/components/ui/table';
 import {
   AlertCircle,
-  CreditCard,
+  ArrowUpDown,
   Calendar,
-  Download,
   CheckCircle2,
   Clock,
-  XCircle,
-  ArrowUpDown,
+  CreditCard,
+  Download,
   Pause,
-  Play,
+  XCircle,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
 import { PaymentMethodModal } from '@/components/settings/PaymentMethodModal';
 import { ChangeTierModal } from '@/components/settings/ChangeTierModal';
 import { CancelSubscriptionModal } from '@/components/settings/CancelSubscriptionModal';
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import type { SubscriptionInfoResponse, BillingRecord } from '@/shared-types/settings.types';
 
 export default function SubscriptionPage() {
@@ -41,7 +42,8 @@ export default function SubscriptionPage() {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [changeTierModalOpen, setChangeTierModalOpen] = useState(false);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false);
+  const [resumeLoading, setResumeLoading] = useState(false);
+  const [resumeConfirmOpen, setResumeConfirmOpen] = useState(false);
 
   useEffect(() => {
     fetchSubscriptionInfo();
@@ -61,41 +63,20 @@ export default function SubscriptionPage() {
     }
   }
 
-  async function handlePauseSubscription() {
-    if (!confirm('Are you sure you want to pause your subscription? You will not be charged during the pause.')) {
-      return;
-    }
 
-    try {
-      setActionLoading(true);
-      await api.subscription.pause();
-      alert('Subscription paused successfully');
-      await fetchSubscriptionInfo();
-    } catch (err: unknown) {
-      alert(extractErrorMessage(err) || 'Failed to pause subscription');
-    } finally {
-      setActionLoading(false);
-    }
-  }
 
-  async function handleResumeSubscription() {
-    if (!confirm('Are you sure you want to resume your subscription? Billing will restart.')) {
-      return;
-    }
 
-    try {
-      setActionLoading(true);
-      await api.subscription.resume();
-      alert('Subscription resumed successfully');
-      await fetchSubscriptionInfo();
-    } catch (err: unknown) {
-      alert(extractErrorMessage(err) || 'Failed to resume subscription');
-    } finally {
-      setActionLoading(false);
-    }
-  }
 
   function getStatusBadge(status: string) {
+    if (subscription?.cancelAtPeriodEnd) {
+      return (
+        <Badge variant="warning" className="gap-1">
+          <Clock className="h-3 w-3" />
+          Cancelling
+        </Badge>
+      );
+    }
+
     switch (status) {
       case 'trial':
         return (
@@ -145,6 +126,24 @@ export default function SubscriptionPage() {
     }).format(amount);
   }
 
+  async function handleResumeConfirm() {
+    try {
+      setResumeLoading(true);
+      await api.settings.resumeSubscription();
+      toast.success('Subscription Resumed', {
+        description: 'Your subscription has been successfully resumed.',
+      });
+      fetchSubscriptionInfo();
+    } catch (error) {
+      toast.error('Error', {
+        description: extractErrorMessage(error),
+      });
+    } finally {
+      setResumeLoading(false);
+      setResumeConfirmOpen(false);
+    }
+  }
+
   function formatDate(dateString: string | null) {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -192,9 +191,6 @@ export default function SubscriptionPage() {
   }
 
   const daysRemaining = getDaysRemaining(subscription.trialEndDate);
-  const isPaused = subscription.subscriptionStatus === 'paused';
-  const canPause = subscription.subscriptionStatus === 'active' && subscription.paymentProvider === 'stripe';
-  const canResume = isPaused && subscription.paymentProvider === 'stripe';
 
   return (
     <SettingsLayout
@@ -254,14 +250,7 @@ export default function SubscriptionPage() {
               </Alert>
             )}
 
-            {isPaused && (
-              <Alert>
-                <Pause className="h-4 w-4" />
-                <AlertDescription>
-                  Your subscription is currently paused. No charges will be made until you resume.
-                </AlertDescription>
-              </Alert>
-            )}
+
           </CardContent>
         </Card>
 
@@ -313,39 +302,6 @@ export default function SubscriptionPage() {
             <CardDescription>Manage your subscription plan</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Pause/Resume */}
-            {(canPause || canResume) && (
-              <div className="flex items-center justify-between p-4 border rounded-lg">
-                <div>
-                  <p className="font-medium">
-                    {isPaused ? 'Resume Subscription' : 'Pause Subscription'}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {isPaused
-                      ? 'Restart your subscription and billing'
-                      : 'Temporarily pause billing without cancelling'}
-                  </p>
-                </div>
-                <Button
-                  variant={isPaused ? 'default' : 'outline'}
-                  onClick={isPaused ? handleResumeSubscription : handlePauseSubscription}
-                  disabled={actionLoading}
-                >
-                  {isPaused ? (
-                    <>
-                      <Play className="mr-2 h-4 w-4" />
-                      Resume
-                    </>
-                  ) : (
-                    <>
-                      <Pause className="mr-2 h-4 w-4" />
-                      Pause
-                    </>
-                  )}
-                </Button>
-              </div>
-            )}
-
             {/* Change Tier */}
             <div className="flex items-center justify-between p-4 border rounded-lg">
               <div>
@@ -363,18 +319,40 @@ export default function SubscriptionPage() {
             </div>
 
             {/* Cancel */}
-            <div className="flex items-center justify-between p-4 border rounded-lg border-destructive/20">
-              <div>
-                <p className="font-medium text-destructive">Cancel Subscription</p>
-                <p className="text-sm text-muted-foreground">
-                  End your subscription. Access continues until{' '}
-                  {formatDate(subscription.nextBillingDate)}
-                </p>
+            {subscription.cancelAtPeriodEnd ? (
+              <div className="flex items-center justify-between p-4 border rounded-lg border-yellow-200 bg-yellow-50 dark:bg-yellow-900/10 dark:border-yellow-900/30">
+                <div>
+                  <p className="font-medium text-yellow-800 dark:text-yellow-500">
+                    Subscription Cancelling
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Your subscription is set to cancel on {formatDate(subscription.nextBillingDate)}.
+                    You will have access until then.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => setResumeConfirmOpen(true)}
+                  disabled={resumeLoading}
+                  className="border-yellow-200 hover:bg-yellow-100 dark:border-yellow-800 dark:hover:bg-yellow-900/20"
+                >
+                  {resumeLoading ? 'Resuming...' : 'Resume Plan'}
+                </Button>
               </div>
-              <Button variant="destructive" onClick={() => setCancelModalOpen(true)}>
-                Cancel Plan
-              </Button>
-            </div>
+            ) : (
+              <div className="flex items-center justify-between p-4 border rounded-lg border-destructive/20">
+                <div>
+                  <p className="font-medium text-destructive">Cancel Subscription</p>
+                  <p className="text-sm text-muted-foreground">
+                    End your subscription. Access continues until{' '}
+                    {formatDate(subscription.nextBillingDate)}
+                  </p>
+                </div>
+                <Button variant="destructive" onClick={() => setCancelModalOpen(true)}>
+                  Cancel Plan
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -477,16 +455,29 @@ export default function SubscriptionPage() {
           <CancelSubscriptionModal
             open={cancelModalOpen}
             onClose={() => setCancelModalOpen(false)}
-            onSuccess={(accessUntil) => {
+            onSuccess={(date) => {
               setCancelModalOpen(false);
-              alert(`Subscription cancelled. You'll have access until ${formatDate(accessUntil)}`);
               fetchSubscriptionInfo();
+              toast.success('Subscription Cancelled', {
+                description: `Your subscription has been cancelled. Access continues until ${formatDate(date)}.`,
+              });
             }}
-            subscriptionTier={subscription.subscriptionTier}
-            nextBillingDate={subscription.nextBillingDate}
+            subscriptionTier={subscription?.subscriptionTier || 'Plan'}
+            nextBillingDate={subscription?.nextBillingDate || null}
           />
         </>
       )}
+
+      <ConfirmationDialog
+        open={resumeConfirmOpen}
+        onOpenChange={setResumeConfirmOpen}
+        title="Resume Subscription"
+        description="Are you sure you want to resume your subscription? Your plan will continue and renew automatically."
+        confirmText="Resume Plan"
+        onConfirm={handleResumeConfirm}
+        loading={resumeLoading}
+      />
     </SettingsLayout>
   );
 }
+

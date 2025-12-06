@@ -37,11 +37,12 @@ export type BookingStatus =
  * @enum {string}
  */
 export type PaymentStatus =
-  | 'pending'
-  | 'deposit_paid'
-  | 'fully_paid'
-  | 'refunded'
-  | 'partially_refunded';
+|'AWAITING_DEPOSIT'
+  | 'PENDING'
+  | 'DEPOSIT_PAID'
+  | 'FULLY_PAID'
+  | 'REFUNDED'
+  | 'PARTIALLY_REFUNDED';
 
 // ================================
 // Booking Request Types
@@ -78,8 +79,9 @@ export interface CreateBookingRequest {
   // Payment
   paymentMethodId?: string; // Stripe/Paystack payment method ID
 
-  // Region (for payment provider selection) - uses RegionCode from shared-constants
-  clientRegionCode?: string; // 'NA' | 'EU' | 'GH' | 'NG'
+  // ✅ SECURITY: Region is detected SERVER-SIDE ONLY via middleware
+  // Frontend should NEVER send clientRegionCode
+  // Region detection happens automatically in backend from client IP
 }
 
 export interface UpdateBookingRequest {
@@ -195,11 +197,19 @@ export interface BookingDetails {
   homeServiceFee: number;
 
   // Payment
-  paymentProvider: 'stripe' | 'paystack';
+  paymentProvider: 'STRIPE' | 'PAYSTACK';
   paymentStatus: PaymentStatus;
   paymentMethod: string | null;
+  paymentChannel: string | null; // e.g., 'card', 'bank_transfer'
   paidAt: string | null;
   balancePaymentMethod: string | null; // 'online', 'cash', 'card_at_venue'
+  
+  // Payment transaction IDs
+  stripePaymentIntentId: string | null;
+  stripeChargeId: string | null;
+  paystackReference: string | null;
+  paystackAccessCode: string | null;
+  paystackTransactionId: string | null;
 
   // Status
   bookingStatus: BookingStatus;

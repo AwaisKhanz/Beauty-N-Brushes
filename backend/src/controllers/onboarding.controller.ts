@@ -82,7 +82,8 @@ export async function updateBusinessDetails(
       tagline,
       businessType,
       description,
-      address,
+      addressLine1,
+      addressLine2,
       city,
       state,
       zipCode,
@@ -96,10 +97,14 @@ export async function updateBusinessDetails(
       latitude,
       longitude,
       additionalLocations,
+      // Google Places fields
+      placeId,
+      formattedAddress,
+      addressComponents,
     } = req.body;
 
     // Validate required fields
-    if (!businessName || !address || !city || !state || !zipCode || !phone) {
+    if (!businessName || !addressLine1 || !city || !state || !zipCode || !phone) {
       throw new AppError(400, 'Missing required business details');
     }
 
@@ -108,7 +113,12 @@ export async function updateBusinessDetails(
       tagline,
       businessType,
       description,
-      address,
+      addressLine1,
+      addressLine2,
+      // Google Places fields
+      placeId,
+      formattedAddress,
+      addressComponents,
       city,
       state,
       zipCode,
@@ -199,11 +209,9 @@ export async function setupPayment(
       throw new AppError(401, 'Unauthorized');
     }
 
-    const { regionCode, paymentMethodId } = req.body;
-
-    if (!regionCode || !['NA', 'EU', 'GH', 'NG'].includes(regionCode)) {
-      throw new AppError(400, 'Valid region code required (NA, EU, GH, or NG)');
-    }
+    // ✅ SECURITY: Get region from middleware (server-side detection only)
+    const regionCode = req.clientRegion?.regionCode || 'NA';
+    const { paymentMethodId } = req.body;
 
     const result = await onboardingService.setupPayment(userId, regionCode, paymentMethodId);
 

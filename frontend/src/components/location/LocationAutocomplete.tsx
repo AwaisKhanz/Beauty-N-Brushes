@@ -6,9 +6,8 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { MapPin, Navigation, Loader2, X } from 'lucide-react';
+import { MapPin, Loader2, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useGooglePlaces } from '@/hooks/useGooglePlaces';
 import { toast } from 'sonner';
@@ -31,10 +30,10 @@ export function LocationAutocomplete({
 }: LocationAutocompleteProps) {
   const [inputValue, setInputValue] = useState(defaultValue);
   const [showPredictions, setShowPredictions] = useState(false);
-  const [isGettingLocation, setIsGettingLocation] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const isSelectingRef = useRef(false); // Track if user is selecting a location
+  const isProgrammaticChangeRef = useRef(false); // Track if change is from defaultValue
 
   const {
     predictions,
@@ -42,13 +41,13 @@ export function LocationAutocomplete({
     error,
     searchPlaces,
     selectPlace,
-    getCurrentLocation,
     clearPredictions,
     clearError,
   } = useGooglePlaces();
 
   // Update input value when defaultValue changes
   useEffect(() => {
+    isProgrammaticChangeRef.current = true;
     setInputValue(defaultValue);
   }, [defaultValue]);
 
@@ -57,6 +56,12 @@ export function LocationAutocomplete({
     // Don't search if user just selected a location
     if (isSelectingRef.current) {
       isSelectingRef.current = false;
+      return;
+    }
+
+    // Don't search if this is a programmatic change from defaultValue
+    if (isProgrammaticChangeRef.current) {
+      isProgrammaticChangeRef.current = false;
       return;
     }
 
@@ -118,25 +123,10 @@ export function LocationAutocomplete({
     const locationData = await selectPlace(placeId);
     if (locationData) {
       onLocationSelect(locationData);
-      toast.success('Location selected', {
-        description: 'Address fields have been filled automatically',
-      });
+
     }
   };
 
-  const handleUseCurrentLocation = async () => {
-    setIsGettingLocation(true);
-    const locationData = await getCurrentLocation();
-    setIsGettingLocation(false);
-
-    if (locationData) {
-      setInputValue(locationData.formattedAddress || locationData.addressLine1);
-      onLocationSelect(locationData);
-      toast.success('Location detected', {
-        description: 'Your address has been filled in automatically',
-      });
-    }
-  };
 
   const handleClearInput = () => {
     setInputValue('');
@@ -178,26 +168,7 @@ export function LocationAutocomplete({
           )}
         </div>
 
-        <Button
-          type="button"
-          variant="outline"
-          size="default"
-          onClick={handleUseCurrentLocation}
-          disabled={disabled || isGettingLocation}
-          className="gap-2 whitespace-nowrap"
-        >
-          {isGettingLocation ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Detecting...
-            </>
-          ) : (
-            <>
-              <Navigation className="h-4 w-4" />
-              Use My Location
-            </>
-          )}
-        </Button>
+  
       </div>
 
       {/* Predictions Dropdown */}

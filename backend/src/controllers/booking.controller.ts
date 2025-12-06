@@ -67,7 +67,11 @@ export async function createBooking(
 
     const data = schema.parse(req.body) as CreateBookingRequest;
 
-    const booking = await bookingService.createBooking(userId, data);
+    // ✅ SECURITY: Get region info from middleware (server-side detection only)
+    // Middleware provides: regionCode, currency, paymentProvider, etc.
+    const clientRegion = req.clientRegion;
+
+    const booking = await bookingService.createBooking(userId, data, clientRegion);
 
     // Send booking confirmation email
     try {

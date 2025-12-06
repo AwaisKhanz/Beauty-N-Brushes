@@ -4,8 +4,8 @@ import { mediaProcessorService } from './media-processor.service';
 import { notificationService } from './notification.service';
 import { emitServiceUpdate } from '../config/socket.server';
 import type { CreateServiceData } from '../types/service.types';
-import type { SaveServiceMediaRequest } from '../../../shared-types';
-import type { Prisma } from '@prisma/client';
+import type { SaveServiceMediaRequest, ServiceSearchFilters, ServiceSearchSort } from '../../../shared-types';
+import { Prisma } from '@prisma/client';
 
 export class ServiceService {
   /**
@@ -251,7 +251,7 @@ export class ServiceService {
         `;
       } else {
         // NEW MEDIA: Save with pending status, will be processed in background
-        const emptyEmbedding = new Array(1408).fill(0);
+        const emptyEmbedding = new Array(512).fill(0);
         const embeddingStr = `[${emptyEmbedding.join(',')}]`;
 
         const result = await prisma.$queryRaw<Array<{ id: string }>>`
@@ -721,6 +721,7 @@ Return as JSON array: ["hashtag1", "hashtag2", ...]`;
       mobileService?: boolean;
       isSalon?: boolean;
       availability?: string;
+      country?: string;
     };
     sort?: {
       field: 'relevance' | 'price' | 'rating' | 'distance' | 'createdAt';
@@ -738,118 +739,153 @@ Return as JSON array: ["hashtag1", "hashtag2", ...]`;
 
     const skip = (page - 1) * limit;
 
-    // Build provider filter separately
-    const providerFilter: Prisma.ProviderProfileWhereInput = {
-      user: {
-        status: 'ACTIVE',
-      },
-      // Allow pending and approved providers (Requirements: Line 95-98 - Profile live on marketplace after automated review)
-      verificationStatus: { in: ['pending', 'approved', 'verified'] },
-      profileCompleted: true,
-      acceptsNewClients: true,
-      profilePaused: false,
-    };
+    // Base query parts
+    const conditions: Prisma.Sql[] = [];
+    
+    // Active services only
+    conditions.push(Prisma.sql`s.active = true`);
+    
+    // Provider status checks
+    conditions.push(Prisma.sql`p."profileCompleted" = true`);
+    conditions.push(Prisma.sql`p."acceptsNewClients" = true`);
+    conditions.push(Prisma.sql`p."profilePaused" = false`);
+    conditions.push(Prisma.sql`p."verificationStatus" IN ('pending', 'approved', 'verified')`);
+    // Check user status via join if needed, but ProviderProfile usually implies active user if it exists and is active.
+    // For strictness, we could join User table, but let's assume ProviderProfile management handles this.
 
-    // Add location filters
-    if (filters.city) {
-      providerFilter.city = {
-        equals: filters.city,
-        mode: 'insensitive',
-      };
-    }
-
-    if (filters.state) {
-      providerFilter.state = {
-        equals: filters.state,
-        mode: 'insensitive',
-      };
-    }
-
-    // Add rating filter
-    if (filters.rating !== undefined) {
-      providerFilter.averageRating = {
-        gte: filters.rating,
-      };
-    }
-
-    // Add mobile service filter
-    if (filters.mobileService !== undefined) {
-      providerFilter.mobileServiceAvailable = filters.mobileService;
-    }
-
-    // Add salon vs solo filter
-    if (filters.isSalon !== undefined) {
-      providerFilter.isSalon = filters.isSalon;
-    }
-
-    // Build main where clause
-    const where: Prisma.ServiceWhereInput = {
-      active: true,
-      provider: providerFilter,
-    };
-
-    // Text search (service title and description)
+    // Text search
     if (filters.query) {
-      where.OR = [
-        { title: { contains: filters.query, mode: 'insensitive' } },
-        { description: { contains: filters.query, mode: 'insensitive' } },
-      ];
+      const searchPattern = `%${filters.query}%`;
+      conditions.push(Prisma.sql`(
+        s.title ILIKE ${searchPattern} OR 
+        s.description ILIKE ${searchPattern}
+      )`);
     }
 
-    // Category filter
+    // Category
     if (filters.category) {
-      where.category = {
-        slug: filters.category,
-      };
+      conditions.push(Prisma.sql`c.slug = ${filters.category}`);
     }
 
-    // Subcategory filter
+    // Subcategory
     if (filters.subcategory) {
-      where.subcategory = {
-        slug: filters.subcategory,
-      };
+      conditions.push(Prisma.sql`sc.slug = ${filters.subcategory}`);
     }
 
-    // Price range filter
+    // Location (City/State/Country)
+    // When using geolocation (lat/lng), skip city/state text filters
+    // and rely purely on distance-based filtering for accuracy
+    // Only apply city/state filters for manual text-based searches
+    if (!filters.latitude || !filters.longitude) {
+      if (filters.city) {
+        conditions.push(Prisma.sql`p.city ILIKE ${filters.city}`);
+      }
+      if (filters.state) {
+        conditions.push(Prisma.sql`p.state ILIKE ${filters.state}`);
+      }
+    }
+    
+    // Always apply country filter if provided (for both geo and text searches)
+    if (filters.country) {
+      conditions.push(Prisma.sql`p.country ILIKE ${filters.country}`);
+    }
+
+    // Price
     if (filters.priceMin !== undefined) {
-      where.priceMin = {
-        gte: filters.priceMin,
-      };
+      conditions.push(Prisma.sql`s."priceMin" >= ${filters.priceMin}`);
     }
-
     if (filters.priceMax !== undefined) {
-      where.priceMin = {
-        ...(where.priceMin as Prisma.DecimalFilter),
-        lte: filters.priceMax,
-      };
+      conditions.push(Prisma.sql`s."priceMin" <= ${filters.priceMax}`);
     }
 
-    // Build orderBy using Prisma's generated type
-    let orderBy: Prisma.ServiceOrderByWithRelationInput = { createdAt: 'desc' };
+    // Rating
+    if (filters.rating !== undefined) {
+      conditions.push(Prisma.sql`p."averageRating" >= ${filters.rating}`);
+    }
 
+    // Mobile Service
+    if (filters.mobileService !== undefined) {
+      conditions.push(Prisma.sql`p."mobileServiceAvailable" = ${filters.mobileService}`);
+    }
+
+    // Salon vs Solo
+    if (filters.isSalon !== undefined) {
+      conditions.push(Prisma.sql`p."isSalon" = ${filters.isSalon}`);
+    }
+
+    // Distance Calculation & Filtering
+    let distanceColumn = Prisma.sql`NULL::float`;
+    
+    if (filters.latitude && filters.longitude) {
+      // Haversine formula (miles)
+      // 3959 miles is earth radius
+      distanceColumn = Prisma.sql`
+        (3959 * acos(
+          cos(radians(${filters.latitude})) * cos(radians(p.latitude::float)) *
+          cos(radians(p.longitude::float) - radians(${filters.longitude})) +
+          sin(radians(${filters.latitude})) * sin(radians(p.latitude::float))
+        ))
+      `;
+
+      // Apply radius filter (default to 200 miles for international searches)
+      const radiusLimit = filters.radius || 200;
+      conditions.push(Prisma.sql`
+        (3959 * acos(
+          cos(radians(${filters.latitude})) * cos(radians(p.latitude::float)) *
+          cos(radians(p.longitude::float) - radians(${filters.longitude})) +
+          sin(radians(${filters.latitude})) * sin(radians(p.latitude::float))
+        )) <= ${radiusLimit}
+      `);
+    }
+
+    // Construct WHERE clause
+    const whereClause = conditions.length > 0 
+      ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}` 
+      : Prisma.empty;
+
+    // Sorting
+    let orderByClause = Prisma.sql`ORDER BY s."createdAt" DESC`;
+    
     switch (sort.field) {
       case 'price':
-        orderBy = { priceMin: sort.order };
+        orderByClause = Prisma.sql`ORDER BY s."priceMin" ${Prisma.raw(sort.order.toUpperCase())}`;
         break;
       case 'rating':
-        orderBy = { provider: { averageRating: sort.order } };
+        orderByClause = Prisma.sql`ORDER BY p."averageRating" ${Prisma.raw(sort.order.toUpperCase())}`;
         break;
       case 'createdAt':
-        orderBy = { createdAt: sort.order };
+        orderByClause = Prisma.sql`ORDER BY s."createdAt" ${Prisma.raw(sort.order.toUpperCase())}`;
         break;
       case 'distance':
-        // Distance sorting requires raw SQL with lat/long calculation
-        // For now, default to relevance
-        orderBy = { createdAt: 'desc' };
+        if (filters.latitude && filters.longitude) {
+          orderByClause = Prisma.sql`ORDER BY distance ${Prisma.raw(sort.order.toUpperCase())}`;
+        }
         break;
-      default:
-        // Relevance: newest first
-        orderBy = { createdAt: 'desc' };
     }
 
-    // Get services
+    // Execute Query to get IDs and Distance
+    const rawServices = await prisma.$queryRaw<Array<{ id: string; distance: number | null; total_count: bigint }>>`
+      SELECT 
+        s.id,
+        ${distanceColumn} as distance,
+        count(*) OVER() as total_count
+      FROM "Service" s
+      JOIN "ProviderProfile" p ON s."providerId" = p.id
+      JOIN "ServiceCategory" c ON s."categoryId" = c.id
+      LEFT JOIN "ServiceSubcategory" sc ON s."subcategoryId" = sc.id
+      ${whereClause}
+      ${orderByClause}
+      LIMIT ${limit}
+      OFFSET ${skip}
+    `;
+
+    const total = rawServices.length > 0 ? Number(rawServices[0].total_count) : 0;
+    const serviceIds = rawServices.map(r => r.id);
+    const distanceMap = new Map(rawServices.map(r => [r.id, r.distance]));
+
+    // Fetch full service details
     const services = await prisma.service.findMany({
-      where,
+      where: { id: { in: serviceIds } },
       include: {
         category: true,
         subcategory: true,
@@ -874,84 +910,99 @@ Return as JSON array: ["hashtag1", "hashtag2", ...]`;
           orderBy: { displayOrder: 'asc' },
         },
       },
-      orderBy,
-      skip,
-      take: limit,
     });
 
-    // Calculate distance if lat/lng provided
-    const servicesWithDistance = services.map((service) => {
-      let distance: number | undefined;
+    // Merge distance and sort back to original order
+    const sortedServices = serviceIds
+      .map(id => services.find(s => s.id === id))
+      .filter((s): s is NonNullable<typeof s> => !!s)
+      .map(service => ({
+        ...service,
+        distance: distanceMap.get(service.id) || undefined,
+      }));
 
-      if (
-        filters.latitude &&
-        filters.longitude &&
-        service.provider.latitude &&
-        service.provider.longitude
-      ) {
-        // Haversine formula for distance calculation
-        const R = 3959; // Earth's radius in miles
-        const lat1 = (filters.latitude * Math.PI) / 180;
-        const lat2 = (service.provider.latitude.toNumber() * Math.PI) / 180;
-        const dLat = ((service.provider.latitude.toNumber() - filters.latitude) * Math.PI) / 180;
-        const dLon = ((service.provider.longitude.toNumber() - filters.longitude) * Math.PI) / 180;
-
-        const a =
-          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-          Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        distance = R * c;
-      }
-
-      return {
-        id: service.id,
-        title: service.title,
-        description: service.description,
-        priceMin: service.priceMin.toNumber(),
-        priceMax: service.priceMax?.toNumber() || null,
-        priceType: service.priceType,
-        currency: service.currency,
-        durationMinutes: service.durationMinutes,
-        category: service.category.name,
-        subcategory: service.subcategory?.name || null,
-        featuredImageUrl: service.media[0]?.fileUrl || null,
-        providerId: service.provider.id,
-        providerName: service.provider.businessName,
-        providerSlug: service.provider.slug,
-        providerLogoUrl: service.provider.logoUrl,
-        providerCity: service.provider.city,
-        providerState: service.provider.state,
-        providerRating: service.provider.averageRating.toNumber(),
-        providerReviewCount: service.provider.totalReviews,
-        providerIsSalon: service.provider.isSalon,
-        distance,
-      };
-    });
-
-    // Filter by radius if distance calculated
-    let filteredServices = servicesWithDistance;
-    if (filters.radius && filters.latitude && filters.longitude) {
-      filteredServices = servicesWithDistance.filter(
-        (s) => s.distance !== undefined && s.distance <= filters.radius!
-      );
-    }
-
-    // Sort by distance if requested
-    if (sort.field === 'distance' && filters.latitude && filters.longitude) {
-      filteredServices.sort((a, b) => {
-        const distA = a.distance || Infinity;
-        const distB = b.distance || Infinity;
-        return sort.order === 'asc' ? distA - distB : distB - distA;
-      });
-    }
+    // Map to PublicServiceResult
+    const mappedServices = sortedServices.map((service) => ({
+      id: service.id,
+      title: service.title,
+      description: service.description || '',
+      priceMin: service.priceMin.toNumber(),
+      priceMax: service.priceMax?.toNumber() || null,
+      priceType: service.priceType,
+      currency: service.currency,
+      durationMinutes: service.durationMinutes,
+      category: service.category.name,
+      subcategory: service.subcategory?.name || null,
+      featuredImageUrl: service.media[0]?.urlMedium || service.media[0]?.fileUrl || null,
+      providerId: service.provider.id,
+      providerName: service.provider.businessName,
+      providerSlug: service.provider.slug,
+      providerLogoUrl: service.provider.logoUrl,
+      providerCity: service.provider.city,
+      providerState: service.provider.state,
+      providerRating: service.provider.averageRating.toNumber(),
+      providerReviewCount: service.provider.totalReviews,
+      providerIsSalon: service.provider.isSalon,
+      distance: service.distance,
+    }));
 
     return {
-      services: filteredServices,
-      total: filteredServices.length,
+      services: mappedServices,
+      total,
       page,
       limit,
-      totalPages: Math.ceil(filteredServices.length / limit),
+      totalPages: Math.ceil(total / limit),
       appliedFilters: filters,
+    };
+  }
+
+  /**
+   * Search services with intelligent fallback
+   * Automatically expands radius if no results found
+   */
+  async searchServicesWithFallback(
+    filters: ServiceSearchFilters,
+    page: number = 1,
+    limit: number = 12,
+    sort?: ServiceSearchSort
+  ) {
+    // Try initial search
+    let result = await this.searchServices({
+      filters,
+      sort,
+      page,
+      limit,
+    });
+    
+    // If no results and we have location filters, try expanding radius
+    if (result.total === 0 && filters.latitude && filters.longitude) {
+      const originalRadius = filters.radius || 200;
+      const expandedRadius = originalRadius + 50;
+      
+      // Retry with expanded radius
+      const expandedFilters = { ...filters, radius: expandedRadius };
+      const expandedResult = await this.searchServices({
+        filters: expandedFilters,
+        sort,
+        page,
+        limit,
+      });
+      
+      // If we found results with expanded radius, return them with metadata
+      if (expandedResult.total > 0) {
+        return {
+          ...expandedResult,
+          radiusExpanded: true,
+          originalRadius,
+          expandedRadius,
+        };
+      }
+    }
+    
+    // Return original result (either has results or no fallback needed)
+    return {
+      ...result,
+      radiusExpanded: false,
     };
   }
 

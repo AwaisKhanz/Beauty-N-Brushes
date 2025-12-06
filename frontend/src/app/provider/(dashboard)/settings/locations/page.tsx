@@ -26,6 +26,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -46,12 +47,14 @@ import {
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
 import { LocationAutocomplete } from '@/components/location/LocationAutocomplete';
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import type {
   CreateLocationRequest,
   UpdateLocationManagementRequest,
   ProviderLocation,
 } from '@/shared-types/location.types';
 import type { LocationData } from '@/shared-types/google-places.types';
+import { Label } from '@radix-ui/react-label';
 
 const locationSchema = z.object({
   name: z.string().max(255).optional(),
@@ -83,6 +86,8 @@ export default function LocationsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<ProviderLocation | null>(null);
   const [deletingLocation, setDeletingLocation] = useState<ProviderLocation | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [locationToDelete, setLocationToDelete] = useState<ProviderLocation | null>(null);
 
   const form = useForm<LocationFormValues>({
     resolver: zodResolver(locationSchema),
@@ -164,14 +169,17 @@ export default function LocationsPage() {
     setIsDialogOpen(true);
   }
 
-  async function handleDeleteLocation(location: ProviderLocation) {
-    if (!confirm(`Are you sure you want to delete "${location.name || 'this location'}"?`)) {
-      return;
-    }
+  function handleDeleteLocationClick(location: ProviderLocation) {
+    setLocationToDelete(location);
+    setDeleteConfirmOpen(true);
+  }
+
+  async function handleDeleteLocationConfirm() {
+    if (!locationToDelete) return;
 
     try {
-      setDeletingLocation(location);
-      await api.locations.delete(location.id);
+      setDeletingLocation(locationToDelete);
+      await api.locations.delete(locationToDelete.id);
       setSuccess('Location deleted successfully');
       await fetchLocations();
       setTimeout(() => setSuccess(''), 3000);
@@ -179,6 +187,8 @@ export default function LocationsPage() {
       setError(extractErrorMessage(err) || 'Failed to delete location');
     } finally {
       setDeletingLocation(null);
+      setDeleteConfirmOpen(false);
+      setLocationToDelete(null);
     }
   }
 
@@ -361,7 +371,7 @@ export default function LocationsPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleDeleteLocation(location)}
+                    onClick={() => handleDeleteLocationClick(location)}
                     disabled={deletingLocation?.id === location.id}
                     className="text-destructive hover:text-destructive"
                   >
@@ -410,15 +420,15 @@ export default function LocationsPage() {
 
               {/* Google Places Autocomplete */}
               <div className="space-y-2">
-                <FormLabel>Business Address *</FormLabel>
+                <Label>Business Address *</Label>
                 <LocationAutocomplete
                   onLocationSelect={handleLocationSelect}
                   defaultValue={form.watch('formattedAddress') || ''}
                   placeholder="Search for your business address..."
                 />
-                <FormDescription>
+                <p className="text-sm text-muted-foreground">
                   Start typing to search for your address using Google Places
-                </FormDescription>
+                </p>
               </div>
 
               {/* Address Line 2 */}
@@ -525,23 +535,16 @@ export default function LocationsPage() {
                       </FormDescription>
                     </div>
                     <FormControl>
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={field.value}
-                        onChange={field.onChange}
-                        className="h-4 w-4 rounded border-gray-300"
+                        onCheckedChange={field.onChange}
                       />
                     </FormControl>
                   </FormItem>
                 )}
               />
 
-              <Alert>
-                <MapPin className="h-4 w-4" />
-                <AlertDescription>
-                  Coordinates (latitude/longitude) will be automatically calculated from your address.
-                </AlertDescription>
-              </Alert>
+     
 
               <DialogFooter>
                 <Button
@@ -560,6 +563,17 @@ export default function LocationsPage() {
           </Form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmationDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        title="Delete Location"
+        description={`Are you sure you want to delete "${locationToDelete?.name || 'this location'}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        onConfirm={handleDeleteLocationConfirm}
+        variant="destructive"
+      />
     </SettingsLayout>
   );
 }

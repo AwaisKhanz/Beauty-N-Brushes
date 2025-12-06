@@ -349,6 +349,7 @@ export interface ServiceSearchFilters {
   // Location filters
   city?: string;
   state?: string;
+  country?: string;
   latitude?: number;
   longitude?: number;
   radius?: number; // miles
@@ -409,6 +410,9 @@ export interface SearchServicesResponse {
   limit: number;
   totalPages: number;
   appliedFilters: ServiceSearchFilters;
+  radiusExpanded?: boolean;
+  originalRadius?: number;
+  expandedRadius?: number;
 }
 
 export interface FeaturedServicesResponse {

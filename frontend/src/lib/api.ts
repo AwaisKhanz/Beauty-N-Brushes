@@ -653,6 +653,9 @@ export const api = {
 
     cancelSubscription: (data: CancelSubscriptionRequest) =>
       apiClient.post<{ data: CancelSubscriptionResponse }>('/settings/subscription/cancel', data),
+
+    resumeSubscription: () =>
+      apiClient.post<{ data: { message: string } }>('/settings/subscription/resume', {}),
   },
 
   // ============================================

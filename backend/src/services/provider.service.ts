@@ -155,13 +155,7 @@ export class ProviderService {
             status: true,
           },
         },
-        locations: {
-          where: { 
-            isPrimary: true,
-            isActive: true,
-          },
-          take: 1,
-        },
+
         services: {
           where: { active: true },
           include: {
@@ -231,7 +225,7 @@ export class ProviderService {
         coverPhotoUrl: profile.coverPhotoUrl,
         city: profile.city,
         state: profile.state,
-        address: profile.locations[0]?.addressLine1 || null,
+        address: profile.addressLine1 || null,
         averageRating: profile.averageRating.toNumber(),
         totalReviews: profile.totalReviews,
         likeCount: profile.likeCount,
@@ -292,10 +286,7 @@ export class ProviderService {
     const providerProfile = await prisma.providerProfile.findUnique({
       where: { userId },
       include: {
-        locations: {
-          where: { isPrimary: true },
-          take: 1,
-        },
+
         user: {
           select: {
             id: true,
@@ -329,10 +320,7 @@ export class ProviderService {
       const salonProfile = await prisma.providerProfile.findUnique({
         where: { id: teamMember.providerId },
         include: {
-          locations: {
-            where: { isPrimary: true },
-            take: 1,
-          },
+
         },
       });
 

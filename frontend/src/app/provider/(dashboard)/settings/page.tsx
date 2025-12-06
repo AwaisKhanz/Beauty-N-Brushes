@@ -11,7 +11,6 @@ import {
   Users,
   ChevronRight,
   // Palette, // Temporarily hidden with Branding
-  MapPin,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -36,12 +35,13 @@ const SETTINGS_SECTIONS = [
   //   icon: MapPin,
   //   href: '/provider/settings/location',
   // },
-  {
-    title: 'Locations',
-    description: 'Manage multiple business locations',
-    icon: MapPin,
-    href: '/provider/settings/locations',
-  },
+  // Removed - Multi-location feature removed to avoid confusion with onboarding address
+  // {
+  //   title: 'Locations',
+  //   description: 'Manage multiple business locations',
+  //   icon: MapPin,
+  //   href: '/provider/settings/locations',
+  // },
   // Temporarily hidden - Fields merged into Profile page
   // {
   //   title: 'Business Details',

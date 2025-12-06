@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Filter, X, AlertCircle } from 'lucide-react';
 import { SearchBar } from '@/components/search/SearchBar';
 import { FilterSidebar } from '@/components/search/FilterSidebar';
 import { ServiceGrid } from '@/components/search/ServiceGrid';
 import { SortDropdown, type SortOption } from '@/components/search/SortDropdown';
-import { SaveSearchButton } from '@/components/search/SaveSearchButton';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
@@ -38,6 +38,7 @@ export function SearchContent() {
     label: 'Most Relevant',
   });
   const [page, setPage] = useState(1);
+  const isInitialMount = useRef(true);
 
   // Sync filters from URL on mount and when searchParams change
   useEffect(() => {
@@ -45,20 +46,43 @@ export function SearchContent() {
 
     const query = searchParams.get('q');
     const category = searchParams.get('category');
+    const subcategory = searchParams.get('subcategory');
     const city = searchParams.get('city');
     const state = searchParams.get('state');
+    const country = searchParams.get('country');
+    const lat = searchParams.get('lat');
+    const lng = searchParams.get('lng');
+    const radius = searchParams.get('radius');
     const minPrice = searchParams.get('minPrice');
     const maxPrice = searchParams.get('maxPrice');
+    const rating = searchParams.get('rating');
+    const mobileService = searchParams.get('mobileService');
+    const isSalon = searchParams.get('isSalon');
+    const availability = searchParams.get('availability');
 
     if (query) urlFilters.query = query;
     if (category) urlFilters.category = category;
+    if (subcategory) urlFilters.subcategory = subcategory;
     if (city) urlFilters.city = city;
     if (state) urlFilters.state = state;
+    if (country) urlFilters.country = country;
+    if (lat) urlFilters.latitude = parseFloat(lat);
+    if (lng) urlFilters.longitude = parseFloat(lng);
+    if (radius) urlFilters.radius = parseFloat(radius);
     if (minPrice) urlFilters.priceMin = parseFloat(minPrice);
     if (maxPrice) urlFilters.priceMax = parseFloat(maxPrice);
+    if (rating) urlFilters.rating = parseFloat(rating);
+    if (mobileService) urlFilters.mobileService = mobileService === 'true';
+    if (isSalon) urlFilters.isSalon = isSalon === 'true';
+    if (availability) urlFilters.availability = availability;
 
     setFilters(urlFilters);
     setPage(1);
+    
+    // Mark that initial mount is complete
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+    }
   }, [searchParams]);
 
   // Load categories on mount
@@ -76,6 +100,11 @@ export function SearchContent() {
 
   // Search services when filters change
   useEffect(() => {
+    // Skip search on initial mount - wait for URL params to be parsed
+    if (isInitialMount.current) {
+      return;
+    }
+    
     async function searchServices() {
       try {
         setLoading(true);
@@ -93,6 +122,13 @@ export function SearchContent() {
 
         setServices(response.data.services);
         setTotal(response.data.total);
+        
+        // Show notification if radius was expanded
+        if (response.data.radiusExpanded) {
+          toast.info('Search radius expanded', {
+            description: `No results within ${response.data.originalRadius} miles. Showing results within ${response.data.expandedRadius} miles instead.`,
+          });
+        }
       } catch (err) {
         console.error('Search error:', err);
         setError(extractErrorMessage(err) || 'Failed to search services');
@@ -112,22 +148,51 @@ export function SearchContent() {
     const params = new URLSearchParams();
     if (newFilters.query) params.set('q', newFilters.query);
     if (newFilters.category) params.set('category', newFilters.category);
+    if (newFilters.subcategory) params.set('subcategory', newFilters.subcategory);
     if (newFilters.city) params.set('city', newFilters.city);
     if (newFilters.state) params.set('state', newFilters.state);
+    if (newFilters.country) params.set('country', newFilters.country);
+    if (newFilters.latitude) params.set('lat', newFilters.latitude.toString());
+    if (newFilters.longitude) params.set('lng', newFilters.longitude.toString());
+    if (newFilters.radius) params.set('radius', newFilters.radius.toString());
     if (newFilters.priceMin) params.set('minPrice', newFilters.priceMin.toString());
     if (newFilters.priceMax) params.set('maxPrice', newFilters.priceMax.toString());
+    if (newFilters.rating) params.set('rating', newFilters.rating.toString());
+    if (newFilters.mobileService !== undefined) params.set('mobileService', newFilters.mobileService.toString());
+    if (newFilters.isSalon !== undefined) params.set('isSalon', newFilters.isSalon.toString());
+    if (newFilters.availability) params.set('availability', newFilters.availability);
 
     router.push(`/search?${params.toString()}`, { scroll: false });
   };
 
-  const handleSearch = (query: string, location: string) => {
+  const handleSearch = (
+    query: string, 
+    location: string, 
+    lat?: number, 
+    lng?: number,
+    city?: string,
+    state?: string,
+    country?: string
+  ) => {
     const newFilters = { ...filters, query };
-    if (location) {
-      // Parse location (assuming format: "City, State")
-      const [city, state] = location.split(',').map((s) => s.trim());
+    
+    if (city || state || country) {
+      // Use structured location data if available
       if (city) newFilters.city = city;
       if (state) newFilters.state = state;
+      if (country) newFilters.country = country;
+    } else if (location) {
+      // Fallback to parsing string if structured data not provided
+      // (This handles manual text input case)
+      const parts = location.split(',').map((s) => s.trim());
+      if (parts.length > 0) newFilters.city = parts[0];
+      if (parts.length > 1) newFilters.state = parts[1];
+      // Note: We can't reliably guess country from string split
     }
+    
+    if (lat) newFilters.latitude = lat;
+    if (lng) newFilters.longitude = lng;
+
     handleFiltersChange(newFilters);
   };
 
@@ -153,8 +218,13 @@ export function SearchContent() {
             onSearch={handleSearch}
             initialQuery={filters.query}
             initialLocation={
-              filters.city && filters.state ? `${filters.city}, ${filters.state}` : ''
+              [filters.city, filters.state, filters.country].filter(Boolean).join(', ')
             }
+            initialCity={filters.city}
+            initialState={filters.state}
+            initialCountry={filters.country}
+            initialLat={filters.latitude}
+            initialLng={filters.longitude}
           />
         </div>
       </div>
@@ -226,17 +296,7 @@ export function SearchContent() {
 
               {/* Desktop Sort & Save Search */}
               <div className="hidden lg:flex gap-2">
-                {activeFilterCount > 0 && (
-                  <SaveSearchButton
-                    filters={{
-                      category: filters.category,
-                      city: filters.city,
-                      state: filters.state,
-                      priceMin: filters.priceMin,
-                      priceMax: filters.priceMax,
-                    }}
-                  />
-                )}
+       
                 <SortDropdown currentSort={sort} onSortChange={handleSortChange} />
               </div>
             </div>
@@ -354,7 +414,11 @@ export function SearchContent() {
             )}
 
             {/* Services Grid */}
-            <ServiceGrid services={services} loading={loading} showDistance={false} />
+            <ServiceGrid 
+              services={services} 
+              loading={loading} 
+              showDistance={!!(filters.latitude && filters.longitude)} 
+            />
 
             {/* Pagination */}
             {!loading && total > 12 && (

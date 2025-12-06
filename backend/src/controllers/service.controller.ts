@@ -417,6 +417,7 @@ export async function searchServices(
       subcategory,
       city,
       state,
+      country,
       latitude,
       longitude,
       radius,
@@ -442,13 +443,14 @@ export async function searchServices(
       ? (sortFieldValue as ValidSortField)
       : 'relevance';
 
-    const result = await serviceService.searchServices({
-      filters: {
+    const result = await serviceService.searchServicesWithFallback(
+      {
         query: query as string,
         category: category as string,
         subcategory: subcategory as string,
         city: city as string,
         state: state as string,
+        country: country as string,
         latitude: latitude ? parseFloat(latitude as string) : undefined,
         longitude: longitude ? parseFloat(longitude as string) : undefined,
         radius: radius ? parseFloat(radius as string) : undefined,
@@ -459,13 +461,13 @@ export async function searchServices(
         isSalon: isSalon === 'true' ? true : isSalon === 'false' ? false : undefined,
         availability: availability as string,
       },
-      sort: {
+      parseInt(page as string),
+      parseInt(limit as string),
+      {
         field: validatedSortField,
         order: sortOrder as 'asc' | 'desc',
-      },
-      page: parseInt(page as string),
-      limit: parseInt(limit as string),
-    });
+      }
+    );
 
     sendSuccess(res, result);
   } catch (error) {

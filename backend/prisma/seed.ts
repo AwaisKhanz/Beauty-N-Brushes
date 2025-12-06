@@ -209,6 +209,51 @@ async function main() {
 
   console.log('✅ Provider user created (email: provider@example.com, password: provider123)');
 
+  // ================================
+  // Platform Configuration
+  // ================================
+
+  console.log('⚙️  Creating platform configuration...');
+
+  await prisma.platformConfig.upsert({
+    where: { key: 'SERVICE_FEE_BASE' },
+    update: {},
+    create: {
+      key: 'SERVICE_FEE_BASE',
+      value: '1.25',
+      dataType: 'number',
+      category: 'payment',
+      description: 'Base service fee in USD',
+    },
+  });
+
+  await prisma.platformConfig.upsert({
+    where: { key: 'SERVICE_FEE_PERCENTAGE' },
+    update: {},
+    create: {
+      key: 'SERVICE_FEE_PERCENTAGE',
+      value: '3.6',
+      dataType: 'number',
+      category: 'payment',
+      description: 'Service fee percentage',
+    },
+  });
+
+  await prisma.platformConfig.upsert({
+    where: { key: 'SERVICE_FEE_CAP' },
+    update: {},
+    create: {
+      key: 'SERVICE_FEE_CAP',
+      value: '8.00',
+      dataType: 'number',
+      category: 'payment',
+      description: 'Maximum service fee cap in USD',
+    },
+  });
+
+  console.log('✅ Platform configuration created');
+
+
   console.log('');
   console.log('🎉 Database seeding completed successfully!');
   console.log('');

@@ -35,7 +35,10 @@ import { CheckCircle2, AlertCircle, /* Instagram, Link as LinkIcon, */ Camera, U
 import { api } from '@/lib/api';
 import { uploadService } from '@/lib/upload';
 import { extractErrorMessage } from '@/lib/error-utils';
+import { LocationAutocomplete } from '@/components/location/LocationAutocomplete';
 import type { UpdateProfileSettingsRequest } from '@/shared-types/settings.types';
+import type { LocationData } from '@/shared-types/google-places.types';
+import { BUSINESS_TYPES } from '../../../../../../../shared-constants';
 
 const profileSchema = z.object({
   businessName: z.string().min(2, 'Business name must be at least 2 characters').max(255),
@@ -49,6 +52,21 @@ const profileSchema = z.object({
   // Business Details fields
   businessType: z.string().optional(),
   timezone: z.string().optional(),
+  // Business Address fields
+  addressLine1: z.string().min(1, 'Address is required').max(255),
+  addressLine2: z.string().max(255).optional().or(z.literal('')),
+  city: z.string().min(1, 'City is required').max(100),
+  state: z.string().min(1, 'State is required').max(50),
+  zipCode: z.string().max(20).optional().or(z.literal('')),
+  country: z.string().min(1, 'Country is required').max(50),
+  businessPhone: z.string().max(20).optional().or(z.literal('')),
+  businessEmail: z.string().email('Invalid email').optional().or(z.literal('')),
+  // Google Places fields
+  placeId: z.string().optional(),
+  formattedAddress: z.string().optional(),
+  addressComponents: z.unknown().optional(),
+  latitude: z.number().optional().nullable(),
+  longitude: z.number().optional().nullable(),
 });
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
@@ -65,14 +83,6 @@ const TIMEZONES = [
   { value: 'Europe/Paris', label: 'Paris (CET)' },
   { value: 'Africa/Accra', label: 'Ghana (GMT)' },
   { value: 'Africa/Lagos', label: 'Nigeria (WAT)' },
-];
-
-const BUSINESS_TYPES = [
-  { value: 'individual', label: 'Individual Professional' },
-  { value: 'salon', label: 'Salon' },
-  { value: 'spa', label: 'Spa' },
-  { value: 'mobile', label: 'Mobile Services' },
-  { value: 'studio', label: 'Studio' },
 ];
 
 export default function ProfileSettingsPage() {
@@ -106,6 +116,21 @@ export default function ProfileSettingsPage() {
       // Business Details
       businessType: '',
       timezone: '',
+      // Business Address
+      addressLine1: '',
+      addressLine2: '',
+      city: '',
+      state: '',
+      zipCode: '',
+      country: 'US',
+      businessPhone: '',
+      businessEmail: '',
+      // Google Places
+      placeId: '',
+      formattedAddress: '',
+      addressComponents: undefined,
+      latitude: null,
+      longitude: null,
     },
   });
 
@@ -191,6 +216,21 @@ export default function ProfileSettingsPage() {
         // Business Details
         businessType: profile.businessType || '',
         timezone: profile.timezone || '',
+        // Business Address
+        addressLine1: profile.addressLine1 || '',
+        addressLine2: profile.addressLine2 || '',
+        city: profile.city || '',
+        state: profile.state || '',
+        zipCode: profile.zipCode || '',
+        country: profile.country || 'US',
+        businessPhone: profile.businessPhone || '',
+        businessEmail: profile.businessEmail || '',
+        // Google Places
+        placeId: profile.placeId || '',
+        formattedAddress: profile.formattedAddress || '',
+        addressComponents: profile.addressComponents,
+        latitude: profile.latitude ? parseFloat(profile.latitude as any) : null,
+        longitude: profile.longitude ? parseFloat(profile.longitude as any) : null,
       });
 
       // Set existing photo URLs
@@ -206,6 +246,19 @@ export default function ProfileSettingsPage() {
       setLoading(false);
     }
   }
+
+  const handleLocationSelect = (location: LocationData) => {
+    form.setValue('addressLine1', location.addressLine1);
+    form.setValue('city', location.city);
+    form.setValue('state', location.state);
+    form.setValue('zipCode', location.zipCode || '');
+    form.setValue('country', location.country);
+    form.setValue('placeId', location.placeId);
+    form.setValue('formattedAddress', location.formattedAddress);
+    form.setValue('addressComponents', location.addressComponents);
+    form.setValue('latitude', location.latitude);
+    form.setValue('longitude', location.longitude);
+  };
 
   async function onSubmit(values: ProfileFormValues) {
     try {
@@ -251,11 +304,26 @@ export default function ProfileSettingsPage() {
         instagramHandle: values.instagramHandle || null,
         tiktokHandle: values.tiktokHandle || null,
         facebookUrl: values.facebookUrl || null,
-        profilePhotoUrl: profilePhotoUrl || existingProfilePhotoUrl || null,
-        coverPhotoUrl: coverPhotoUrl || existingCoverPhotoUrl || null,
         // Business Details
         businessType: values.businessType || null,
         timezone: values.timezone || null,
+        // Business Address
+        addressLine1: values.addressLine1,
+        addressLine2: values.addressLine2 || null,
+        city: values.city,
+        state: values.state,
+        zipCode: values.zipCode || null,
+        country: values.country,
+        businessPhone: values.businessPhone || null,
+        businessEmail: values.businessEmail || null,
+        // Google Places
+        placeId: values.placeId || null,
+        formattedAddress: values.formattedAddress || null,
+        addressComponents: values.addressComponents,
+        latitude: values.latitude || null,
+        longitude: values.longitude || null,
+        profilePhotoUrl: profilePhotoUrl || existingProfilePhotoUrl || null,
+        coverPhotoUrl: coverPhotoUrl || existingCoverPhotoUrl || null,
       };
 
       await api.settings.updateProfile(data);
@@ -324,7 +392,9 @@ export default function ProfileSettingsPage() {
       )}
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={form.handleSubmit(onSubmit, (errors) => {
+          console.error('Form validation errors:', errors);
+        })} className="space-y-6">
           {/* Profile Photo */}
           <Card>
             <CardHeader>
@@ -656,6 +726,129 @@ export default function ProfileSettingsPage() {
                 </FormItem>
               )}
             />
+          </div>
+
+          {/* Business Address Section */}
+          <div className="space-y-4 pt-6 border-t">
+            <h3 className="text-lg font-semibold">Business Address</h3>
+            
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Address Search</Label>
+                <LocationAutocomplete
+                  onLocationSelect={handleLocationSelect}
+                  defaultValue={form.watch('formattedAddress') || ''}
+                  placeholder="Search for your business address..."
+                />
+                <p className="text-sm text-muted-foreground">
+                  Search for your address to automatically fill the details below
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="addressLine1"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Address Line 1</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="addressLine2"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Address Line 2 (Optional)</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <FormField
+                  control={form.control}
+                  name="city"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>City</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="state"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>State</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="zipCode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Zip Code</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="businessPhone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Business Phone</FormLabel>
+                      <FormControl>
+                        <Input type="tel" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="businessEmail"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Business Email</FormLabel>
+                      <FormControl>
+                        <Input type="email" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
           </div>
 
           {/* Submit Button */}

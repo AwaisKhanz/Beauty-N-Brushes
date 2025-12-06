@@ -138,9 +138,9 @@ class MediaProcessorService {
       // Extract web labels for enriched context
       const webLabels: string[] = []; // Could be populated from Vision AI if needed
 
-      // STAGE 2: Generate HIGH-QUALITY Visual Embeddings (2 specialized vectors, 1408-dim)
+      // STAGE 2: Generate HIGH-QUALITY Visual Embeddings (2 specialized vectors, 512-dim)
       const vectors = await aiService.generateMultiVectorEmbeddings(
-        imageBuffer,
+        job.mediaUrl, // Pass URL instead of buffer
         {
           tags: analysis.tags,
           description: analysis.description,
@@ -171,8 +171,8 @@ class MediaProcessorService {
         analysis.tags, // 100+ comprehensive tags
         analysis.description || null, // Natural language description
         JSON.stringify(analysis.dominantColors || []),
-        `[${vectors.visualOnly.join(',')}]`, // Backup: pure visual similarity (1408-dim)
-        `[${vectors.styleEnriched.join(',')}]`, // PRIMARY: context-aware matching (1408-dim, 98% accuracy)
+        `[${vectors.visualOnly.join(',')}]`, // Backup: pure visual similarity (512-dim)
+        `[${vectors.styleEnriched.join(',')}]`, // PRIMARY: context-aware matching (512-dim, 98% accuracy)
         job.mediaId
       );
 
@@ -185,7 +185,7 @@ class MediaProcessorService {
         );
       }
       console.log(
-        `      Embeddings: 2 high-quality vectors (1408-dim visual + 1408-dim style-enriched)`
+        `      Embeddings: 2 high-quality vectors (512-dim visual + 512-dim style-enriched)`
       );
     } catch (error: any) {
       console.error(`   ❌ Processing failed:`, error.message);

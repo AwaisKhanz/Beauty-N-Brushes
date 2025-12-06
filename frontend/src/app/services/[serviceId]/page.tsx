@@ -30,7 +30,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import Header from '@/components/shared/Header';
-import { LoginGate } from '@/components/auth/LoginGate';
+import { LoginGate, useLoginGate } from '@/components/auth/LoginGate';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
 import { getProviderProfileRoute } from '@/constants';
@@ -51,6 +51,7 @@ export default function ServiceDetailPage() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
+  const { requireAuth, LoginDialog } = useLoginGate();
   // Carousel state must be declared before any conditional returns
   const [carouselApi, setCarouselApi] = useState<CarouselApi | undefined>(undefined);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -83,6 +84,17 @@ export default function ServiceDetailPage() {
       loadService();
     }
   }, [serviceId]);
+
+  // Handle post-login redirect - open booking modal if user just logged in
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const shouldOpenBooking = sessionStorage.getItem('openBookingAfterLogin');
+      if (shouldOpenBooking === 'true' && service) {
+        sessionStorage.removeItem('openBookingAfterLogin');
+        setBookingModalOpen(true);
+      }
+    }
+  }, [service]);
 
   if (loading) {
     return (
@@ -272,10 +284,10 @@ export default function ServiceDetailPage() {
                         <p className="text-sm text-muted-foreground">Price</p>
                         <p className="font-semibold">
                           {service.priceType === 'fixed'
-                            ? `${service.currency} ${service.priceMin}`
+                            ? `${"USD"} ${service.priceMin}`
                             : service.priceType === 'range'
-                              ? `${service.currency} ${service.priceMin} - ${service.priceMax}`
-                              : `From ${service.currency} ${service.priceMin}`}
+                              ? `${"USD"} ${service.priceMin} - ${service.priceMax}`
+                              : `From ${"USD"} ${service.priceMin}`}
                         </p>
                       </div>
                     </div>
@@ -287,7 +299,7 @@ export default function ServiceDetailPage() {
                     <p className="text-sm text-muted-foreground">
                       {service.depositType === 'PERCENTAGE'
                         ? `${service.depositAmount}% of service price`
-                        : `${service.currency} ${service.depositAmount} flat fee`}
+                        : `${"USD"} ${service.depositAmount} flat fee`}
                     </p>
                   </div>
 
@@ -316,7 +328,7 @@ export default function ServiceDetailPage() {
                               </div>
                               <div className="text-right">
                                 <p className="font-semibold">
-                                  +{service.currency} {addon.addonPrice}
+                                  +{"USD"} {addon.addonPrice}
                                 </p>
                                 {addon.addonDurationMinutes > 0 && (
                                   <p className="text-xs text-muted-foreground">
@@ -402,7 +414,7 @@ export default function ServiceDetailPage() {
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Service Price</span>
                       <span className="font-semibold">
-                        {service.currency} {service.priceMin}
+                        {"USD"} {service.priceMin}
                         {service.priceType === 'range' && ` - ${service.priceMax}`}
                       </span>
                     </div>
@@ -411,23 +423,21 @@ export default function ServiceDetailPage() {
                       <span className="font-semibold">
                         {service.depositType === 'PERCENTAGE'
                           ? `${service.depositAmount}%`
-                          : `${service.currency} ${service.depositAmount}`}
+                          : `${"USD"} ${service.depositAmount}`}
                       </span>
                     </div>
                   </div>
 
                   <Separator />
 
-                  <LoginGate action="book this service">
-                    <Button
-                      className="w-full"
-                      size="lg"
-                      variant="dark"
-                      onClick={() => setBookingModalOpen(true)}
-                    >
-                      Book Now
-                    </Button>
-                  </LoginGate>
+                  <Button
+                    className="w-full"
+                    size="lg"
+                    variant="dark"
+                    onClick={() => requireAuth(() => setBookingModalOpen(true), 'book this service')}
+                  >
+                    Book Now
+                  </Button>
 
                   <p className="text-xs text-center text-muted-foreground">
                     {service.provider?.instantBookingEnabled
@@ -472,6 +482,9 @@ export default function ServiceDetailPage() {
             <ServiceReviews serviceId={serviceId} serviceTitle={service.title} />
           </div>
         </div>
+
+        {/* Login Dialog */}
+        {LoginDialog}
 
         {/* Booking Modal */}
         <BookingModal

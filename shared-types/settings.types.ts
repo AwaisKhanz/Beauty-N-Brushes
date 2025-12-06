@@ -21,6 +21,21 @@ export interface UpdateProfileSettingsRequest {
   // Business Details
   businessType?: string | null;
   timezone?: string | null;
+  // Business Address
+  addressLine1?: string;
+  addressLine2?: string | null;
+  city?: string;
+  state?: string;
+  zipCode?: string | null;
+  country?: string;
+  businessPhone?: string | null;
+  businessEmail?: string | null;
+  // Google Places
+  placeId?: string | null;
+  formattedAddress?: string | null;
+  addressComponents?: any;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 // ================================
@@ -126,6 +141,21 @@ export interface ProviderSettingsProfile {
   // Business Details
   businessType: string | null;
   timezone: string;
+  // Business Address
+  addressLine1: string;
+  addressLine2: string | null;
+  city: string;
+  state: string;
+  zipCode: string | null;
+  country: string;
+  businessPhone: string | null;
+  businessEmail: string | null;
+  // Google Places
+  placeId: string | null;
+  formattedAddress: string | null;
+  addressComponents: any;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export interface ProviderSettingsResponse {
@@ -168,6 +198,7 @@ export interface BillingRecord {
 export interface SubscriptionInfoResponse {
   subscriptionTier: 'solo' | 'salon';
   subscriptionStatus: 'trial' | 'active' | 'past_due' | 'cancelled' | 'expired' | 'paused';
+  cancelAtPeriodEnd?: boolean;
   trialEndDate: string | null;
   nextBillingDate: string | null;
   monthlyFee: number;

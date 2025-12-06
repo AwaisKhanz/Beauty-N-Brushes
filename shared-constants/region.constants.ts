@@ -8,27 +8,28 @@ export const REGIONS = {
     code: 'NA' as const,
     name: 'North America',
     currency: 'USD',
-    paymentProvider: 'stripe' as const,
+    paymentProvider: 'stripe' as const, // ✅ NA uses Stripe for USD
   },
   EU: {
     code: 'EU' as const,
     name: 'Europe',
-    currency: 'EUR',
-    paymentProvider: 'stripe' as const,
+    currency: 'USD',
+    paymentProvider: 'stripe' as const, // ✅ EU uses Stripe for USD
   },
   GH: {
     code: 'GH' as const,
     name: 'Ghana',
-    currency: 'GHS',
-    paymentProvider: 'paystack' as const,
+    currency: 'GHS', // ✅ Ghana uses Ghanaian Cedi
+    paymentProvider: 'paystack' as const, // ✅ GH uses Paystack
   },
   NG: {
     code: 'NG' as const,
     name: 'Nigeria',
-    currency: 'NGN',
-    paymentProvider: 'paystack' as const,
+    currency: 'NGN', // ✅ Nigeria uses Nigerian Naira
+    paymentProvider: 'paystack' as const, // ✅ NG uses Paystack
   },
 } as const;
+
 
 // Array format for dropdowns/iteration
 export const REGIONS_ARRAY = [REGIONS.NA, REGIONS.EU, REGIONS.GH, REGIONS.NG] as const;
@@ -36,11 +37,19 @@ export const REGIONS_ARRAY = [REGIONS.NA, REGIONS.EU, REGIONS.GH, REGIONS.NG] as
 // African countries that use Paystack
 export const PAYSTACK_COUNTRIES = ['GH', 'NG', 'ZA', 'KE', 'CI', 'SN', 'UG', 'RW', 'TZ', 'GN'] as const;
 
-// Exchange rates (simplified - use actual API in production)
+/**
+ * Exchange rates for currency conversion
+ * Base currency: USD
+ * Updated: 2024-12-05
+ */
 export const EXCHANGE_RATES = {
-  GHS: 12.5, // 1 USD = ~12.5 GHS
-  NGN: 1550, // 1 USD = ~1550 NGN
+  USD: 1,
+  GHS: 12.5,  // 1 USD = 12.5 GHS (Ghanaian Cedi)
+  NGN: 1550,  // 1 USD = 1550 NGN (Nigerian Naira)
+  EUR: 0.92,  // 1 USD = 0.92 EUR (for reference)
 } as const;
+
+export type Currency = keyof typeof EXCHANGE_RATES;
 
 // Helper types
 export type RegionCode = keyof typeof REGIONS;

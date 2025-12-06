@@ -9,6 +9,7 @@ import { AlertCircle, CreditCard, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
 import { toast } from 'sonner';
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { AddPaymentMethodModal } from '@/components/payment/AddPaymentMethodModal';
 
 interface PaymentMethod {
@@ -25,6 +26,8 @@ export default function PaymentMethodsPage() {
   const [error, setError] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
+  const [methodToRemove, setMethodToRemove] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPaymentMethods();
@@ -45,13 +48,16 @@ export default function PaymentMethodsPage() {
     }
   }
 
-  async function handleRemove(paymentMethodId: string) {
-    if (!confirm('Are you sure you want to remove this payment method?')) {
-      return;
-    }
+  function handleRemoveClick(paymentMethodId: string) {
+    setMethodToRemove(paymentMethodId);
+    setRemoveConfirmOpen(true);
+  }
+
+  async function handleRemoveConfirm() {
+    if (!methodToRemove) return;
 
     try {
-      setRemoving(paymentMethodId);
+      setRemoving(methodToRemove);
       // Since backend only supports one payment method, we can clear it
       // by adding a new one or implementing a delete endpoint
       toast.info('To change your payment method, please add a new one');
@@ -60,6 +66,8 @@ export default function PaymentMethodsPage() {
       toast.error(message);
     } finally {
       setRemoving(null);
+      setRemoveConfirmOpen(false);
+      setMethodToRemove(null);
     }
   }
 
@@ -162,7 +170,7 @@ export default function PaymentMethodsPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => handleRemove(method.id)}
+                      onClick={() => handleRemoveClick(method.id)}
                       disabled={removing === method.id}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -194,6 +202,17 @@ export default function PaymentMethodsPage() {
         onOpenChange={setShowAddModal}
         onSuccess={handleAddSuccess}
         regionCode={regionCode as 'NA' | 'EU' | 'GH' | 'NG'}
+      />
+
+      <ConfirmationDialog
+        open={removeConfirmOpen}
+        onOpenChange={setRemoveConfirmOpen}
+        title="Remove Payment Method"
+        description="Are you sure you want to remove this payment method?"
+        confirmText="Remove"
+        cancelText="Cancel"
+        onConfirm={handleRemoveConfirm}
+        variant="destructive"
       />
     </div>
   );

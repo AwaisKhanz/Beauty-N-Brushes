@@ -8,11 +8,9 @@ import { stripe } from '../lib/stripe';
 import { getRegionalCurrency, generateIdempotencyKey } from '../lib/payment';
 import { paymentConfig } from '../config/payment.config';
 import type { RegionCode } from '../types/payment.types';
-import type {
+import {
   InitializeBookingPaymentRequest,
   InitializeBookingPaymentResponse,
-  PayBalanceRequest,
-  PayBalanceResponse,
 } from '../../../shared-types';
 import { z } from 'zod';
 
@@ -193,22 +191,15 @@ export async function initializeBookingPayment(
 
     const schema = z.object({
       bookingId: z.string().uuid('Valid booking ID is required'),
+      paymentType: z.enum(['deposit', 'balance']).optional().default('deposit'),
     });
 
     const data = schema.parse(req.body) as InitializeBookingPaymentRequest;
-    const { bookingId } = data;
+    const { bookingId, paymentType = 'deposit' } = data;
 
-    // Get booking details with provider info
+    // Get booking details - use CLIENT region for payment provider
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
-      include: {
-        provider: {
-          select: {
-            paymentProvider: true,
-            regionCode: true,
-          },
-        },
-      },
     });
 
     // Get client info separately
@@ -233,12 +224,29 @@ export async function initializeBookingPayment(
       throw new AppError(403, 'Unauthorized to pay for this booking');
     }
 
-    if (booking.paymentStatus === 'DEPOSIT_PAID' || booking.paymentStatus === 'FULLY_PAID') {
-      throw new AppError(400, 'Booking deposit already paid');
+    // ✅ Check payment status based on payment type
+    if (paymentType === 'deposit') {
+      if (booking.paymentStatus === 'DEPOSIT_PAID' || booking.paymentStatus === 'FULLY_PAID') {
+        throw new AppError(400, 'Booking deposit already paid');
+      }
+    } else if (paymentType === 'balance') {
+      if (booking.paymentStatus === 'FULLY_PAID') {
+        throw new AppError(400, 'Booking balance already paid');
+      }
+      if (booking.paymentStatus !== 'DEPOSIT_PAID') {
+        throw new AppError(400, 'Deposit must be paid before paying balance');
+      }
     }
 
-    const paymentProvider = booking.provider.paymentProvider;
-    const amount = Number(booking.totalAmount);
+    // ✅ CRITICAL FIX: Use CLIENT's region to determine payment provider
+    // Client's location determines which payment gateway they can use
+    const paymentProvider = booking.paymentProvider; // This was set during booking creation based on client region
+    
+    // ✅ Calculate amount based on payment type
+    const amount = paymentType === 'deposit' 
+      ? Number(booking.depositAmount) + Number(booking.serviceFee) // Deposit + platform fee
+      : Number(booking.totalAmount) - Number(booking.depositAmount) - Number(booking.serviceFee); // Balance (total - deposit - fee already paid)
+    
     const currency = booking.currency;
 
     if (paymentProvider === 'STRIPE') {
@@ -276,7 +284,8 @@ export async function initializeBookingPayment(
               bookingId: booking.id,
               depositAmount: booking.depositAmount.toString(),
               serviceFee: booking.serviceFee.toString(),
-              type: 'booking_deposit',
+              paymentType: paymentType, // deposit or balance
+              type: paymentType === 'deposit' ? 'booking_deposit' : 'booking_balance',
             },
             automatic_payment_methods: {
               enabled: true,
@@ -302,33 +311,62 @@ export async function initializeBookingPayment(
         currency,
       });
     } else {
-      // Initialize Paystack Transaction
+      // ✅ Paystack Transaction Initialization
+      // Amount and currency are already converted in booking service
+      // Paystack requires amounts in subunits (kobo for NGN, pesewas for GHS)
+      
+      const amountInSubunits = Math.round(amount * 100);
+      
+      // Phase 4: Support multiple payment channels
+      const paymentChannel = req.body.paymentChannel || 'card'; // card, mobile_money, bank_transfer
+      const mobileMoneyProvider = req.body.mobileMoneyProvider; // mtn, vod, atl
+      const phoneNumber = req.body.phoneNumber; // For mobile money
+      
+      const requestBody: any = {
+        email: client.email,
+        amount: amountInSubunits, // Amount in kobo/pesewas
+        currency: currency, // GHS or NGN (must be enabled in dashboard)
+        callback_url: `${env.FRONTEND_URL}/bookings/${booking.id}/confirm`,
+        metadata: {
+          bookingId: booking.id,
+          depositAmount: booking.depositAmount.toString(),
+          serviceFee: booking.serviceFee.toString(),
+          paymentType: paymentType, // deposit or balance
+          type: paymentType === 'deposit' ? 'booking_deposit' : 'booking_balance',
+          clientRegionCode: booking.clientRegionCode,
+        },
+      };
+      
+      // Add channel-specific parameters
+      if (paymentChannel === 'mobile_money' && mobileMoneyProvider && phoneNumber) {
+        requestBody.channels = ['mobile_money'];
+        requestBody.mobile_money = {
+          phone: phoneNumber,
+          provider: mobileMoneyProvider, // mtn, vod, atl
+        };
+      } else if (paymentChannel === 'bank_transfer') {
+        requestBody.channels = ['bank_transfer'];
+      } else {
+        requestBody.channels = ['card']; // Default to card
+      }
+      
       const paystackResponse = await fetch('https://api.paystack.co/transaction/initialize', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${paymentConfig.paystack.secretKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          email: client.email,
-          amount: Math.round(amount * 100), // Convert to kobo/pesewas
-          currency: currency,
-          callback_url: `${env.FRONTEND_URL}/bookings/${booking.id}/confirm`,
-          metadata: {
-            bookingId: booking.id,
-            depositAmount: booking.depositAmount.toString(),
-            serviceFee: booking.serviceFee.toString(),
-            type: 'booking_deposit',
-          },
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!paystackResponse.ok) {
         const errorData = (await paystackResponse.json()) as { message: string };
-        throw new AppError(400, errorData.message || 'Failed to initialize payment');
+        throw new AppError(400, errorData.message || 'Failed to initialize Paystack payment');
       }
 
       const paystackData = (await paystackResponse.json()) as {
+        status: boolean;
+        message: string;
         data: {
           authorization_url: string;
           access_code: string;
@@ -336,7 +374,7 @@ export async function initializeBookingPayment(
         };
       };
 
-      // Update booking with Paystack reference
+      // Update booking with Paystack reference and access code
       await prisma.booking.update({
         where: { id: booking.id },
         data: {
@@ -345,8 +383,10 @@ export async function initializeBookingPayment(
         },
       });
 
+      // Return access_code for frontend Popup JS integration
       sendSuccess<InitializeBookingPaymentResponse>(res, {
-        authorizationUrl: paystackData.data.authorization_url,
+        accessCode: paystackData.data.access_code, // ✅ For Popup JS
+        authorizationUrl: paystackData.data.authorization_url, // ✅ For redirect flow
         reference: paystackData.data.reference,
         paymentProvider: 'paystack',
         amount,
@@ -359,166 +399,6 @@ export async function initializeBookingPayment(
         new AppError(400, `Validation failed: ${error.errors.map((e) => e.message).join(', ')}`)
       );
     }
-    next(error);
-  }
-}
-
-/**
- * Pay balance for booking (remaining amount after deposit)
- */
-export async function payBalance(
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const userId = req.user?.id;
-    if (!userId) throw new AppError(401, 'Unauthorized');
-
-    const { bookingId, paymentMethod = 'online' } = req.body as PayBalanceRequest;
-
-    if (!bookingId) {
-      throw new AppError(400, 'Booking ID is required');
-    }
-
-    // Get booking details
-    const booking = await prisma.booking.findUnique({
-      where: { id: bookingId },
-      include: {
-        provider: {
-          select: {
-            paymentProvider: true,
-            regionCode: true,
-          },
-        },
-      },
-    });
-
-    const client = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        email: true,
-        firstName: true,
-        lastName: true,
-      },
-    });
-
-    if (!booking) {
-      throw new AppError(404, 'Booking not found');
-    }
-
-    if (!client) {
-      throw new AppError(404, 'Client not found');
-    }
-
-    if (booking.clientId !== userId) {
-      throw new AppError(403, 'Unauthorized to pay for this booking');
-    }
-
-    if (booking.paymentStatus === 'FULLY_PAID') {
-      throw new AppError(400, 'Balance already paid');
-    }
-
-    // Calculate balance (service price - deposit)
-    const balanceAmount = Number(booking.servicePrice) - Number(booking.depositAmount);
-
-    if (balanceAmount <= 0) {
-      throw new AppError(400, 'No balance to pay');
-    }
-
-    // Handle cash payment
-    if (paymentMethod === 'cash') {
-      // Mark as cash payment - provider will confirm when received
-      await prisma.booking.update({
-        where: { id: bookingId },
-        data: {
-          paymentMethod: 'cash',
-          updatedAt: new Date(),
-        },
-      });
-
-      return sendSuccess<PayBalanceResponse>(res, {
-        amount: balanceAmount,
-        currency: booking.currency,
-        paymentMethod: 'cash',
-        message: 'Balance will be paid in cash at appointment',
-      });
-    }
-
-    // Handle online payment
-    const paymentProvider = booking.provider.paymentProvider;
-    const currency = booking.currency;
-
-    if (paymentProvider === 'STRIPE') {
-      // Initialize Stripe Payment Intent for balance
-      const paymentIntent = await stripe.paymentIntents.create(
-        {
-          amount: Math.round(balanceAmount * 100), // Convert to cents
-          currency: currency.toLowerCase(),
-          metadata: {
-            bookingId: booking.id,
-            type: 'balance_payment',
-            balanceAmount: balanceAmount.toString(),
-          },
-        },
-        {
-          idempotencyKey: generateIdempotencyKey(booking.id, 'balance'),
-        }
-      );
-
-      sendSuccess<PayBalanceResponse>(res, {
-        clientSecret: paymentIntent.client_secret || undefined,
-        paymentProvider: 'stripe',
-        amount: balanceAmount,
-        currency,
-        paymentMethod: 'online',
-        message: 'Payment intent created',
-      });
-    } else {
-      // Initialize Paystack Transaction for balance
-      const paystackResponse = await fetch('https://api.paystack.co/transaction/initialize', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${paymentConfig.paystack.secretKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: client.email,
-          amount: Math.round(balanceAmount * 100), // Convert to kobo/pesewas
-          currency: currency,
-          callback_url: `${env.FRONTEND_URL}/bookings/${booking.id}/confirm`,
-          metadata: {
-            bookingId: booking.id,
-            balanceAmount: balanceAmount.toString(),
-            type: 'balance_payment',
-          },
-        }),
-      });
-
-      if (!paystackResponse.ok) {
-        const errorData = (await paystackResponse.json()) as { message: string };
-        throw new AppError(400, errorData.message || 'Failed to initialize payment');
-      }
-
-      const paystackData = (await paystackResponse.json()) as {
-        data: {
-          authorization_url: string;
-          access_code: string;
-          reference: string;
-        };
-      };
-
-      sendSuccess<PayBalanceResponse>(res, {
-        authorizationUrl: paystackData.data.authorization_url,
-        reference: paystackData.data.reference,
-        paymentProvider: 'paystack',
-        amount: balanceAmount,
-        currency,
-        paymentMethod: 'online',
-        message: 'Payment initialized',
-      });
-    }
-  } catch (error) {
     next(error);
   }
 }

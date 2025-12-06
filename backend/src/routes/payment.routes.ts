@@ -4,7 +4,6 @@ import {
   initializePaystackTransaction,
   verifyPaystackTransaction,
   initializeBookingPayment,
-  payBalance,
   payTip,
 } from '../controllers/payment.controller';
 
@@ -16,13 +15,16 @@ router.post('/paystack/initialize', authenticate, initializePaystackTransaction)
 // Verify Paystack transaction (onboarding)
 router.get('/paystack/verify/:reference', authenticate, verifyPaystackTransaction);
 
-// Initialize booking payment (Stripe/Paystack)
+// Initialize booking payment (Stripe/Paystack) - for both deposit and balance
 router.post('/booking/initialize', authenticate, initializeBookingPayment);
-
-// Pay balance for booking
-router.post('/booking/pay-balance', authenticate, payBalance);
 
 // Pay tip for completed booking
 router.post('/booking/pay-tip', authenticate, payTip);
+
+// Phase 4.3: Create bank transfer virtual account
+router.post('/bank-transfer/create', authenticate, async (req, res) => {
+  const { createBankTransferAccount } = await import('../controllers/payment.controller-bank-transfer');
+  return createBankTransferAccount(req, res);
+});
 
 export default router;

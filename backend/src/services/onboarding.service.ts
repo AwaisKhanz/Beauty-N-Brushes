@@ -123,6 +123,8 @@ export class OnboardingService {
         businessType: data.businessType,
         description: data.description,
         // Keep city, state, zipCode for search/filtering optimization
+        addressLine1: data.addressLine1,
+        addressLine2: data.addressLine2,
         city: data.city,
         state: data.state,
         zipCode: data.zipCode,
@@ -144,61 +146,7 @@ export class OnboardingService {
       },
     });
 
-    // Create or update primary location in ProviderLocation table
-    const existingLocation = await prisma.providerLocation.findFirst({
-      where: { 
-        providerId: profile.id,
-        isPrimary: true,
-      },
-    });
 
-    if (existingLocation) {
-      // Update existing primary location
-      await prisma.providerLocation.update({
-        where: { id: existingLocation.id },
-        data: {
-          name: 'Primary Location',
-          // Google Places fields
-          placeId: data.placeId,
-          formattedAddress: data.formattedAddress,
-          addressComponents: data.addressComponents as Prisma.InputJsonValue | undefined,
-          // Standard address fields
-          addressLine1: data.address,
-          addressLine2: null,
-          city: data.city,
-          state: data.state,
-          zipCode: data.zipCode,
-          country: data.country,
-          latitude: data.latitude,
-          longitude: data.longitude,
-          businessPhone: data.phone,
-        },
-      });
-    } else {
-      // Create new primary location
-      await prisma.providerLocation.create({
-        data: {
-          providerId: profile.id,
-          name: 'Primary Location',
-          // Google Places fields
-          placeId: data.placeId,
-          formattedAddress: data.formattedAddress,
-          addressComponents: data.addressComponents as Prisma.InputJsonValue | undefined,
-          // Standard address fields
-          addressLine1: data.address,
-          addressLine2: null,
-          city: data.city,
-          state: data.state,
-          zipCode: data.zipCode,
-          country: data.country,
-          latitude: data.latitude,
-          longitude: data.longitude,
-          businessPhone: data.phone,
-          isPrimary: true,
-          isActive: true,
-        },
-      });
-    }
 
     return updatedProfile;
   }
@@ -561,7 +509,7 @@ export class OnboardingService {
         accountType: true,
         businessDetails: !!profile.businessName && !!profile.locations[0]?.addressLine1,
         profileMedia: !!profile.user.avatarUrl, // Profile photo is REQUIRED
-        brandCustomization: !!profile.brandColorPrimary,
+        brandCustomization: true, // TEMPORARY: Skipped as per requirement
         policies: !!profile.policies,
         paymentSetup: hasPaymentSetup, // Check subscription exists (Stripe OR Paystack)
         availabilitySet: profile.availability.length > 0,
@@ -624,7 +572,7 @@ export class OnboardingService {
       'accountType',
       'businessDetails',
       'profileMedia',
-      'brandCustomization',
+      // 'brandCustomization', // TEMPORARY: Skipped as per requirement
       'policies',
       'paymentSetup',
       'availabilitySet',

@@ -1,11 +1,20 @@
 import { Request } from 'express';
+import type { RegionCode } from '../../../shared-constants';
 
-// Extend Express Request type to include authenticated user
+// Extend Express Request type to include authenticated user and region info
 export interface AuthRequest extends Request {
   user?: {
     id: string;
     email: string;
     role: string;
+  };
+  clientRegion?: {
+    ip: string;
+    regionCode: RegionCode;
+    regionName: string;
+    currency: string;
+    paymentProvider: 'stripe' | 'paystack';
+    countryCode?: string;
   };
 }
 

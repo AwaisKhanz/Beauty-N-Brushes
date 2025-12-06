@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 
 export default function CalendarIntegrationPage() {
   const [loading, setLoading] = useState(true);
@@ -27,6 +28,7 @@ export default function CalendarIntegrationPage() {
   const [connected, setConnected] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
+  const [disconnectConfirmOpen, setDisconnectConfirmOpen] = useState(false);
 
   const searchParams = useSearchParams();
 
@@ -82,15 +84,11 @@ export default function CalendarIntegrationPage() {
     }
   }
 
-  async function handleDisconnect() {
-    if (
-      !confirm(
-        'Are you sure you want to disconnect Google Calendar? This will stop automatic syncing of bookings.'
-      )
-    ) {
-      return;
-    }
+  function handleDisconnectClick() {
+    setDisconnectConfirmOpen(true);
+  }
 
+  async function handleDisconnectConfirm() {
     try {
       setDisconnecting(true);
       setError('');
@@ -107,6 +105,7 @@ export default function CalendarIntegrationPage() {
       setError(extractErrorMessage(err) || 'Failed to disconnect calendar');
     } finally {
       setDisconnecting(false);
+      setDisconnectConfirmOpen(false);
     }
   }
 
@@ -198,7 +197,7 @@ export default function CalendarIntegrationPage() {
                     <RefreshCw className="h-4 w-4" />
                     Refresh Status
                   </Button>
-                  <Button variant="destructive" onClick={handleDisconnect} disabled={disconnecting}>
+                  <Button variant="destructive" onClick={handleDisconnectClick} disabled={disconnecting}>
                     {disconnecting ? 'Disconnecting...' : 'Disconnect'}
                   </Button>
                 </div>
@@ -265,6 +264,17 @@ export default function CalendarIntegrationPage() {
           </AlertDescription>
         </Alert>
       </div>
+
+      <ConfirmationDialog
+        open={disconnectConfirmOpen}
+        onOpenChange={setDisconnectConfirmOpen}
+        title="Disconnect Google Calendar"
+        description="Are you sure you want to disconnect Google Calendar? This will stop automatic syncing of bookings."
+        confirmText="Disconnect"
+        cancelText="Cancel"
+        onConfirm={handleDisconnectConfirm}
+        variant="destructive"
+      />
     </SettingsLayout>
   );
 }

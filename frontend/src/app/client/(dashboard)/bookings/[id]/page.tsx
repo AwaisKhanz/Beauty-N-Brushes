@@ -29,6 +29,7 @@ import { extractErrorMessage } from '@/lib/error-utils';
 import type { BookingDetails } from '@/shared-types/booking.types';
 import { RescheduleModal } from '@/components/booking/RescheduleModal';
 import { BalancePaymentModal } from '@/components/booking/BalancePaymentModal';
+import { DepositPaymentModal } from '@/components/booking/DepositPaymentModal';
 import { CancelBookingModal } from '@/components/booking/CancelBookingModal';
 import { RebookServiceModal } from '@/components/booking/RebookServiceModal';
 import { TipPaymentModal } from '@/components/booking/TipPaymentModal';
@@ -46,6 +47,7 @@ export default function ClientBookingDetailPage() {
   const [error, setError] = useState('');
   const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false);
   const [balancePaymentModalOpen, setBalancePaymentModalOpen] = useState(false);
+  const [depositPaymentModalOpen, setDepositPaymentModalOpen] = useState(false);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [rebookModalOpen, setRebookModalOpen] = useState(false);
   const [tipPaymentModalOpen, setTipPaymentModalOpen] = useState(false);
@@ -79,6 +81,10 @@ export default function ClientBookingDetailPage() {
 
   function handleBalancePayment() {
     setBalancePaymentModalOpen(true);
+  }
+
+  function handleDepositPayment() {
+    setDepositPaymentModalOpen(true);
   }
 
   function handleCancel() {
@@ -195,6 +201,7 @@ export default function ClientBookingDetailPage() {
 
   const canReschedule = ['PENDING', 'CONFIRMED'].includes(booking.bookingStatus);
   const canCancel = ['PENDING', 'CONFIRMED'].includes(booking.bookingStatus);
+  const canPayDeposit = booking.paymentStatus === 'AWAITING_DEPOSIT';
   const canPayBalance =
     booking.bookingStatus === 'CONFIRMED' && booking.totalAmount - booking.depositAmount > 0;
   const canRebook = [
@@ -365,6 +372,79 @@ export default function ClientBookingDetailPage() {
 
         {/* Sidebar */}
         <div className="space-y-6">
+          {/* Payment Status */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5" />
+                Payment Status
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Status</span>
+                  <Badge
+                    className={
+                      booking.paymentStatus === 'FULLY_PAID'
+                        ? 'bg-green-100 text-green-800 border-green-200'
+                        : booking.paymentStatus === 'DEPOSIT_PAID'
+                          ? 'bg-blue-100 text-blue-800 border-blue-200'
+                          : booking.paymentStatus === 'AWAITING_DEPOSIT'
+                            ? 'bg-red-100 text-red-800 border-red-200'
+                            : booking.paymentStatus === 'PENDING'
+                              ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
+                              : 'bg-gray-100 text-gray-800 border-gray-200'
+                    }
+                  >
+                    {booking.paymentStatus.replace('_', ' ')}
+                  </Badge>
+                </div>
+
+                {/* Warning for unpaid deposit */}
+                {booking.paymentStatus === 'AWAITING_DEPOSIT' && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>Payment Required:</strong> Your booking is not confirmed until the deposit of {booking.currency} {booking.depositAmount} is paid.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {booking.paidAt && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Paid On</span>
+                    <span className="text-sm font-medium">
+                      {new Date(booking.paidAt).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
+                    </span>
+                  </div>
+                )}
+
+                {booking.paymentMethod && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Method</span>
+                    <span className="text-sm font-medium capitalize">
+                      {booking.paymentChannel || booking.paymentMethod}
+                    </span>
+                  </div>
+                )}
+
+                {(booking.paystackReference || booking.stripePaymentIntentId) && (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-sm text-muted-foreground">Transaction ID</span>
+                    <span className="text-xs font-mono bg-muted px-2 py-1 rounded">
+                      {booking.paystackReference || booking.stripePaymentIntentId}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Payment Summary */}
           <Card>
             <CardHeader>
@@ -375,6 +455,7 @@ export default function ClientBookingDetailPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
+                {/* Service Breakdown */}
                 <div className="flex justify-between text-sm">
                   <span>Service Price</span>
                   <span>{formatCurrency(booking.servicePrice, booking.currency)}</span>
@@ -395,50 +476,70 @@ export default function ClientBookingDetailPage() {
                   </>
                 )}
 
-                {booking.tipAmount > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span>Tip</span>
-                    <span>{formatCurrency(booking.tipAmount, booking.currency)}</span>
-                  </div>
-                )}
-
                 <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Service Fee (Platform)</span>
+                  <span>Platform Fee</span>
                   <span>{formatCurrency(booking.serviceFee, booking.currency)}</span>
                 </div>
 
+                {/* Total Amount - Calculate correctly: servicePrice + serviceFee */}
                 <div className="border-t pt-3">
                   <div className="flex justify-between font-semibold">
-                    <span>Total Service Cost</span>
-                    <span>{formatCurrency(booking.servicePrice, booking.currency)}</span>
+                    <span>Total Amount</span>
+                    <span>{formatCurrency(Number(booking.servicePrice) + Number(booking.serviceFee), booking.currency)}</span>
                   </div>
                 </div>
 
+                {/* Paid at Booking Section */}
                 <div className="border-t pt-3 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Deposit Paid</span>
+                  <div className="text-sm font-medium text-muted-foreground mb-2">
+                    Paid at Booking:
+                  </div>
+                  <div className="flex justify-between text-sm pl-4">
+                    <span>Deposit (25%)</span>
                     <span className="text-green-600">
                       {formatCurrency(booking.depositAmount, booking.currency)}
                     </span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span>Service Fee Paid</span>
+                  <div className="flex justify-between text-sm pl-4">
+                    <span>Platform Fee</span>
                     <span className="text-green-600">
                       {formatCurrency(booking.serviceFee, booking.currency)}
                     </span>
                   </div>
-                  {booking.servicePrice - booking.depositAmount > 0 && (
-                    <div className="flex justify-between text-sm">
+                  <div className="flex justify-between text-sm font-medium pl-4 border-t pt-2">
+                    <span>Total Paid</span>
+                    <span className="text-green-600">
+                      {formatCurrency(Number(booking.depositAmount) + Number(booking.serviceFee), booking.currency)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Balance Due Section */}
+                {booking.paymentStatus !== 'FULLY_PAID' && booking.servicePrice - booking.depositAmount > 0 && (
+                  <div className="border-t pt-3">
+                    <div className="flex justify-between text-sm font-medium">
                       <span>Balance Due (at appointment)</span>
                       <span className="text-amber-600">
                         {formatCurrency(
-                          booking.servicePrice - booking.depositAmount,
+                          Number(booking.servicePrice) - Number(booking.depositAmount),
                           booking.currency
                         )}
                       </span>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
+
+                {/* Tip Section */}
+                {booking.tipAmount > 0 && (
+                  <div className="border-t pt-3">
+                    <div className="flex justify-between text-sm">
+                      <span>Tip Paid</span>
+                      <span className="text-green-600">
+                        {formatCurrency(booking.tipAmount, booking.currency)}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -449,6 +550,16 @@ export default function ClientBookingDetailPage() {
               <CardTitle>Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
+              {canPayDeposit && (
+                <Button onClick={handleDepositPayment} className="w-full gap-2 bg-primary hover:bg-primary/90">
+                  <DollarSign className="h-4 w-4" />
+                  Pay Deposit ({formatCurrency(
+                    Number(booking.depositAmount) + Number(booking.serviceFee),
+                    booking.currency
+                  )})
+                </Button>
+              )}
+
               {canReschedule && (
                 <Button onClick={handleReschedule} className="w-full gap-2">
                   <RefreshCw className="h-4 w-4" />
@@ -518,6 +629,13 @@ export default function ClientBookingDetailPage() {
           <BalancePaymentModal
             open={balancePaymentModalOpen}
             onOpenChange={setBalancePaymentModalOpen}
+            booking={booking}
+            onSuccess={fetchBooking}
+          />
+
+          <DepositPaymentModal
+            open={depositPaymentModalOpen}
+            onOpenChange={setDepositPaymentModalOpen}
             booking={booking}
             onSuccess={fetchBooking}
           />

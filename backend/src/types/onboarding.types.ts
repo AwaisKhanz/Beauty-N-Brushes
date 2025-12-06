@@ -17,7 +17,8 @@ export interface BusinessDetailsData {
   formattedAddress?: string;
   addressComponents?: Record<string, unknown>;
   // Standard address fields
-  address: string;
+  addressLine1: string;
+  addressLine2?: string;
   city: string;
   state: string;
   zipCode: string;

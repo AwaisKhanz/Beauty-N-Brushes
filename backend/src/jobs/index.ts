@@ -128,6 +128,7 @@ export async function initializeCronJobs(): Promise<void> {
   // Phase 2: Booking jobs
   const { send24HourReminders, send1HourReminders } = await import('./booking/booking-reminders.job');
   const { detectNoShows } = await import('./booking/no-show-detection.job');
+  const { send24HourReminders: sendAppointmentReminders, sendReviewReminders } = await import('./booking/notifications.job');
 
   // Phase 3: Subscription jobs
   const { sendSubscriptionWarnings, disableExpiredSubscriptions } = await import('./subscription/subscription-management.job');
@@ -147,12 +148,46 @@ export async function initializeCronJobs(): Promise<void> {
     cronConfig.bookingReminders.oneHour.enabled
   );
 
+  // Register notification jobs
+  registerJob(
+    'appointment-reminders',
+    cronConfig.notifications.appointmentReminders.schedule,
+    sendAppointmentReminders,
+    cronConfig.notifications.appointmentReminders.enabled
+  );
+
+  registerJob(
+    'review-reminders',
+    cronConfig.notifications.reviewReminders.schedule,
+    sendReviewReminders,
+    cronConfig.notifications.reviewReminders.enabled
+  );
+
   // Register no-show detection job
   registerJob(
     'no-show-detection',
     cronConfig.noShowDetection.schedule,
     detectNoShows,
     cronConfig.noShowDetection.enabled
+  );
+
+  // ==================== Phase 2: Unpaid Bookings Management ====================
+  const { sendPaymentReminders, autoCancelUnpaidBookings } = await import('./booking/unpaid-bookings.job');
+
+  // Payment reminders (2 hours after booking)
+  registerJob(
+    'payment-reminders',
+    cronConfig.unpaidBookings.paymentReminders.schedule,
+    sendPaymentReminders,
+    cronConfig.unpaidBookings.paymentReminders.enabled
+  );
+
+  // Auto-cancel unpaid bookings (24 hours after booking)
+  registerJob(
+    'auto-cancel-unpaid',
+    cronConfig.unpaidBookings.autoCancel.schedule,
+    autoCancelUnpaidBookings,
+    cronConfig.unpaidBookings.autoCancel.enabled
   );
 
   // ==================== Phase 3: Subscription Management ====================

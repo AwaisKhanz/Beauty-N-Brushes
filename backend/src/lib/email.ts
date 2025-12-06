@@ -467,6 +467,130 @@ class EmailTemplateService {
 
     await this.sendEmail(email, 'How Was Your Experience? - Beauty N Brushes', html);
   }
+
+  /**
+   * Send payment reminder email (Phase 2)
+   */
+  async sendPaymentReminderEmail(
+    email: string,
+    clientName: string,
+    booking: {
+      id: string;
+      serviceName: string;
+      appointmentDate: string;
+      appointmentTime: string;
+      depositAmount: number;
+      currency: string;
+    }
+  ): Promise<void> {
+    const paymentLink = `${env.FRONTEND_URL}/client/bookings/${booking.id}`;
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #B06F64; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+          .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; }
+          .button { display: inline-block; background: #B06F64; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          .details { background: white; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>⏰ Payment Reminder</h1>
+          </div>
+          <div class="content">
+            <h2>Hi ${clientName},</h2>
+            <p>Your booking for <strong>${booking.serviceName}</strong> is not yet confirmed.</p>
+            
+            <div class="details">
+              <p><strong>📅 Appointment:</strong> ${booking.appointmentDate} at ${booking.appointmentTime}</p>
+              <p><strong>💰 Deposit Required:</strong> ${booking.currency} ${booking.depositAmount.toFixed(2)}</p>
+            </div>
+            
+            <div class="warning">
+              <p><strong>⚠️ Important:</strong> Your booking will be automatically cancelled in approximately 22 hours if payment is not received.</p>
+            </div>
+            
+            <p>Please complete your payment to secure your appointment:</p>
+            
+            <a href="${paymentLink}" class="button">Pay Deposit Now</a>
+            
+            <p style="margin-top: 30px; font-size: 14px; color: #666;">
+              If you have any questions, please contact us or the service provider directly.
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.sendEmail(email, '⏰ Payment Reminder - Complete Your Booking', html);
+  }
+
+  /**
+   * Send booking auto-cancelled email (Phase 2)
+   */
+  async sendBookingAutoCancelledEmail(
+    email: string,
+    clientName: string,
+    booking: {
+      serviceName: string;
+      appointmentDate: string;
+      appointmentTime: string;
+    }
+  ): Promise<void> {
+    const searchUrl = `${env.FRONTEND_URL}/search`;
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #dc3545; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+          .button { display: inline-block; background: #B06F64; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          .details { background: white; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>❌ Booking Cancelled</h1>
+          </div>
+          <div class="content">
+            <h2>Hi ${clientName},</h2>
+            <p>Your booking for <strong>${booking.serviceName}</strong> has been automatically cancelled due to non-payment.</p>
+            
+            <div class="details">
+              <p><strong>📅 Appointment:</strong> ${booking.appointmentDate} at ${booking.appointmentTime}</p>
+              <p><strong>Reason:</strong> Deposit payment not received within 24 hours</p>
+            </div>
+            
+            <p>We understand that things happen! You can create a new booking anytime from our platform.</p>
+            
+            <a href="${searchUrl}" class="button">Browse Services</a>
+            
+            <p style="margin-top: 30px; font-size: 14px; color: #666;">
+              If you have any questions or concerns, please don't hesitate to contact us.
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.sendEmail(email, '❌ Booking Cancelled - Payment Not Received', html);
+  }
 }
 
 

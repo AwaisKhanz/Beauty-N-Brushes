@@ -114,13 +114,19 @@ export interface PaystackAuthorizationData {
 
 export interface InitializeBookingPaymentRequest {
   bookingId: string;
+  paymentType?: 'deposit' | 'balance'; // NEW: Specify which payment to make
+  // Phase 4: Payment channel selection
+  paymentChannel?: 'card' | 'mobile_money' | 'bank_transfer';
+  mobileMoneyProvider?: 'mtn' | 'vod' | 'atl';
+  phoneNumber?: string;
 }
 
 export interface InitializeBookingPaymentResponse {
   // Stripe fields (NA/EU)
   clientSecret?: string;
   // Paystack fields (GH/NG)
-  authorizationUrl?: string;
+  accessCode?: string; // ✅ For Popup JS (resumeTransaction)
+  authorizationUrl?: string; // For redirect flow
   reference?: string;
   // Common
   paymentProvider: 'stripe' | 'paystack';
@@ -135,23 +141,5 @@ export interface ConfirmBookingPaymentRequest {
 }
 
 // ================================
-// Balance Payment Types
+// Tip Payment Types
 // ================================
-
-export interface PayBalanceRequest {
-  bookingId: string;
-  paymentMethod?: 'online' | 'cash'; // Default: 'online'
-}
-
-export interface PayBalanceResponse {
-  // For online payments
-  clientSecret?: string; // Stripe
-  authorizationUrl?: string; // Paystack
-  reference?: string; // Paystack
-  // Common
-  paymentProvider?: 'stripe' | 'paystack';
-  amount: number;
-  currency: string;
-  paymentMethod: 'online' | 'cash';
-  message: string;
-}

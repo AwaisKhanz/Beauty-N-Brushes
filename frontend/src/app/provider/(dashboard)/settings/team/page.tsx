@@ -35,6 +35,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
+import { useToast } from '@/hooks/use-toast';
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { InviteTeamMemberModal } from '@/components/settings/InviteTeamMemberModal';
 import { EditTeamMemberModal } from '@/components/settings/EditTeamMemberModal';
 import type { TeamMember } from '@/shared-types/team.types';
@@ -48,6 +50,9 @@ export default function TeamManagementPage() {
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [memberToDelete, setMemberToDelete] = useState<{ id: string; name: string } | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     fetchTeamMembers();
@@ -78,20 +83,30 @@ export default function TeamManagementPage() {
     }
   }
 
-  async function handleDelete(memberId: string, displayName: string) {
-    if (
-      !confirm(
-        `Are you sure you want to remove ${displayName} from your team? This action cannot be undone.`
-      )
-    ) {
-      return;
-    }
+  function handleDeleteClick(memberId: string, displayName: string) {
+    setMemberToDelete({ id: memberId, name: displayName });
+    setDeleteConfirmOpen(true);
+  }
+
+  async function handleDeleteConfirm() {
+    if (!memberToDelete) return;
 
     try {
-      await api.team.delete(memberId);
+      await api.team.delete(memberToDelete.id);
+      toast({
+        title: 'Team Member Removed',
+        description: `${memberToDelete.name} has been removed from your team.`,
+      });
       await fetchTeamMembers();
     } catch (err: unknown) {
-      alert(extractErrorMessage(err) || 'Failed to remove team member');
+      toast({
+        title: 'Error',
+        description: extractErrorMessage(err) || 'Failed to remove team member',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeleteConfirmOpen(false);
+      setMemberToDelete(null);
     }
   }
 
@@ -316,7 +331,7 @@ export default function TeamManagementPage() {
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-destructive"
-                              onClick={() => handleDelete(member.id, member.displayName)}
+                              onClick={() => handleDeleteClick(member.id, member.displayName)}
                             >
                               <Trash2 className="mr-2 h-4 w-4" />
                               Remove
@@ -369,6 +384,17 @@ export default function TeamManagementPage() {
           member={selectedMember}
         />
       )}
+
+      <ConfirmationDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        title="Remove Team Member"
+        description={`Are you sure you want to remove ${memberToDelete?.name || 'this member'} from your team? This action cannot be undone.`}
+        confirmText="Remove"
+        cancelText="Cancel"
+        onConfirm={handleDeleteConfirm}
+        variant="destructive"
+      />
     </SettingsLayout>
   );
 }

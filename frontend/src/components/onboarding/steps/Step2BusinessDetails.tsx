@@ -25,9 +25,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { MapPin, Phone /* Instagram */ } from 'lucide-react';
-import { SERVICE_SPECIALIZATIONS, BUSINESS_TYPES } from '@/constants';
 import { LocationAutocomplete } from '@/components/location/LocationAutocomplete';
 import { LocationData } from '@/shared-types/google-places.types';
+import { BUSINESS_TYPES, SERVICE_SPECIALIZATIONS } from '../../../../../shared-constants';
 
 const businessDetailsSchema = z.object({
   businessName: z.string().min(2, 'Business name must be at least 2 characters').max(255),
@@ -48,7 +48,8 @@ const businessDetailsSchema = z.object({
   formattedAddress: z.string().optional(),
   addressComponents: z.array(z.unknown()).optional(),
   // Standard address fields
-  address: z.string().min(5, 'Please enter a complete address'),
+  addressLine1: z.string().min(5, 'Please enter a complete address'),
+  addressLine2: z.string().optional(),
   city: z.string().min(2, 'City is required'),
   state: z.string().min(2, 'State is required'),
   zipCode: z.string().optional().or(z.literal('')),
@@ -90,7 +91,8 @@ export function Step2BusinessDetails({
       tagline: '',
       businessType: '',
       description: '',
-      address: '',
+      addressLine1: '',
+      addressLine2: '',
       city: '',
       state: '',
       zipCode: '',
@@ -131,7 +133,8 @@ export function Step2BusinessDetails({
     form.setValue('formattedAddress', location.formattedAddress);
     form.setValue('addressComponents', location.addressComponents as any);
     // Use addressLine1 or formattedAddress for the address field
-    form.setValue('address', location.addressLine1 || location.formattedAddress || '');
+    form.setValue('addressLine1', location.addressLine1 || location.formattedAddress || '');
+    form.setValue('addressLine2', '');
     form.setValue('city', location.city);
     form.setValue('state', location.state);
     form.setValue('zipCode', location.zipCode ?? '');
@@ -274,7 +277,7 @@ export function Step2BusinessDetails({
                     </label>
                     <LocationAutocomplete
                       onLocationSelect={handleLocationSelect}
-                      defaultValue={defaultValues?.address || ''}
+                      defaultValue={defaultValues?.addressLine1 || ''}
                       placeholder="Start typing your business address..."
                       disabled={isLoading}
                     />

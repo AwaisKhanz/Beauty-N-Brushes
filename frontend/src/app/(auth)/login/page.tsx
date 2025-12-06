@@ -69,11 +69,11 @@ export default function LoginPage() {
         return;
       }
 
-      // Check if there's a redirect URL stored (from failed API calls)
-      const redirectUrl = localStorage.getItem('redirectAfterLogin');
+      // Check if there's a redirect URL stored (from LoginGate or failed API calls)
+      const redirectUrl = sessionStorage.getItem('redirectAfterLogin');
 
       if (redirectUrl) {
-        localStorage.removeItem('redirectAfterLogin');
+        sessionStorage.removeItem('redirectAfterLogin');
         router.push(redirectUrl);
       } else {
         // Default: redirect based on role

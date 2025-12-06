@@ -7,7 +7,6 @@ import type { PolicyGenerationParams, GeneratedPolicies } from '../types/integra
 import { VertexAI } from '@google-cloud/vertexai';
 import vision from '@google-cloud/vision';
 import { ImageAnnotatorClient } from '@google-cloud/vision';
-import { SERVICE_CATEGORIES, getAllTemplatesForCategory } from '../../../shared-constants';
 
 // Type definitions
 export interface ImageAnalysis {
@@ -115,8 +114,8 @@ export class AIService {
       // Initialize multimodal embedding model for images
       // This is the CORRECT model for image similarity matching
       // Supports dimensions: 128, 256, 512, or 1408 (default)
-      // Using 1408 (max) for maximum expressiveness - captures fine details
-      // in textures, colors, lighting, and subtle style differences
+      // Using 512 for optimal balance - high quality while fitting PostgreSQL index limits
+      // (1408-dim exceeds btree index size limit of 2704 bytes)
       this.embeddingModel = this.vertexAI.getGenerativeModel({
         model: 'multimodalembedding@001',
       });
@@ -1188,22 +1187,36 @@ Generate 20-30 highly specific, searchable keywords that help match clients with
   }
 
   /**
-   * Generate MULTIMODAL embedding (Image + Text fusion)
-   * Combines visual and textual information for better matching
+   * Generate multimodal embedding (image + optional text context)
+   * - Returns 512-dimensional vectors (optimal for PostgreSQL indexing)
+   * - Supports both pure image and image+text multimodal embeddings
    *
-   * @param imageBuffer Raw image buffer
-   * @param text Contextual text (e.g., "Curly fade haircut", "Balayage blonde")
-   * @param dimension Embedding dimension (default: 1408)
-   * @returns Fused embedding vector
+   * @param imageSource URL of the image to embed OR Buffer containing image data
+   * @param textContext Optional text context to enrich the embedding
+   * @param dimension Optional dimension (128, 256, 512, or 1408). Default: 512 (optimal)
+   * @returns Embedding vector
    */
   async generateMultimodalEmbedding(
-    imageBuffer: Buffer,
-    text: string,
-    dimension: 128 | 256 | 512 | 1408 = 1408
+    imageSource: string | Buffer,
+    textContext?: string,
+    dimension: 128 | 256 | 512 | 1408 = 512
   ): Promise<number[]> {
     this.ensureInitialized();
 
     return this.retryWithBackoff(async () => {
+      let imageBuffer: Buffer;
+      
+      // Handle both URL string and Buffer input
+      if (Buffer.isBuffer(imageSource)) {
+        imageBuffer = imageSource;
+      } else {
+        const imageResponse = await fetch(imageSource);
+        if (!imageResponse.ok) {
+          throw new Error(`Failed to fetch image from URL: ${imageSource} - ${imageResponse.statusText}`);
+        }
+        imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+      }
+      
       const base64Image = imageBuffer.toString('base64');
 
       // Validate image size
@@ -1213,6 +1226,7 @@ Generate 20-30 highly specific, searchable keywords that help match clients with
           `Image size ${imageSizeMB.toFixed(2)}MB exceeds 10MB limit. Please compress the image.`
         );
       }
+
 
       const projectId = process.env.GOOGLE_CLOUD_PROJECT!;
       const location = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1';
@@ -1232,15 +1246,17 @@ Generate 20-30 highly specific, searchable keywords that help match clients with
       // Call Vertex AI with BOTH image and text
       const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/multimodalembedding@001:predict`;
 
+      const instance: any = {
+        image: {
+          bytesBase64Encoded: base64Image,
+        },
+      };
+      if (textContext) {
+        instance.text = textContext; // Include text for multimodal fusion
+      }
+
       const requestBody = {
-        instances: [
-          {
-            image: {
-              bytesBase64Encoded: base64Image,
-            },
-            text: text, // Include text for multimodal fusion
-          },
-        ],
+        instances: [instance],
         parameters: {
           dimension: dimension,
         },
@@ -1280,9 +1296,11 @@ Generate 20-30 highly specific, searchable keywords that help match clients with
       }
 
       console.log(
-        `✅ Generated ${dimension}-dim MULTIMODAL embedding (image+text fusion) using multimodalembedding@001`
+        `✅ Generated ${dimension}-dim MULTIMODAL embedding (image${textContext ? '+text fusion' : ''}) using multimodalembedding@001`
       );
-      console.log(`   Text context: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
+      if (textContext) {
+        console.log(`   Text context: "${textContext.substring(0, 50)}${textContext.length > 50 ? '...' : ''}"`);
+      }
       return embedding;
     }, 'Multimodal Embedding Generation').catch((error: any) => {
       console.error('Google Multimodal Embedding error:', error);
@@ -1334,7 +1352,7 @@ Generate 20-30 highly specific, searchable keywords that help match clients with
    * @param dimension Dimension (128, 256, 512, or 1408)
    * @returns Text embedding vector
    */
-  async generateEmbedding(
+  async generateTextEmbedding(
     text: string,
     dimension: 128 | 256 | 512 | 1408 = 512
   ): Promise<number[]> {
@@ -1519,36 +1537,14 @@ Format your response as JSON:
 
   /**
    * Extract style keywords from category using actual service templates
+   * NOTE: SERVICE_CATEGORIES is not available in shared-constants
+   * This function is currently disabled and returns empty array
    */
-  private extractStyleKeywords(category: string): string[] {
-    const categoryLower = category.toLowerCase();
-
-    // Find matching category from service constants
-    const serviceCategory = SERVICE_CATEGORIES.find(
-      (cat) =>
-        cat.slug.toLowerCase().includes(categoryLower) ||
-        categoryLower.includes(cat.slug.toLowerCase()) ||
-        cat.name.toLowerCase().includes(categoryLower)
-    );
-
-    if (!serviceCategory) {
-      return [];
-    }
-
-    // Extract template names as style keywords
-    const templates = getAllTemplatesForCategory(serviceCategory.id);
-    const templateKeywords = templates
-      .map((t) => t.name.toLowerCase())
-      .flatMap((name) =>
-        name
-          .split(/[\s&/]+/)
-          .filter((word) => word.length > 3)
-          .map((word) => word.replace(/[()]/g, ''))
-      )
-      .slice(0, 20); // Top 20 unique template keywords
-
-    return [...new Set(templateKeywords)];
+  private extractStyleKeywords(_category: string): string[] {
+    // TODO: Re-implement when SERVICE_CATEGORIES is added to shared-constants
+    return [];
   }
+
 
   /**
    * Generate rich domain-aware context for embedding fusion
@@ -1588,7 +1584,7 @@ Guidelines: ${guidelines}
    * Generate multiple specialized embeddings for comprehensive matching
    */
   async generateMultiVectorEmbeddings(
-    imageBuffer: Buffer,
+    imageSource: string | Buffer,
     analysisData: {
       tags: string[];
       description?: string;
@@ -1604,33 +1600,41 @@ Guidelines: ${guidelines}
     visualOnly: number[];
     styleEnriched: number[];
   }> {
-    console.log('🎯 Generating high-quality visual embeddings (1408-dim)...');
+    // Generate 2 high-quality embeddings for comprehensive visual matching
+    console.log('🎯 Generating high-quality visual embeddings (512-dim)...');
 
-    // 1. Visual-Only Embedding (pure image, 1408-dim)
-    // Purpose: Pixel-level visual similarity for exact look-alike matching
-    console.log('   📸 Visual-only embedding...');
-    const visualOnly = await this.generateImageEmbedding(imageBuffer);
+    // 1. Visual-Only Embedding (pure image, 512-dim)
+    const visualOnly = await this.generateMultimodalEmbedding(imageSource);
 
-    // 2. Style-Enriched Embedding (image + context, 1408-dim) - PRIMARY
-    // Purpose: Context-aware visual matching (understands categories, styles, techniques)
-    console.log('   🎨 Style-enriched embedding (PRIMARY)...');
+    // 2. Style-Enriched Embedding (image + context, 512-dim) - PRIMARY
     const richContext = this.generateEmbeddingContext(
       serviceContext.title,
       serviceContext.description,
       serviceContext.category,
-      analysisData.tags,
+        analysisData.tags,
       analysisData.webLabels || [],
       analysisData.dominantColors
     );
-    const styleEnriched = await this.generateMultimodalEmbedding(imageBuffer, richContext);
+    const styleEnriched = await this.generateMultimodalEmbedding(
+      imageSource,
+      richContext
+    );
 
-    console.log('   ✅ High-quality embeddings generated!');
-    console.log('      Visual-only: 1408-dim (pure visual similarity)');
-    console.log('      Style-enriched: 1408-dim (context-aware, PRIMARY)');
+    if (!visualOnly || visualOnly.length === 0) {
+      throw new Error('Failed to generate visual embedding');
+    }
+
+    if (!styleEnriched || styleEnriched.length === 0) {
+      throw new Error('Failed to generate style-enriched embedding');
+    }
+
+    console.log('   ✅ Generated 2 high-quality embeddings:');
+    console.log('      Visual-only: 512-dim (pure visual similarity)');
+    console.log('      Style-enriched: 512-dim (context-aware, PRIMARY)');
 
     return {
-      visualOnly, // Backup for pure visual search
-      styleEnriched, // PRIMARY for context-aware search (98% accuracy)
+      visualOnly,
+      styleEnriched,
     };
   }
 

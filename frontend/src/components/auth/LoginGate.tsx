@@ -67,6 +67,10 @@ export function LoginGate({
     // Store the current URL to redirect back after login
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('redirectAfterLogin', window.location.pathname);
+      // If the action is booking-related, set a flag to open the booking modal after login
+      if (action.toLowerCase().includes('book')) {
+        sessionStorage.setItem('openBookingAfterLogin', 'true');
+      }
     }
     router.push(ROUTES.LOGIN);
   };
@@ -75,6 +79,10 @@ export function LoginGate({
     // Store the current URL to redirect back after signup
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('redirectAfterLogin', window.location.pathname);
+      // If the action is booking-related, set a flag to open the booking modal after signup
+      if (action.toLowerCase().includes('book')) {
+        sessionStorage.setItem('openBookingAfterLogin', 'true');
+      }
     }
     router.push(ROUTES.REGISTER);
   };
@@ -159,6 +167,10 @@ export function useLoginGate() {
   const handleSignIn = () => {
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('redirectAfterLogin', window.location.pathname);
+      // If the action is booking-related, set a flag to open the booking modal after login
+      if (dialogState.action.toLowerCase().includes('book')) {
+        sessionStorage.setItem('openBookingAfterLogin', 'true');
+      }
     }
     router.push(ROUTES.LOGIN);
   };
@@ -166,6 +178,10 @@ export function useLoginGate() {
   const handleSignUp = () => {
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('redirectAfterLogin', window.location.pathname);
+      // If the action is booking-related, set a flag to open the booking modal after signup
+      if (dialogState.action.toLowerCase().includes('book')) {
+        sessionStorage.setItem('openBookingAfterLogin', 'true');
+      }
     }
     router.push(ROUTES.REGISTER);
   };

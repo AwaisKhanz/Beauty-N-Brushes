@@ -30,7 +30,7 @@ const redirectToLogin = () => {
 
     // Store the current URL to redirect back after login
     if (currentPath !== '/login' && currentPath !== '/register') {
-      localStorage.setItem('redirectAfterLogin', currentPath);
+      sessionStorage.setItem('redirectAfterLogin', currentPath);
     }
     window.location.href = '/login';
   }

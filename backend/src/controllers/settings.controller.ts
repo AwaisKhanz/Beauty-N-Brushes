@@ -79,6 +79,21 @@ export async function updateProfileSettings(
       // Business Details
       businessType: z.string().optional().nullable(),
       timezone: z.string().optional().nullable(),
+      // Business Address
+      addressLine1: z.string().optional().nullable(),
+      addressLine2: z.string().optional().nullable(),
+      city: z.string().optional().nullable(),
+      state: z.string().optional().nullable(),
+      zipCode: z.string().optional().nullable(),
+      country: z.string().optional().nullable(),
+      businessPhone: z.string().optional().nullable(),
+      businessEmail: z.string().email().optional().nullable(),
+      // Google Places
+      placeId: z.string().optional().nullable(),
+      formattedAddress: z.string().optional().nullable(),
+      addressComponents: z.any().optional().nullable(),
+      latitude: z.number().optional().nullable(),
+      longitude: z.number().optional().nullable(),
     });
 
     const data = schema.parse(req.body) as UpdateProfileSettingsRequest;
@@ -779,6 +794,26 @@ export async function cancelSubscription(
         new AppError(400, `Validation failed: ${error.errors.map((e) => e.message).join(', ')}`)
       );
     }
+    next(error);
+  }
+}
+
+/**
+ * Resume subscription
+ */
+export async function resumeSubscription(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    if (!userId) throw new AppError(401, 'Unauthorized');
+
+    const result = await settingsService.resumeSubscription(userId);
+
+    sendSuccess(res, result);
+  } catch (error) {
     next(error);
   }
 }

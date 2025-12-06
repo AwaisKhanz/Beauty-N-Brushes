@@ -20,11 +20,37 @@ export const cronConfig = {
     },
   },
 
+  // Notification jobs (24h reminders, review reminders)
+  notifications: {
+    appointmentReminders: {
+      enabled: process.env.APPOINTMENT_REMINDERS_ENABLED !== 'false',
+      schedule: '0 * * * *', // Every hour
+    },
+    reviewReminders: {
+      enabled: process.env.REVIEW_REMINDERS_ENABLED !== 'false',
+      schedule: '0 */6 * * *', // Every 6 hours
+    },
+  },
+
   // No-show detection
   noShowDetection: {
     enabled: true,
-    schedule: '30 * * * *', // Every hour at :30
+    schedule: '0 * * * *', // Every hour at :00
     gracePeriodMinutes: parseInt(process.env.NO_SHOW_GRACE_PERIOD_MINUTES || '30'),
+  },
+
+  // Unpaid bookings management (Phase 2)
+  unpaidBookings: {
+    paymentReminders: {
+      enabled: process.env.PAYMENT_REMINDERS_ENABLED !== 'false',
+      schedule: '0 * * * *', // Every hour at :00
+      reminderHours: parseInt(process.env.PAYMENT_REMINDER_HOURS || '2'),
+    },
+    autoCancel: {
+      enabled: process.env.AUTO_CANCEL_UNPAID_ENABLED !== 'false',
+      schedule: '0 * * * *', // Every hour at :00
+      cancelHours: parseInt(process.env.AUTO_CANCEL_HOURS || '24'),
+    },
   },
 
   // Subscription management

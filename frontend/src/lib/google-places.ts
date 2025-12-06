@@ -237,9 +237,9 @@ export function placeDetailsToLocationData(details: GooglePlaceDetails): Locatio
     addressLine1,
     addressLine2: '',
     city: parsed.city || '',
-    state: parsed.stateShort || parsed.state || '',
+    state: parsed.state || parsed.stateShort || '',
     zipCode: parsed.zipCode || '',
-    country: parsed.countryShort || parsed.country || 'US',
+    country: parsed.country || parsed.countryShort || 'US',
     latitude: details.geometry.location.lat,
     longitude: details.geometry.location.lng,
   };

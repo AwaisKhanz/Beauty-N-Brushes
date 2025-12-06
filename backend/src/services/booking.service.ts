@@ -5,7 +5,7 @@
 
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
-import { calculateServiceFee, getRegionalCurrency } from '../lib/payment';
+import { calculateServiceFee } from '../lib/payment';
 import { emailService } from '../lib/email';
 import { env } from '../config/env';
 import { calendarSyncService } from './calendar-sync.service';
@@ -24,34 +24,44 @@ import type {
   RespondToRescheduleRequest,
 } from '../../../shared-types';
 import type { RegionCode } from '../types/payment.types';
-import { convertCurrency } from '../lib/payment';
+import type { Currency } from '../../../shared-constants/region.constants';
+import { exchangeRateService } from '../lib/exchange-rate.service';
 
 class BookingService {
   /**
-   * Create booking with team member assignment support
+   * Create a new booking
+   * @param userId - Client user ID
+   * @param data - Booking data
+   * @param clientRegion - Client's region detected by middleware (server-side only)
    */
-  async createBooking(userId: string, data: CreateBookingRequest) {
-    // Get client's saved region preference
+  async createBooking(
+    userId: string,
+    data: CreateBookingRequest,
+    clientRegion?: { regionCode: RegionCode; currency: string; paymentProvider: 'stripe' | 'paystack' }
+  ) {
+    // Get client info
     const client = await prisma.user.findUnique({
       where: { id: userId },
-      select: { 
-        regionCode: true,
-        preferredPaymentProvider: true,
+      select: {
+        id: true,
         email: true,
         firstName: true,
         lastName: true,
-      }
+        regionCode: true,
+      },
     });
 
     if (!client) {
       throw new AppError(404, 'Client not found');
     }
 
-    // Determine region: use saved preference OR request data OR default to US
-    const clientRegion = client.regionCode || data.clientRegionCode || 'US';
+    // ✅ SECURITY: Use server-detected region from middleware (NEVER trust frontend)
+    // Priority: middleware detection > user saved preference
+    const finalRegion = clientRegion?.regionCode || client.regionCode || 'NA';
     
-    // Determine payment provider based on CLIENT's region
-    const paymentProvider = this.getPaymentProviderForRegion(clientRegion);
+    // ✅ Use payment provider from middleware (already determined by region)
+    const paymentProvider = clientRegion?.paymentProvider === 'stripe' ? 'STRIPE' : 'PAYSTACK';
+    const clientCurrency = clientRegion?.currency || 'USD';
     
     // Get service with provider info and addons
     const service = await prisma.service.findUnique({
@@ -82,67 +92,81 @@ class BookingService {
       throw new AppError(400, 'Service is not available for booking');
     }
 
-    // Calculate base service price (convert if needed)
-    const clientCurrency = getRegionalCurrency(clientRegion as RegionCode);
-    let servicePrice = Number(service.priceMin);
+    // ✅ CURRENCY CONVERSION: Convert USD prices to client's regional currency using LIVE rates
+    // Services are stored in USD, but clients pay in their local currency (GHS/NGN for Paystack)
+    const targetCurrency = clientCurrency as Currency;
+    
+    // Calculate base service price in USD first
+    const servicePriceUSD = Number(service.priceMin);
+    
+    // Convert service price to client's currency using live exchange rates
+    const servicePrice = await exchangeRateService.convertCurrency(servicePriceUSD, 'USD', targetCurrency);
 
-    // Convert currency if client region differs from provider region
-    if (service.provider.currency !== clientCurrency) {
-      servicePrice = convertCurrency(servicePrice, service.provider.currency, clientCurrency);
-    }
-
-    // Calculate add-ons total
+    // Calculate add-ons total with currency conversion using live rates
     let addonsTotal = 0;
     const selectedAddons = [];
     if (data.selectedAddonIds && data.selectedAddonIds.length > 0) {
       for (const addonId of data.selectedAddonIds) {
-        const addon = service.addons.find((a) => a.id === addonId && a.isActive); // Ensure addon is active
+        const addon = service.addons.find((a) => a.id === addonId && a.isActive);
         if (addon) {
           selectedAddons.push(addon);
-          let addonPrice = Number(addon.addonPrice);
-          // Convert addon price if needed
-          if (service.provider.currency !== clientCurrency) {
-            addonPrice = convertCurrency(addonPrice, service.provider.currency, clientCurrency);
-          }
+          // Convert addon price from USD to client's currency using live rates
+          const addonPriceUSD = Number(addon.addonPrice);
+          const addonPrice = await exchangeRateService.convertCurrency(addonPriceUSD, 'USD', targetCurrency);
           addonsTotal += addonPrice;
         }
       }
     }
 
-    // Calculate home service fee if requested
+    // Calculate home service fee with currency conversion using live rates
     let homeServiceFee = 0;
     if (data.homeServiceRequested && service.mobileServiceAvailable && service.homeServiceFee) {
-      homeServiceFee = Number(service.homeServiceFee);
-      // Convert home service fee if needed
-      if (service.provider.currency !== clientCurrency) {
-        homeServiceFee = convertCurrency(homeServiceFee, service.provider.currency, clientCurrency);
-      }
+      const homeServiceFeeUSD = Number(service.homeServiceFee);
+      homeServiceFee = await exchangeRateService.convertCurrency(homeServiceFeeUSD, 'USD', targetCurrency);
     }
 
-    // TOTAL BOOKING AMOUNT = service + add-ons + home service fee
+    // TOTAL BOOKING AMOUNT = service + add-ons + home service fee (in client's currency)
     const totalBookingAmount = servicePrice + addonsTotal + homeServiceFee;
 
-    // Calculate deposit (based on service + add-ons)
+    // ✅ Calculate service fee in USD first (on the USD total), then convert
+    let totalUSD = servicePriceUSD;
+    
+    // Add addon prices in USD
+    if (data.selectedAddonIds && data.selectedAddonIds.length > 0) {
+      for (const addonId of data.selectedAddonIds) {
+        const addon = service.addons.find((a) => a.id === addonId && a.isActive);
+        if (addon) {
+          totalUSD += Number(addon.addonPrice);
+        }
+      }
+    }
+    
+    // Add home service fee in USD
+    if (data.homeServiceRequested && service.mobileServiceAvailable && service.homeServiceFee) {
+      totalUSD += Number(service.homeServiceFee);
+    }
+    
+    // Calculate platform fee on USD total
+    const serviceFeeUSD = await calculateServiceFee(totalUSD);
+    
+    // Convert platform fee to client's currency
+    const serviceFee = await exchangeRateService.convertCurrency(serviceFeeUSD, 'USD', targetCurrency);
+
+    // ✅ TOTAL AMOUNT = Service Price + Platform Fee (in client's currency)
+    const totalAmount = totalBookingAmount + serviceFee;
+
+    // ✅ Calculate deposit on the SERVICE PRICE (not including platform fee)
+    // This ensures deposit percentage is accurate (e.g., 25% of service, not 25% of service+fee)
     let finalDepositAmount: number;
     if (service.depositType === 'PERCENTAGE') {
-       finalDepositAmount = (totalBookingAmount * Number(service.depositAmount)) / 100;
-    } else { // Flat amount
-      let depositAmount = Number(service.depositAmount);
-      // Convert flat deposit amount if needed
-      if (service.provider.currency !== clientCurrency) {
-        depositAmount = convertCurrency(depositAmount, service.provider.currency, clientCurrency);
-      }
-      finalDepositAmount = depositAmount;
+      // Calculate percentage deposit on SERVICE PRICE (before platform fee)
+      finalDepositAmount = (totalBookingAmount * Number(service.depositAmount)) / 100;
+    } else {
+      // Flat deposit amount - convert from USD to client's currency using live rates
+      const depositAmountUSD = Number(service.depositAmount);
+      finalDepositAmount = await exchangeRateService.convertCurrency(depositAmountUSD, 'USD', targetCurrency);
     }
 
-    // ✅ CRITICAL FIX: Calculate service fee on TOTAL BOOKING AMOUNT (not just deposit)
-    const serviceFee = calculateServiceFee(
-      totalBookingAmount,
-      clientRegion as RegionCode // Use client region for fee calculation
-    );
-
-    // Total amount client pays NOW = deposit + service fee
-    const totalAmount = finalDepositAmount + serviceFee;
 
     // Handle team member assignment for salon bookings
     let assignedTeamMemberId: string | null = null;
@@ -202,12 +226,12 @@ class BookingService {
         servicePrice: totalBookingAmount, // ✅ Total service + add-ons + home service (NOT including service fee)
         depositAmount: finalDepositAmount,
         serviceFee, // ✅ Fee on total booking amount
-        totalAmount, // ✅ Deposit + service fee (what client pays now)
+        totalAmount, // ✅ Service Price + Platform Fee (FULL booking cost)
         currency: clientCurrency, // Use client's region currency
         paymentProvider: paymentProvider, // ✅ Based on CLIENT's region, not provider's
-        clientRegionCode: clientRegion, // Track which region was used
+        clientRegionCode: finalRegion, // ✅ Track server-detected region
         bookingStatus,
-        paymentStatus: 'PENDING',
+        paymentStatus: 'AWAITING_DEPOSIT', // ✅ Clear status: deposit not paid yet
         bookingType,
         contactEmail: data.contactEmail,
         contactPhone: data.contactPhone,
@@ -269,15 +293,23 @@ class BookingService {
       },
     });
 
-    // Create booking add-ons records
+    // Create booking add-ons records with converted prices using live rates
     if (selectedAddons.length > 0) {
-      await prisma.bookingAddon.createMany({
-        data: selectedAddons.map((addon) => ({
+      const addonDataPromises = selectedAddons.map(async (addon) => {
+        const addonPriceUSD = Number(addon.addonPrice);
+        const addonPriceConverted = await exchangeRateService.convertCurrency(addonPriceUSD, 'USD', targetCurrency);
+        return {
           bookingId: booking.id,
           addonId: addon.id,
           addonName: addon.addonName,
-          addonPrice: Number(addon.addonPrice),
-        })),
+          addonPrice: addonPriceConverted, // Store converted price
+        };
+      });
+      
+      const addonData = await Promise.all(addonDataPromises);
+      
+      await prisma.bookingAddon.createMany({
+        data: addonData,
       });
     }
 
@@ -567,15 +599,6 @@ class BookingService {
   /**
    * Determine payment provider based on region
    */
-  private getPaymentProviderForRegion(regionCode: string): 'STRIPE' | 'PAYSTACK' {
-    // Ghana and Nigeria use Paystack
-    if (regionCode === 'GH' || regionCode === 'NG') {
-      return 'PAYSTACK';
-    }
-    // All other regions use Stripe
-    return 'STRIPE';
-  }
-
   /**
    * Get booking by ID
    */

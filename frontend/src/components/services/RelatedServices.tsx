@@ -146,7 +146,7 @@ export function RelatedServices({ serviceId, currentServiceTitle }: RelatedServi
                       <span>{service.durationMinutes} min</span>
                     </div>
                     <div className="font-semibold text-primary">
-                      {service.currency} {service.priceMin}
+                      {"USD"} {service.priceMin}
                       {service.priceType === 'range' &&
                         service.priceMax &&
                         ` - ${service.priceMax}`}

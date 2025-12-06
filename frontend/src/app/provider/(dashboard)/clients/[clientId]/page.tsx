@@ -33,6 +33,7 @@ import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
 import type { ClientWithNotes, ClientNote } from '@/shared-types/client-management.types';
 import { toast } from 'sonner';
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 
 export default function ClientDetailPage() {
   const params = useParams();
@@ -46,6 +47,8 @@ export default function ClientDetailPage() {
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [editedNoteText, setEditedNoteText] = useState('');
   const [savingNote, setSavingNote] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     loadClientDetail();
@@ -119,13 +122,16 @@ export default function ClientDetailPage() {
     }
   }
 
-  async function handleDeleteNote(noteId: string) {
-    if (!confirm('Are you sure you want to delete this note?')) {
-      return;
-    }
+  function handleDeleteNoteClick(noteId: string) {
+    setNoteToDelete(noteId);
+    setDeleteConfirmOpen(true);
+  }
+
+  async function handleDeleteNoteConfirm() {
+    if (!noteToDelete) return;
 
     try {
-      await api.clients.deleteNote(noteId);
+      await api.clients.deleteNote(noteToDelete);
       toast.success('Note deleted successfully');
       await loadClientDetail();
     } catch (error: unknown) {
@@ -133,6 +139,9 @@ export default function ClientDetailPage() {
       toast.error('Failed to delete note', {
         description: message,
       });
+    } finally {
+      setDeleteConfirmOpen(false);
+      setNoteToDelete(null);
     }
   }
 
@@ -417,7 +426,7 @@ export default function ClientDetailPage() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => handleDeleteNote(note.id)}
+                              onClick={() => handleDeleteNoteClick(note.id)}
                               className="h-7 w-7 p-0 text-destructive"
                             >
                               <Trash className="h-3 w-3" />
@@ -437,6 +446,17 @@ export default function ClientDetailPage() {
           </Card>
         </div>
       </div>
+
+      <ConfirmationDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        title="Delete Note"
+        description="Are you sure you want to delete this note? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        onConfirm={handleDeleteNoteConfirm}
+        variant="destructive"
+      />
     </div>
   );
 }

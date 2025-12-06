@@ -23,6 +23,7 @@ import { extractErrorMessage } from '@/lib/error-utils';
 import type { BookingDetails } from '@/shared-types/booking.types';
 import { RescheduleModal } from '@/components/booking/RescheduleModal';
 import { BalancePaymentModal } from '@/components/booking/BalancePaymentModal';
+import { DepositPaymentModal } from '@/components/booking/DepositPaymentModal';
 import { CancelBookingModal } from '@/components/booking/CancelBookingModal';
 import { RebookServiceModal } from '@/components/booking/RebookServiceModal';
 import { exportBookingToCalendar } from '@/lib/calendar-export';
@@ -36,6 +37,7 @@ export default function ClientBookingsPage() {
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'past'>('all');
   const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false);
   const [balancePaymentModalOpen, setBalancePaymentModalOpen] = useState(false);
+  const [depositPaymentModalOpen, setDepositPaymentModalOpen] = useState(false);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [rebookModalOpen, setRebookModalOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<BookingDetails | null>(null);
@@ -71,7 +73,16 @@ export default function ClientBookingsPage() {
     setBalancePaymentModalOpen(true);
   }
 
+  function handlePayDepositClick(booking: BookingDetails) {
+    setSelectedBooking(booking);
+    setDepositPaymentModalOpen(true);
+  }
+
   function handleBalancePaymentSuccess() {
+    fetchBookings(); // Refresh bookings list
+  }
+
+  function handleDepositPaymentSuccess() {
     fetchBookings(); // Refresh bookings list
   }
 
@@ -223,9 +234,12 @@ export default function ClientBookingsPage() {
                         </div>
                         {booking.depositAmount > 0 && (
                           <div>
-                            <span className="text-sm text-muted-foreground">Deposit: </span>
+                            <span className="text-sm text-muted-foreground">Deposit Due: </span>
                             <span className="font-medium">
-                              {booking.currency} {booking.depositAmount}
+                              {booking.currency}{' '}
+                              {(
+                                Number(booking.depositAmount) + Number(booking.serviceFee)
+                              ).toFixed(2)}
                             </span>
                           </div>
                         )}
@@ -254,8 +268,25 @@ export default function ClientBookingsPage() {
                           </Button>
                         )}
 
+                        {/* Pay Deposit Button - Show when deposit not paid yet */}
+                        {booking.paymentStatus === 'AWAITING_DEPOSIT' && (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => handlePayDepositClick(booking)}
+                            className="bg-primary hover:bg-primary/90"
+                          >
+                            <DollarSign className="h-4 w-4 mr-1" />
+                            Pay Deposit ($
+                            {(
+                              Number(booking.depositAmount) + Number(booking.serviceFee)
+                            ).toFixed(2)}
+                            )
+                          </Button>
+                        )}
+
                         {/* Pay Balance Button - Show when deposit paid but balance remains */}
-                        {booking.paymentStatus === 'deposit_paid' &&
+                        {booking.paymentStatus === 'DEPOSIT_PAID' &&
                           calculateBalanceOwed(booking) > 0 &&
                           ['confirmed'].includes(booking.bookingStatus) && (
                             <Button
@@ -356,6 +387,16 @@ export default function ClientBookingsPage() {
           onOpenChange={setBalancePaymentModalOpen}
           booking={selectedBooking}
           onSuccess={handleBalancePaymentSuccess}
+        />
+      )}
+
+      {/* Deposit Payment Modal */}
+      {selectedBooking && (
+        <DepositPaymentModal
+          open={depositPaymentModalOpen}
+          onOpenChange={setDepositPaymentModalOpen}
+          booking={selectedBooking}
+          onSuccess={handleDepositPaymentSuccess}
         />
       )}
 

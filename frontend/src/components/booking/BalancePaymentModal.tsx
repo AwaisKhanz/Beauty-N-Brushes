@@ -1,13 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, Loader2, CheckCircle2, Banknote, CreditCard } from 'lucide-react';
+import { AlertCircle, Loader2, CheckCircle2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
 import type { BookingDetails } from '@/shared-types/booking.types';
@@ -29,43 +27,41 @@ export function BalancePaymentModal({
   booking,
   onSuccess,
 }: BalancePaymentModalProps) {
-  const [paymentMethod, setPaymentMethod] = useState<'online' | 'cash'>('online');
-  const [step, setStep] = useState<'method' | 'payment' | 'success'>('method');
+  const [step, setStep] = useState<'payment' | 'success'>('payment');
   const [clientSecret, setClientSecret] = useState<string>('');
   const [error, setError] = useState('');
-  const [processing, setProcessing] = useState(false);
 
-  const balanceAmount = Number(booking.servicePrice || 0) - Number(booking.depositAmount || 0);
+  // Calculate balance amount (matches backend calculation)
+  // Backend: totalAmount - depositAmount - serviceFee
+  // This ensures addons are always included
+  const balanceAmount = Number(booking.totalAmount || 0) - Number(booking.depositAmount || 0) - Number(booking.serviceFee || 0);
 
-  // Initialize payment based on selected method
-  async function handlePaymentMethodSubmit() {
+  // Initialize payment when modal opens
+  useEffect(() => {
+    if (open && !clientSecret) {
+      initializeBalancePayment();
+    }
+  }, [open]);
+
+  // Initialize payment for balance (online only)
+  async function initializeBalancePayment() {
     try {
       setError('');
-      setProcessing(true);
 
-      const response = await api.payment.payBalance({
+      // Use initializeBookingPayment with paymentType: 'balance'
+      const response = await api.payment.initializeBookingPayment({
         bookingId: booking.id,
-        paymentMethod,
+        paymentType: 'balance',
       });
 
-      if (paymentMethod === 'cash') {
-        // Cash payment - no online processing needed
-        setStep('success');
-        onSuccess();
-      } else {
-        // Online payment
-        if (response.data.paymentProvider === 'stripe' && response.data.clientSecret) {
-          setClientSecret(response.data.clientSecret);
-          setStep('payment');
-        } else if (response.data.paymentProvider === 'paystack' && response.data.authorizationUrl) {
-          // Redirect to Paystack
-          window.location.href = response.data.authorizationUrl;
-        }
+      if (response.data.paymentProvider === 'stripe' && response.data.clientSecret) {
+        setClientSecret(response.data.clientSecret);
+      } else if (response.data.paymentProvider === 'paystack' && response.data.authorizationUrl) {
+        // Redirect to Paystack
+        window.location.href = response.data.authorizationUrl;
       }
     } catch (err: unknown) {
       setError(extractErrorMessage(err) || 'Failed to initialize payment');
-    } finally {
-      setProcessing(false);
     }
   }
 
@@ -73,8 +69,7 @@ export function BalancePaymentModal({
   function handleOpenChange(open: boolean) {
     if (!open) {
       setTimeout(() => {
-        setStep('method');
-        setPaymentMethod('online');
+        setStep('payment');
         setClientSecret('');
         setError('');
       }, 300);
@@ -96,8 +91,8 @@ export function BalancePaymentModal({
           </Alert>
         )}
 
-        {/* Step 1: Select Payment Method */}
-        {step === 'method' && (
+        {/* Payment Step */}
+        {step === 'payment' && (
           <div className="space-y-4">
             {/* Balance Amount Display */}
             <div className="bg-accent/10 border border-accent/20 rounded-lg p-4">
@@ -122,142 +117,74 @@ export function BalancePaymentModal({
               </div>
             </div>
 
-            {/* Payment Method Selection */}
-            <div>
-              <h3 className="font-medium mb-3">Choose Payment Method</h3>
-              <RadioGroup
-                value={paymentMethod}
-                onValueChange={(val) => setPaymentMethod(val as 'online' | 'cash')}
+            {/* Payment Form */}
+            {clientSecret ? (
+              <Elements
+                stripe={stripePromise}
+                options={{
+                  clientSecret,
+                  appearance: {
+                    theme: document.documentElement.classList.contains('dark') ? 'night' : 'stripe',
+                    variables: {
+                      colorPrimary: '#B06F64',
+                      colorBackground: document.documentElement.classList.contains('dark')
+                        ? '#1a1a1a'
+                        : '#ffffff',
+                      colorText: document.documentElement.classList.contains('dark')
+                        ? '#ffffff'
+                        : '#2A3F4D',
+                      colorDanger: '#EF4444',
+                      fontFamily: 'system-ui, sans-serif',
+                      borderRadius: '8px',
+                      spacingUnit: '4px',
+                    },
+                    rules: {
+                      '.Input': {
+                        backgroundColor: document.documentElement.classList.contains('dark')
+                          ? '#2a2a2a'
+                          : '#f8f9fa',
+                        border: '1px solid #B06F64',
+                        borderRadius: '8px',
+                        color: document.documentElement.classList.contains('dark')
+                          ? '#ffffff'
+                          : '#2A3F4D',
+                        fontSize: '16px',
+                        padding: '12px',
+                      },
+                      '.Input:focus': {
+                        borderColor: '#B06F64',
+                        boxShadow: '0 0 0 2px rgba(176, 111, 100, 0.2)',
+                      },
+                      '.Label': {
+                        color: document.documentElement.classList.contains('dark')
+                          ? '#ffffff'
+                          : '#2A3F4D',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                      },
+                    },
+                  },
+                }}
               >
-                {/* Online Payment Option */}
-                <div
-                  className={`flex items-center space-x-3 p-4 border-2 rounded-lg cursor-pointer transition-colors ${
-                    paymentMethod === 'online'
-                      ? 'border-primary bg-gradient-to-br from-primary/10 to-accent/10'
-                      : 'border-border hover:border-primary/50 hover:bg-primary/5'
-                  }`}
-                  onClick={() => setPaymentMethod('online')}
-                >
-                  <RadioGroupItem value="online" id="online" />
-                  <Label htmlFor="online" className="flex-1 cursor-pointer">
-                    <div className="flex items-center gap-2">
-                      <CreditCard className="h-5 w-5 text-primary" />
-                      <div>
-                        <p className="font-medium">Pay Online</p>
-                        <p className="text-sm text-muted-foreground">
-                          {booking.paymentProvider === 'stripe'
-                            ? 'Pay securely with card'
-                            : 'Card or Mobile Money'}
-                        </p>
-                      </div>
-                    </div>
-                  </Label>
-                </div>
-
-                {/* Cash Payment Option */}
-                <div
-                  className={`flex items-center space-x-3 p-4 border-2 rounded-lg cursor-pointer transition-colors ${
-                    paymentMethod === 'cash'
-                      ? 'border-primary bg-gradient-to-br from-primary/10 to-accent/10'
-                      : 'border-border hover:border-primary/50 hover:bg-primary/5'
-                  }`}
-                  onClick={() => setPaymentMethod('cash')}
-                >
-                  <RadioGroupItem value="cash" id="cash" />
-                  <Label htmlFor="cash" className="flex-1 cursor-pointer">
-                    <div className="flex items-center gap-2">
-                      <Banknote className="h-5 w-5 text-primary" />
-                      <div>
-                        <p className="font-medium">Pay Cash at Appointment</p>
-                        <p className="text-sm text-muted-foreground">
-                          Pay the provider directly when you arrive
-                        </p>
-                      </div>
-                    </div>
-                  </Label>
-                </div>
-              </RadioGroup>
-            </div>
-
-            <Button
-              className="w-full bg-button-dark hover:bg-button-dark/90 text-white"
-              onClick={handlePaymentMethodSubmit}
-              disabled={processing}
-            >
-              {processing ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                <>Continue</>
-              )}
-            </Button>
+                <StripeBalancePaymentForm
+                  booking={booking}
+                  balanceAmount={balanceAmount}
+                  onSuccess={() => {
+                    setStep('success');
+                    onSuccess();
+                  }}
+                  onError={setError}
+                />
+              </Elements>
+            ) : (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            )}
           </div>
         )}
 
-        {/* Step 2: Payment Form (Online - Stripe only) */}
-        {step === 'payment' && clientSecret && (
-          <Elements
-            stripe={stripePromise}
-            options={{
-              clientSecret,
-              appearance: {
-                theme: document.documentElement.classList.contains('dark') ? 'night' : 'stripe',
-                variables: {
-                  colorPrimary: '#B06F64',
-                  colorBackground: document.documentElement.classList.contains('dark')
-                    ? '#1a1a1a'
-                    : '#ffffff',
-                  colorText: document.documentElement.classList.contains('dark')
-                    ? '#ffffff'
-                    : '#2A3F4D',
-                  colorDanger: '#EF4444',
-                  fontFamily: 'system-ui, sans-serif',
-                  borderRadius: '8px',
-                  spacingUnit: '4px',
-                },
-                rules: {
-                  '.Input': {
-                    backgroundColor: document.documentElement.classList.contains('dark')
-                      ? '#2a2a2a'
-                      : '#f8f9fa',
-                    border: '1px solid #B06F64',
-                    borderRadius: '8px',
-                    color: document.documentElement.classList.contains('dark')
-                      ? '#ffffff'
-                      : '#2A3F4D',
-                    fontSize: '16px',
-                    padding: '12px',
-                  },
-                  '.Input:focus': {
-                    borderColor: '#B06F64',
-                    boxShadow: '0 0 0 2px rgba(176, 111, 100, 0.2)',
-                  },
-                  '.Label': {
-                    color: document.documentElement.classList.contains('dark')
-                      ? '#ffffff'
-                      : '#2A3F4D',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                  },
-                },
-              },
-            }}
-          >
-            <StripeBalancePaymentForm
-              booking={booking}
-              balanceAmount={balanceAmount}
-              onSuccess={() => {
-                setStep('success');
-                onSuccess();
-              }}
-              onError={setError}
-            />
-          </Elements>
-        )}
-
-        {/* Step 3: Success */}
+        {/* Success Step */}
         {step === 'success' && (
           <div className="text-center py-8 space-y-4">
             <div className="flex justify-center">
@@ -266,13 +193,9 @@ export function BalancePaymentModal({
               </div>
             </div>
             <div>
-              <h3 className="text-2xl font-semibold mb-2">
-                {paymentMethod === 'cash' ? 'Payment Method Saved' : 'Payment Successful!'}
-              </h3>
+              <h3 className="text-2xl font-semibold mb-2">Payment Successful!</h3>
               <p className="text-muted-foreground">
-                {paymentMethod === 'cash'
-                  ? 'You can pay the remaining balance in cash at your appointment'
-                  : 'Your payment has been processed successfully'}
+                Your payment has been processed successfully
               </p>
             </div>
 
@@ -281,15 +204,13 @@ export function BalancePaymentModal({
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Amount Paid:</span>
                   <span className="font-medium">
-                    {booking.currency}{' '}
-                    {paymentMethod === 'cash' ? '0.00' : balanceAmount.toFixed(2)}
+                    {booking.currency} {balanceAmount.toFixed(2)}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Remaining Balance:</span>
                   <span className="font-medium">
-                    {booking.currency}{' '}
-                    {paymentMethod === 'cash' ? balanceAmount.toFixed(2) : '0.00'}
+                    {booking.currency} 0.00
                   </span>
                 </div>
               </div>

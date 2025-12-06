@@ -53,5 +53,6 @@ router.get('/calendar-status', settingsController.getGoogleCalendarStatus);
 // Subscription Management
 router.post('/subscription/change-tier', settingsController.changeSubscriptionTier);
 router.post('/subscription/cancel', settingsController.cancelSubscription);
+router.post('/subscription/resume', settingsController.resumeSubscription);
 
 export default router;

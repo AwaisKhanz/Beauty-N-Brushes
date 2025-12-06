@@ -10,10 +10,38 @@ import { CreditCard, Shield, CheckCircle2 } from 'lucide-react';
 import StripeCardForm from '@/components/provider/StripeCardForm';
 import PaystackCardForm from '@/components/provider/PaystackCardForm';
 import { getPaymentInfoFromCountry } from '../../../../../shared-constants';
-import { getTierInfo } from '../../../../../shared-constants';
 import { useSubscriptionConfig } from '@/hooks/useSubscriptionConfig';
 
 type SubscriptionTier = 'solo' | 'salon';
+
+// Local tier info helper (getTierInfo not exported from shared-constants)
+const getTierInfo = (tier: SubscriptionTier) => {
+  if (tier === 'solo') {
+    return {
+      name: 'Solo Professional',
+      monthlyPriceUSD: 19,
+      features: [
+        'Unlimited bookings',
+        'Client management',
+        'Calendar sync',
+        'Basic analytics',
+        'Mobile app access',
+      ],
+    };
+  }
+  return {
+    name: 'Salon & Team',
+    monthlyPriceUSD: 49,
+    features: [
+      'Everything in Solo',
+      'Team management',
+      'Advanced analytics',
+      'Priority support',
+      'Custom branding',
+      'Multi-location support',
+    ],
+  };
+};
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '');
 

@@ -2,28 +2,101 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, MapPin, Upload, Sparkles, Star, Shield, CheckCircle2 } from 'lucide-react';
+import { Search, MapPin, Upload, Sparkles, Star, Shield, CheckCircle2, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ROUTES } from '@/constants';
+import { LocationAutocomplete } from '@/components/location/LocationAutocomplete';
+import { LocationData } from '@/shared-types/google-places.types';
+import { toast } from 'sonner';
 
 export function HeroSearch() {
   const router = useRouter();
   const [query, setQuery] = useState('');
-  const [location, setLocation] = useState('');
+  const [location, setLocation] = useState<LocationData | null>(null);
+  const [locationInput, setLocationInput] = useState('');
+  const [isLocating, setIsLocating] = useState(false);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const params = new URLSearchParams();
-    if (query) params.append('query', query);
-    if (location) params.append('location', location);
+    if (query) params.append('q', query);
+    
+    if (location) {
+      if (location.city) params.append('city', location.city);
+      if (location.state) params.append('state', location.state);
+      if (location.country) params.append('country', location.country);
+      if (location.latitude) params.append('lat', location.latitude.toString());
+      if (location.longitude) params.append('lng', location.longitude.toString());
+    } else if (locationInput) {
+      // Fallback for manual text entry without selection
+      params.append('city', locationInput);
+    }
+
     router.push(`${ROUTES.SEARCH}?${params.toString()}`);
   };
 
   const handleVisualSearch = () => {
     router.push(ROUTES.VISUAL_SEARCH);
+  };
+
+  const handleLocationSelect = (data: LocationData) => {
+    setLocation(data);
+    setLocationInput(data.formattedAddress || '');
+  };
+
+  const handleCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser');
+      return;
+    }
+
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          
+          // Reverse geocode to get city/state (optional, but good for UI)
+          // For now, we'll just set the coordinates and let the search page handle it
+          // Or we can use the Google Maps Geocoding API if we had a helper for it.
+          // Since we have useGooglePlaces, let's see if we can use it or just pass lat/lng.
+          
+          // We'll construct a partial LocationData object
+          const locData: LocationData = {
+            addressLine1: '',
+            city: '', // We don't know the city yet, backend/search page will handle radius search
+            state: '',
+            country: '',
+            formattedAddress: 'Current Location',
+            placeId: 'current-location',
+            latitude,
+            longitude,
+            addressComponents: [],
+            zipCode: '',
+          };
+          
+          setLocation(locData);
+          setLocationInput('Current Location');
+        } catch (error) {
+          console.error('Geolocation error:', error);
+          toast.error('Failed to get your location');
+        } finally {
+          setIsLocating(false);
+        }
+      },
+      (error) => {
+        console.error('Geolocation error:', error);
+        let errorMessage = 'Failed to get your location';
+        if (error.code === error.PERMISSION_DENIED) {
+          errorMessage = 'Location permission denied';
+        }
+        toast.error(errorMessage);
+        setIsLocating(false);
+      }
+    );
   };
 
   return (
@@ -58,7 +131,7 @@ export function HeroSearch() {
                 <div className="flex flex-col sm:flex-row gap-3">
                   {/* Service Input */}
                   <div className="flex-1 relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground z-10" />
                     <Input
                       type="text"
                       placeholder="What service are you looking for?"
@@ -69,15 +142,29 @@ export function HeroSearch() {
                   </div>
 
                   {/* Location Input */}
-                  <div className="relative sm:w-56">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                    <Input
-                      type="text"
-                      placeholder="City or zip code"
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      className="pl-10 h-14 text-base"
-                    />
+                  <div className="relative sm:w-72">
+                    <div className="relative">
+                      <LocationAutocomplete
+                        onLocationSelect={handleLocationSelect}
+                        defaultValue={locationInput}
+                        placeholder="City or zip code"
+                        className="h-14"
+                      />
+                      {/* Current Location Button */}
+                      <button
+                        type="button"
+                        onClick={handleCurrentLocation}
+                        disabled={isLocating}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-muted-foreground hover:text-primary transition-colors"
+                        title="Use my current location"
+                      >
+                        {isLocating ? (
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                        ) : (
+                          <MapPin className="h-5 w-5" />
+                        )}
+                      </button>
+                    </div>
                   </div>
 
                   {/* Search Button */}

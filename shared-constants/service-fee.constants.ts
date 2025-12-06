@@ -26,15 +26,15 @@ export const REGIONAL_SERVICE_FEES: Record<RegionCode, RegionalServiceFee> = {
     currency: 'USD',
   },
   GH: {
-    base: 10,
-    percentage: 2.9,
-    cap: 60,
-    currency: 'GHS',
+    base: 1.25, // Changed from 10 GHS to USD equivalent
+    percentage: 3.6,
+    cap: 8.0, // Changed from 60 GHS to USD equivalent
+    currency: 'USD', // Changed from GHS to USD
   },
   NG: {
-    base: 1500,
-    percentage: 2.9,
-    cap: 6224,
-    currency: 'NGN',
+    base: 1.25, // Changed from 1500 NGN to USD equivalent
+    percentage: 3.6,
+    cap: 8.0, // Changed from 6224 NGN to USD equivalent
+    currency: 'USD', // Changed from NGN to USD
   },
 } as const;
