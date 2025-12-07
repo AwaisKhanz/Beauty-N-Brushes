@@ -173,6 +173,8 @@ export async function initializeCronJobs(): Promise<void> {
 
   // ==================== Phase 2: Unpaid Bookings Management ====================
   const { sendPaymentReminders, autoCancelUnpaidBookings } = await import('./booking/unpaid-bookings.job');
+  const { autoDeclineUnconfirmedBookings } = await import('./booking/auto-decline-unconfirmed.job');
+  const { autoCancelUnpaidBalance } = await import('./booking/auto-cancel-unpaid-balance.job');
 
   // Payment reminders (2 hours after booking)
   registerJob(
@@ -188,6 +190,22 @@ export async function initializeCronJobs(): Promise<void> {
     cronConfig.unpaidBookings.autoCancel.schedule,
     autoCancelUnpaidBookings,
     cronConfig.unpaidBookings.autoCancel.enabled
+  );
+
+  // Auto-decline unconfirmed bookings (48 hours after booking)
+  registerJob(
+    'auto-decline-unconfirmed',
+    '0 */6 * * *', // Every 6 hours
+    autoDeclineUnconfirmedBookings,
+    true
+  );
+
+  // Auto-cancel unpaid balance (24 hours after appointment)
+  registerJob(
+    'auto-cancel-unpaid-balance',
+    '0 */6 * * *', // Every 6 hours
+    autoCancelUnpaidBalance,
+    true
   );
 
   // ==================== Phase 3: Subscription Management ====================

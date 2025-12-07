@@ -139,11 +139,11 @@ import type {
   AssignTeamMemberResponse,
   GetAvailableStylists,
   GetAvailableSlotsResponse,
+  ReportNoShowRequest,
+  ReportNoShowResponse,
   // Payment
   InitializeBookingPaymentRequest,
   InitializeBookingPaymentResponse,
-  PayBalanceRequest,
-  PayBalanceResponse,
   PayTipRequest,
   RequestRescheduleRequest,
   RequestRescheduleResponse,
@@ -425,8 +425,8 @@ export const api = {
       ),
 
     // Pay balance for booking
-    payBalance: (data: PayBalanceRequest) =>
-      apiClient.post<{ data: PayBalanceResponse }>('/payment/booking/pay-balance', data),
+    payBalance: (data: { bookingId: string }) =>
+      apiClient.post<{ success: boolean; message: string }>('/payment/booking/pay-balance', data),
 
     // Pay tip for completed booking
     payTip: (data: PayTipRequest) =>
@@ -839,8 +839,12 @@ export const api = {
     cancel: (bookingId: string, data: CancelBookingRequest) =>
       apiClient.post<{ data: CancelBookingResponse }>(`/bookings/${bookingId}/cancel`, data),
 
+    // Provider cancels booking (always full refund to client)
+    cancelByProvider: (bookingId: string, data: { reason: string }) =>
+      apiClient.post<{ data: CancelBookingResponse }>(`/bookings/${bookingId}/cancel-by-provider`, data),
+
     reschedule: (bookingId: string, data: RescheduleBookingRequest) =>
-      apiClient.post<{ data: RescheduleBookingResponse }>(
+      apiClient.put<{ data: RescheduleBookingResponse }>(
         `/bookings/${bookingId}/reschedule`,
         data
       ),
@@ -848,8 +852,12 @@ export const api = {
     complete: (bookingId: string, data: CompleteBookingRequest) =>
       apiClient.post<{ data: CompleteBookingResponse }>(`/bookings/${bookingId}/complete`, data),
 
-    markNoShow: (bookingId: string, notes?: string) =>
-      apiClient.post<{ data: UpdateBookingResponse }>(`/bookings/${bookingId}/no-show`, { notes }),
+    markNoShow: (bookingId: string, data: { notes?: string }) =>
+      apiClient.post<{ data: UpdateBookingResponse }>(`/bookings/${bookingId}/no-show`, data),
+
+    // Client reports provider no-show (full refund)
+    reportProviderNoShow: (bookingId: string, data: ReportNoShowRequest) =>
+      apiClient.post<{ data: ReportNoShowResponse }>(`/bookings/${bookingId}/report-provider-no-show`, data),
 
     // Salon-specific: Team member assignment
     assign: (bookingId: string, data: AssignTeamMemberRequest) =>
@@ -868,6 +876,14 @@ export const api = {
     // Photos
     addPhoto: (bookingId: string, data: { photoUrl: string; photoType: 'BEFORE' | 'AFTER' | 'REFERENCE'; caption?: string }) =>
       apiClient.post<{ data: { message: string; photo: any } }>(`/bookings/${bookingId}/photos`, data),
+
+    // Get booking photos
+    getPhotos: (bookingId: string) =>
+      apiClient.get<{ data: { message: string; photos: any[] } }>(`/bookings/${bookingId}/photos`),
+
+    // Get refunds for a booking
+    getRefunds: (bookingId: string) =>
+      apiClient.get<{ message: string; refunds: any[] }>(`/bookings/${bookingId}/refunds`),
 
     deletePhoto: (bookingId: string, photoId: string) =>
       apiClient.delete<{ data: { message: string } }>(`/bookings/${bookingId}/photos/${photoId}`),

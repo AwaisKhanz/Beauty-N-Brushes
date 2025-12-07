@@ -13,7 +13,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, DollarSign, AlertTriangle } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { AlertCircle, DollarSign, CheckCircle2, XCircle } from 'lucide-react';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
 import type { BookingDetails } from '@/shared-types/booking.types';
@@ -35,38 +36,67 @@ export function CancelBookingModal({
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [confirmed, setConfirmed] = useState(false);
 
-  const calculateCancellationFee = (): number => {
-    // Calculate time until appointment
-    const appointmentDateTime = new Date(`${booking.appointmentDate}T${booking.appointmentTime}`);
-    const now = new Date();
-    const hoursUntilAppt = (appointmentDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+  // ✅ Calculate refund based on booking STATUS (not time)
+  const calculateRefund = () => {
+    const depositAmount = Number(booking.depositAmount) || 0;
+    const totalPaid = Number(booking.totalAmount) || 0;
 
-    // Get cancellation window from provider policy (default 24 hours)
-    const cancellationWindowHours = booking.provider?.cancellationWindowHours || 24;
-
-    // If within cancellation window, full deposit forfeited (or policy percentage)
-    if (hoursUntilAppt < cancellationWindowHours) {
-      const feePercentage = booking.provider?.cancellationFeePercentage || 100;
-      return (booking.depositAmount * feePercentage) / 100;
+    // Check if any payment was made
+    const hasDepositPaid = booking.paymentStatus === 'DEPOSIT_PAID' || booking.paymentStatus === 'PAID';
+    
+    // If no payment made, no refund
+    if (!hasDepositPaid) {
+      return {
+        refundAmount: 0,
+        willRefund: false,
+      };
     }
 
-    // If outside window, no fee (full refund)
-    return 0;
+    // PENDING booking: Full refund of whatever was paid
+    if (booking.bookingStatus === 'PENDING') {
+      return {
+        refundAmount: depositAmount,
+        willRefund: true,
+      };
+    }
+
+    // CONFIRMED booking: No refund (deposit forfeited)
+    if (booking.bookingStatus === 'CONFIRMED') {
+      return {
+        refundAmount: 0,
+        willRefund: false,
+      };
+    }
+
+    // COMPLETED booking with full payment: Refund balance only
+    if (booking.bookingStatus === 'COMPLETED' && booking.paymentStatus === 'PAID') {
+      return {
+        refundAmount: totalPaid - depositAmount,
+        willRefund: false,
+      };
+    }
+
+    // Default: no refund
+    return {
+      refundAmount: 0,
+      willRefund: false,
+    };
   };
-
-  const cancellationFee = calculateCancellationFee();
-  const refundAmount = booking.depositAmount - cancellationFee;
-
-  const appointmentDateTime = new Date(`${booking.appointmentDate}T${booking.appointmentTime}`);
-  const now = new Date();
-  const hoursUntilAppt = (appointmentDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
-  const cancellationWindowHours = booking.provider?.cancellationWindowHours || 24;
-  const isWithinCancellationWindow = hoursUntilAppt < cancellationWindowHours;
+  const { refundAmount, willRefund } = calculateRefund();
+  const isPending = booking.bookingStatus === 'PENDING';
+  const isConfirmed = booking.bookingStatus === 'CONFIRMED';
 
   async function handleCancel() {
     if (!reason.trim()) {
       setError('Please provide a reason for cancellation');
+      return;
+    }
+
+    // Require confirmation checkbox for confirmed bookings
+    if (isConfirmed && !confirmed) {
+      setError('Please confirm that you understand your deposit will be forfeited');
       return;
     }
 
@@ -80,9 +110,9 @@ export function CancelBookingModal({
 
       toast.success('Booking cancelled', {
         description:
-          refundAmount > 0
-            ? `${booking.currency} ${refundAmount.toFixed(2)} will be refunded to your account`
-            : 'Cancellation processed',
+          willRefund
+            ? `${booking.currency} ${Number(refundAmount).toFixed(2)} will be refunded within 5-10 business days`
+            : 'Your deposit has been forfeited as per cancellation policy',
       });
 
       onOpenChange(false);
@@ -119,56 +149,79 @@ export function CancelBookingModal({
                 })}{' '}
                 at {booking.appointmentTime}
               </div>
+              <div className="pt-2 border-t">
+                <span className="text-xs text-muted-foreground">Status: </span>
+                <span className={`text-xs font-medium ${isPending ? 'text-yellow-600' : 'text-green-600'}`}>
+                  {isPending ? 'Pending Confirmation' : 'Confirmed'}
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Cancellation Policy */}
-          <Alert variant={isWithinCancellationWindow ? 'destructive' : 'default'}>
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              <div className="space-y-2">
-                <p className="font-medium">Cancellation Policy</p>
-                {isWithinCancellationWindow ? (
-                  <>
-                    <p className="text-sm">
-                      You are cancelling within {cancellationWindowHours} hours of your appointment.
+          {/* Refund Policy - PENDING Booking with Payment */}
+          {isPending && willRefund && (
+            <Alert className="border-green-200 bg-green-50">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <AlertDescription>
+                <div className="space-y-2">
+                  <p className="font-medium text-green-900">Full Refund Available</p>
+                  <p className="text-sm text-green-800">
+                    Since your booking hasn't been confirmed yet, you'll receive a full refund.
+                  </p>
+                  <div className="flex items-center gap-2 bg-amber-50 p-3 rounded-lg border border-amber-200">
+                    <DollarSign className="h-4 w-4 text-amber-600" />
+                    <p className="text-sm font-semibold text-amber-900">
+                      Refund amount: {booking.currency} {Number(refundAmount).toFixed(2)}
                     </p>
-                    {cancellationFee > 0 && (
-                      <div className="flex items-center gap-2 pt-2 border-t">
-                        <DollarSign className="h-4 w-4" />
-                        <div className="text-sm">
-                          <p>
-                            Cancellation fee:{' '}
-                            <span className="font-semibold">
-                              {booking.currency} {cancellationFee.toFixed(2)}
-                            </span>
-                          </p>
-                          <p className="text-muted-foreground">
-                            Refund amount: {booking.currency} {refundAmount.toFixed(2)}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <p className="text-sm">
-                      Free cancellation - you'll receive a full refund of your deposit.
-                    </p>
-                    <div className="flex items-center gap-2 pt-2 border-t">
-                      <DollarSign className="h-4 w-4" />
-                      <p className="text-sm">
-                        Refund amount:{' '}
+                  </div>
+                  <p className="text-xs text-green-700">
+                    Refund will be processed within 5-10 business days
+                  </p>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* No Payment Made Yet */}
+          {isPending && !willRefund && (
+            <Alert className="border-blue-200 bg-blue-50">
+              <CheckCircle2 className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-blue-900">
+                <p className="font-medium">No Payment Required</p>
+                <p className="text-sm mt-1">
+                  You can cancel this booking at no cost since the deposit hasn't been paid yet.
+                </p>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Refund Policy - CONFIRMED Booking */}
+          {isConfirmed && (
+            <Alert variant="destructive">
+              <XCircle className="h-4 w-4" />
+              <AlertDescription>
+                <div className="space-y-2">
+                  <p className="font-medium">No Refund - Deposit Forfeited</p>
+                  <p className="text-sm">
+                    Your booking has been confirmed by the provider. Cancelling now means your deposit will be
+                    forfeited.
+                  </p>
+                  <div className="flex items-center gap-2 pt-2 border-t">
+                    <DollarSign className="h-4 w-4" />
+                    <div className="text-sm">
+                      <p>
+                        Deposit amount:{' '}
                         <span className="font-semibold">
-                          {booking.currency} {refundAmount.toFixed(2)}
+                          {booking.currency} {booking.depositAmount.toFixed(2)}
                         </span>
                       </p>
+                      <p className="text-muted-foreground">Refund amount: {booking.currency} 0.00</p>
                     </div>
-                  </>
-                )}
-              </div>
-            </AlertDescription>
-          </Alert>
+                  </div>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Provider's Cancellation Policy Text */}
           {booking.provider?.cancellationPolicy && (
@@ -191,6 +244,20 @@ export function CancelBookingModal({
             />
           </div>
 
+          {/* Confirmation Checkbox for Confirmed Bookings */}
+          {isConfirmed && (
+            <div className="flex items-start space-x-2 p-3 border rounded bg-muted/30">
+              <Checkbox id="confirm" checked={confirmed} onCheckedChange={(checked) => setConfirmed(checked === true)} />
+              <label
+                htmlFor="confirm"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+              >
+                I understand that my deposit of {booking.currency} {booking.depositAmount.toFixed(2)} will be forfeited
+                and I will not receive a refund
+              </label>
+            </div>
+          )}
+
           {error && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
@@ -203,7 +270,11 @@ export function CancelBookingModal({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Keep Booking
           </Button>
-          <Button variant="destructive" onClick={handleCancel} disabled={loading || !reason.trim()}>
+          <Button
+            variant="destructive"
+            onClick={handleCancel}
+            disabled={loading || !reason.trim() || (isConfirmed && !confirmed)}
+          >
             {loading ? 'Cancelling...' : 'Cancel Booking'}
           </Button>
         </DialogFooter>

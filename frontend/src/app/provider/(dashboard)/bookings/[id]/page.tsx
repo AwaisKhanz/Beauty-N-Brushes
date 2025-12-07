@@ -12,8 +12,6 @@ import {
   Clock,
   MapPin,
   User,
-  Phone,
-  Mail,
   DollarSign,
   CreditCard,
   ArrowLeft,
@@ -23,10 +21,15 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
+import { useBookingSocket } from '@/hooks/use-booking-socket';
+import { useRefundSocket } from '@/hooks/use-refund-socket';
 import type { BookingDetails } from '@/shared-types/booking.types';
+import { RefundCard } from '@/components/booking/RefundCard';
 import { toast } from 'sonner';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { AssignTeamMemberModal } from '@/components/booking/AssignTeamMemberModal';
+import { ProviderCancelModal } from '@/components/booking/ProviderCancelModal';
+import { PaymentStatusBadge } from '@/components/booking/PaymentStatusBadge';
 
 export default function ProviderBookingDetailPage() {
   const params = useParams();
@@ -36,8 +39,14 @@ export default function ProviderBookingDetailPage() {
   const [booking, setBooking] = useState<BookingDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [refunds, setRefunds] = useState<any[]>([]);
   const [assignTeamMemberModalOpen, setAssignTeamMemberModalOpen] = useState(false);
   const [noShowConfirmOpen, setNoShowConfirmOpen] = useState(false);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+
+  // Enable real-time updates
+  useBookingSocket();
+  useRefundSocket(bookingId, fetchRefunds);
 
   useEffect(() => {
     if (bookingId) {
@@ -51,6 +60,8 @@ export default function ProviderBookingDetailPage() {
       setError('');
       const response = await api.bookings.getById(bookingId);
       setBooking(response.data.booking);
+      // Fetch refunds after booking loads
+      fetchRefunds();
     } catch (err: unknown) {
       const message = extractErrorMessage(err) || 'Failed to load booking details';
       setError(message);
@@ -59,6 +70,15 @@ export default function ProviderBookingDetailPage() {
       });
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchRefunds() {
+    try {
+      const response = await api.bookings.getRefunds(bookingId);
+      setRefunds(response.refunds || []);
+    } catch (err: unknown) {
+      console.error('Failed to fetch refunds:', err);
     }
   }
 
@@ -88,7 +108,7 @@ export default function ProviderBookingDetailPage() {
 
   async function handleMarkNoShowConfirm() {
     try {
-      await api.bookings.markNoShow(bookingId, 'Client did not arrive for appointment');
+      await api.bookings.markNoShow(bookingId, { notes: 'Client did not arrive for appointment' });
       toast.success('Booking marked as no-show');
       fetchBooking();
     } catch (err: unknown) {
@@ -98,15 +118,7 @@ export default function ProviderBookingDetailPage() {
     }
   }
 
-  async function handleAssignTeamMember(teamMemberId: string) {
-    try {
-      await api.bookings.assignTeamMember(bookingId, { teamMemberId });
-      toast.success('Team member assigned successfully');
-      fetchBooking();
-    } catch (err: unknown) {
-      toast.error(extractErrorMessage(err) || 'Failed to assign team member');
-    }
-  }
+
 
   function getStatusColor(status: string) {
     switch (status) {
@@ -272,6 +284,16 @@ export default function ProviderBookingDetailPage() {
             </CardContent>
           </Card>
 
+          {/* Refund Information */}
+          {refunds.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Refund Information</h3>
+              {refunds.map((refund: any) => (
+                <RefundCard key={refund.id} refund={refund} />
+              ))}
+            </div>
+          )}
+
           {/* Service Details */}
           <Card>
             <CardHeader>
@@ -294,49 +316,18 @@ export default function ProviderBookingDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Client Details */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Client Details</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-                    <User className="h-6 w-6 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold">
-                      {booking.client?.firstName} {booking.client?.lastName}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">{booking.client?.email}</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    <span>{booking.client?.phone || 'Not provided'}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <span>{booking.client?.email}</span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Sidebar */}
+          
         <div className="space-y-6">
           {/* Payment Status */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CreditCard className="h-5 w-5" />
-                Payment Status
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5" />
+                  Payment Status
+                </CardTitle>
+                <PaymentStatusBadge status={booking.paymentStatus} />
+              </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -349,10 +340,8 @@ export default function ProviderBookingDetailPage() {
                         : booking.paymentStatus === 'DEPOSIT_PAID'
                           ? 'bg-blue-100 text-blue-800 border-blue-200'
                           : booking.paymentStatus === 'AWAITING_DEPOSIT'
-                            ? 'bg-red-100 text-red-800 border-red-200'
-                            : booking.paymentStatus === 'PENDING'
-                              ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
-                              : 'bg-gray-100 text-gray-800 border-gray-200'
+                            ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
+                            : 'bg-gray-100 text-gray-800 border-gray-200'
                     }
                   >
                     {booking.paymentStatus.replace('_', ' ')}
@@ -548,31 +537,49 @@ export default function ProviderBookingDetailPage() {
                   Assign Team Member
                 </Button>
               )}
+
+              {/* Cancel Booking */}
+              {!['COMPLETED', 'CANCELLED_BY_CLIENT', 'CANCELLED_BY_PROVIDER', 'NO_SHOW'].includes(booking.bookingStatus) && (
+                <Button
+                  onClick={() => setCancelModalOpen(true)}
+                  variant="outline"
+                  className="w-full gap-2 text-destructive hover:text-destructive"
+                >
+                  <XCircle className="h-4 w-4" />
+                  Cancel Booking
+                </Button>
+              )}
             </CardContent>
           </Card>
         </div>
-      </div>
+      </div >
+      
 
-      {/* Team Member Assignment Modal */}
-      {booking && (
-        <AssignTeamMemberModal
-          open={assignTeamMemberModalOpen}
-          onOpenChange={setAssignTeamMemberModalOpen}
-          bookingId={bookingId}
-          onSuccess={handleAssignTeamMember}
-        />
-      )}
+      {/* Modals */}
+      <AssignTeamMemberModal
+        open={assignTeamMemberModalOpen}
+        onOpenChange={setAssignTeamMemberModalOpen}
+        bookingId={bookingId}
+        onSuccess={fetchBooking}
+      />
 
       <ConfirmationDialog
         open={noShowConfirmOpen}
         onOpenChange={setNoShowConfirmOpen}
         title="Mark as No-Show"
-        description="Mark this booking as no-show? This action cannot be undone."
-        confirmText="Mark No-Show"
-        cancelText="Cancel"
+        description="Are you sure you want to mark this booking as a no-show? This action cannot be undone."
         onConfirm={handleMarkNoShowConfirm}
+        confirmText="Mark as No-Show"
         variant="destructive"
       />
-    </div>
+
+      <ProviderCancelModal
+        open={cancelModalOpen}
+        onOpenChange={setCancelModalOpen}
+        booking={booking}
+        onSuccess={fetchBooking}
+      />
+      </div>
+      </div>
   );
 }

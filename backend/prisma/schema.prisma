@@ -509,6 +509,7 @@ model Booking {
   assignedTeamMember    TeamMember?         @relation("TeamMemberBookings", fields: [assignedTeamMemberId], references: [id])
   review                Review?
   addons                BookingAddon[]
+  refunds               Refund[]            // Refund tracking
   conversations         Conversation[]
   rescheduleRequests    RescheduleRequest[]
   photos                BookingPhoto[]
@@ -856,6 +857,7 @@ enum BookingStatus {
   CANCELLED_BY_PROVIDER
   COMPLETED
   NO_SHOW
+  PROVIDER_NO_SHOW
   RESCHEDULED
 }
 
@@ -869,6 +871,14 @@ enum PaymentStatus {
   PARTIALLY_REFUNDED
 }
 
+enum RefundStatus {
+  PENDING      // Refund initiated, waiting for processing
+  PROCESSING   // Being processed by payment provider
+  SUCCEEDED    // Refund completed successfully
+  FAILED       // Refund failed
+  CANCELLED    // Refund cancelled
+}
+
 // Subscription Configuration (Singleton)
 // Stores global trial configuration that applies to all new provider signups
 model SubscriptionConfig {
@@ -879,6 +889,42 @@ model SubscriptionConfig {
   updatedAt         DateTime @updatedAt
 
   @@map("subscription_config")
+}
+
+// Refund Tracking
+// Tracks all refund requests and their status
+model Refund {
+  id                String          @id @default(uuid())
+  bookingId         String
+  booking           Booking         @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  
+  // Refund Details
+  amount            Decimal         @db.Decimal(10, 2)
+  currency          String          @default("USD")
+  reason            String
+  
+  // Provider Details
+  paymentProvider   PaymentProvider
+  stripeRefundId    String?         @unique
+  paystackRefundId  String?         @unique
+  
+  // Status Tracking
+  status            RefundStatus    @default(PENDING)
+  processedAt       DateTime?
+  failedAt          DateTime?
+  failureReason     String?
+  
+  // Metadata
+  initiatedBy       String          // userId who initiated
+  metadata          Json?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  
+  @@index([bookingId])
+  @@index([stripeRefundId])
+  @@index([paystackRefundId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 // Platform Configuration
@@ -898,6 +944,8 @@ model PlatformConfig {
   @@index([key])
   @@map("platform_config")
 }
+
+
 
 enum PaymentProvider {
   STRIPE

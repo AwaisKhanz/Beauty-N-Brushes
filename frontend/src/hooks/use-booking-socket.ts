@@ -179,6 +179,30 @@ export function useBookingSocket() {
     invalidateBooking(data.booking.id);
   }, [toast, invalidateBooking]);
 
+  // Handle booking updated event (for payment status changes from webhooks)
+  const handleBookingUpdated = useCallback((data: { bookingId: string; paymentStatus?: string; bookingStatus?: string; paidAt?: Date }) => {
+    console.log('📡 Received booking:updated event:', data);
+    
+    // Show toast for payment status changes
+    if (data.paymentStatus === 'DEPOSIT_PAID') {
+      toast({
+        title: 'Payment Successful! ✅',
+        description: 'Your deposit payment has been confirmed',
+        variant: 'default',
+      });
+    } else if (data.paymentStatus === 'FULLY_PAID') {
+      toast({
+        title: 'Payment Complete! ✅',
+        description: 'Your booking is now fully paid',
+        variant: 'default',
+      });
+    }
+
+    // Invalidate queries to refresh the UI
+    invalidateBookings();
+    invalidateBooking(data.bookingId);
+  }, [toast, invalidateBookings, invalidateBooking]);
+
   // Set up Socket.IO listeners
   useEffect(() => {
     if (!socket) return;
@@ -196,6 +220,7 @@ export function useBookingSocket() {
     socket.on('team_member_assigned', handleTeamMemberAssigned);
     socket.on('booking_assigned_to_you', handleBookingAssignedToYou);
     socket.on('booking_photo_added', handleBookingPhotoAdded);
+    socket.on('booking:updated', handleBookingUpdated); // ✅ Payment status updates from webhooks
 
     // Cleanup listeners on unmount
     return () => {
@@ -211,6 +236,7 @@ export function useBookingSocket() {
       socket.off('team_member_assigned', handleTeamMemberAssigned);
       socket.off('booking_assigned_to_you', handleBookingAssignedToYou);
       socket.off('booking_photo_added', handleBookingPhotoAdded);
+      socket.off('booking:updated', handleBookingUpdated); // ✅ Cleanup
     };
   }, [
     socket,
@@ -226,6 +252,7 @@ export function useBookingSocket() {
     handleTeamMemberAssigned,
     handleBookingAssignedToYou,
     handleBookingPhotoAdded,
+    handleBookingUpdated, // ✅ Added
   ]);
 
   return {

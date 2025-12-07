@@ -602,6 +602,49 @@ export async function markNoShow(
 }
 
 /**
+ * Report provider no-show
+ * POST /bookings/:bookingId/report-provider-no-show
+ */
+export async function reportProviderNoShow(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    const { bookingId } = req.params;
+
+    if (!userId) throw new AppError(401, 'Unauthorized');
+    if (!bookingId) throw new AppError(400, 'Booking ID required');
+
+    const schema = z.object({
+      reason: z.string().min(1, 'Reason is required').max(500),
+      evidence: z.string().max(1000).optional(),
+    });
+
+    const data = schema.parse(req.body);
+
+    const result = await bookingService.reportProviderNoShow(bookingId, userId, {
+      reason: data.reason.trim(),
+      evidence: data.evidence?.trim(),
+    });
+
+    sendSuccess(res, {
+      message: 'Provider no-show reported successfully',
+      booking: result.booking,
+      refundAmount: result.refundAmount,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return next(
+        new AppError(400, `Validation failed: ${error.errors.map((e) => e.message).join(', ')}`)
+      );
+    }
+    next(error);
+  }
+}
+
+/**
  * Add photo to booking
  */
 export async function addBookingPhoto(
@@ -664,6 +707,30 @@ export async function deleteBookingPhoto(
     next(error);
   }
 }
+
+/**
+ * Get refunds for a booking
+ */
+export async function getBookingRefunds(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    if (!userId) throw new AppError(401, 'Unauthorized');
+
+    const { bookingId } = req.params;
+
+    // Get refunds for this booking (access check included)
+    const refunds = await bookingService.getBookingRefunds(bookingId, userId);
+
+    sendSuccess(res, { message: 'Refunds retrieved successfully', refunds });
+  } catch (error) {
+    next(error);
+  }
+}
+
 
 /**
  * Get bookings with pending reviews (client only)

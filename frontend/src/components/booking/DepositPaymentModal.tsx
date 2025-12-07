@@ -34,12 +34,12 @@ export function DepositPaymentModal({
   const [paymentChannel, setPaymentChannel] = useState<'card' | 'mobile_money' | 'bank_transfer'>('card');
   const [step, setStep] = useState<'channel' | 'payment' | 'success'>('channel');
   const [clientSecret, setClientSecret] = useState<string>('');
-  const [authorizationUrl, setAuthorizationUrl] = useState<string>('');
   const [error, setError] = useState('');
   const [processing, setProcessing] = useState(false);
   const [paymentProvider, setPaymentProvider] = useState<'stripe' | 'paystack'>('stripe');
 
-  const depositAmount = Number(booking.depositAmount || 0);
+  // Calculate total deposit payment (deposit + platform fee)
+  const depositAmount = Number(booking.depositAmount || 0) + Number(booking.serviceFee || 0);
 
   // Initialize deposit payment
   async function handleInitializePayment() {
@@ -111,7 +111,7 @@ export function DepositPaymentModal({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>Pay Deposit</DialogTitle>
         </DialogHeader>
@@ -235,9 +235,44 @@ export function DepositPaymentModal({
                 options={{
                   clientSecret,
                   appearance: {
-                    theme: 'stripe',
+                    theme: document.documentElement.classList.contains('dark') ? 'night' : 'stripe',
                     variables: {
                       colorPrimary: '#B06F64',
+                      colorBackground: document.documentElement.classList.contains('dark')
+                        ? '#1a1a1a'
+                        : '#ffffff',
+                      colorText: document.documentElement.classList.contains('dark')
+                        ? '#ffffff'
+                        : '#2A3F4D',
+                      colorDanger: '#EF4444',
+                      fontFamily: 'system-ui, sans-serif',
+                      borderRadius: '8px',
+                      spacingUnit: '4px',
+                    },
+                    rules: {
+                      '.Input': {
+                        backgroundColor: document.documentElement.classList.contains('dark')
+                          ? '#2a2a2a'
+                          : '#f8f9fa',
+                        border: '1px solid #B06F64',
+                        borderRadius: '8px',
+                        color: document.documentElement.classList.contains('dark')
+                          ? '#ffffff'
+                          : '#2A3F4D',
+                        fontSize: '16px',
+                        padding: '12px',
+                      },
+                      '.Input:focus': {
+                        borderColor: '#B06F64',
+                        boxShadow: '0 0 0 2px rgba(176, 111, 100, 0.2)',
+                      },
+                      '.Label': {
+                        color: document.documentElement.classList.contains('dark')
+                          ? '#ffffff'
+                          : '#2A3F4D',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                      },
                     },
                   },
                 }}

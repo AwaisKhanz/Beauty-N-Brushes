@@ -31,10 +31,15 @@ router.post(
 );
 router.post('/:bookingId/complete', bookingController.completeBooking);
 router.post('/:bookingId/no-show', bookingController.markNoShow);
+router.post('/:bookingId/report-provider-no-show', bookingController.reportProviderNoShow);
 router.post('/:bookingId/assign-team-member', bookingController.assignTeamMember);
+
+// Booking refunds
+router.get('/:bookingId/refunds', bookingController.getBookingRefunds);
 
 // Booking photos
 router.post('/:bookingId/photos', bookingController.addBookingPhoto);
 router.delete('/:bookingId/photos/:photoId', bookingController.deleteBookingPhoto);
 
 export default router;
+

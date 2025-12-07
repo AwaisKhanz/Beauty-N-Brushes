@@ -8,6 +8,7 @@ import { env } from '../config/env';
 import { paymentConfig } from '../config/payment.config';
 import type { PaystackSubscriptionData, PaystackChargeData } from '../../../shared-types';
 import { SUBSCRIPTION_TIERS } from '../../../shared-constants';
+import { getSocketIO } from '../config/socket.server';
 
 const stripe = new Stripe(paymentConfig.stripe.secretKey || '', {
   apiVersion: '2023-10-16',
@@ -20,7 +21,7 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
   console.log('🔔 Stripe webhook received!');
   console.log('   Headers:', req.headers);
   console.log('   Body type:', typeof req.body);
-  console.log('   Body length:', req.body?.length || 0);
+  console.log('   Body is Buffer:', Buffer.isBuffer(req.body));
   
   const sig = req.headers['stripe-signature'] as string;
   const webhookSecret = paymentConfig.stripe.webhookSecret;
@@ -37,8 +38,26 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
   let event: Stripe.Event;
 
   try {
+    // Handle both Buffer (from express.raw) and parsed JSON (from ngrok/proxy)
+    let rawBody: string | Buffer;
+    
+    if (Buffer.isBuffer(req.body)) {
+      // Body is already a Buffer (ideal case)
+      rawBody = req.body;
+      console.log('   ✅ Using Buffer body');
+    } else if (typeof req.body === 'object') {
+      // Body was parsed as JSON (ngrok/proxy issue)
+      // Convert back to JSON string for signature verification
+      rawBody = JSON.stringify(req.body);
+      console.log('   ⚠️ Body was parsed as JSON, converting back to string');
+    } else {
+      // Body is already a string
+      rawBody = req.body;
+      console.log('   ✅ Using string body');
+    }
+
     // Verify webhook signature
-    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+    event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
     console.log('✅ Webhook signature verified! Event type:', event.type);
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
@@ -104,6 +123,10 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
 
       case 'customer.subscription.resumed':
         await handleSubscriptionResumed(event.data.object as Stripe.Subscription);
+        break;
+
+      case 'charge.refund.updated':
+        await handleRefundUpdated(event.data.object as Stripe.Refund);
         break;
 
       default:
@@ -608,7 +631,7 @@ async function handleBookingPaymentSucceeded(paymentIntent: Stripe.PaymentIntent
     }
 
     // Update booking payment status
-    await prisma.booking.update({
+    const updatedBooking = await prisma.booking.update({
       where: { id: bookingId },
       data: {
         paymentStatus: 'DEPOSIT_PAID',
@@ -620,6 +643,21 @@ async function handleBookingPaymentSucceeded(paymentIntent: Stripe.PaymentIntent
         updatedAt: new Date(),
       },
     });
+
+    // ✅ Emit socket event to client for real-time update
+    try {
+      const io = getSocketIO();
+      io.to(`user:${booking.clientId}`).emit('booking:updated', {
+        bookingId: booking.id,
+        paymentStatus: 'DEPOSIT_PAID',
+        bookingStatus: updatedBooking.bookingStatus,
+        paidAt: updatedBooking.paidAt,
+      });
+      logger.info(`Socket event emitted to client ${booking.clientId}`);
+    } catch (socketError) {
+      logger.error('Error emitting socket event:', socketError);
+      // Don't fail the webhook if socket emission fails
+    }
 
     // Send confirmation email
     await emailService.sendBookingConfirmationEmail(booking.client.email, {
@@ -635,9 +673,16 @@ async function handleBookingPaymentSucceeded(paymentIntent: Stripe.PaymentIntent
     });
 
     logger.info(`Booking ${bookingId} payment confirmed and status updated`);
-  } else if (type === 'balance_payment') {
+  } else if (type === 'booking_balance' || type === 'balance_payment') {
     const bookingId = metadata?.bookingId;
     if (!bookingId) return;
+
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      select: { clientId: true },
+    });
+
+    if (!booking) return;
 
     // Update booking to fully paid
     await prisma.booking.update({
@@ -647,6 +692,18 @@ async function handleBookingPaymentSucceeded(paymentIntent: Stripe.PaymentIntent
         updatedAt: new Date(),
       },
     });
+
+    // ✅ Emit socket event to client for real-time update
+    try {
+      const io = getSocketIO();
+      io.to(`user:${booking.clientId}`).emit('booking:updated', {
+        bookingId: bookingId,
+        paymentStatus: 'FULLY_PAID',
+      });
+      logger.info(`Socket event emitted to client ${booking.clientId} for balance payment`);
+    } catch (socketError) {
+      logger.error('Error emitting socket event:', socketError);
+    }
 
     logger.info(`Booking ${bookingId} balance paid`);
   }
@@ -757,6 +814,18 @@ export async function handlePaystackWebhook(req: Request, res: Response): Promis
         await handlePaystackExpiringCards(event.data);
         break;
 
+      case 'refund.processed':
+        await handlePaystackRefundUpdate(event.data, 'SUCCEEDED');
+        break;
+
+      case 'refund.failed':
+        await handlePaystackRefundUpdate(event.data, 'FAILED');
+        break;
+
+      case 'refund.pending':
+        await handlePaystackRefundUpdate(event.data, 'PROCESSING');
+        break;
+
       case 'dedicatedaccount.assign.success':
         // Import and call bank transfer handler
         const { handlePaystackBankTransferSuccess } = await import('./webhook-bank-transfer');
@@ -848,6 +917,13 @@ async function handlePaystackChargeSuccess(data: PaystackChargeData): Promise<vo
 
     const paymentType = metadata?.paymentType || 'deposit'; // Get payment type from metadata
 
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      select: { id: true, clientId: true },
+    });
+
+    if (!booking) return;
+
     if (paymentType === 'deposit') {
       await prisma.booking.update({
         where: { id: bookingId },
@@ -859,6 +935,20 @@ async function handlePaystackChargeSuccess(data: PaystackChargeData): Promise<vo
           paymentReminderSent: true, // ✅ Phase 2: Prevent reminder email
         },
       });
+
+      // ✅ Emit socket event to client for real-time update
+      try {
+        const io = getSocketIO();
+        io.to(`user:${booking.clientId}`).emit('booking:updated', {
+          bookingId: booking.id,
+          paymentStatus: 'DEPOSIT_PAID',
+          paidAt: new Date(),
+        });
+        logger.info(`Socket event emitted to client ${booking.clientId} for Paystack deposit`);
+      } catch (socketError) {
+        logger.error('Error emitting socket event:', socketError);
+      }
+
       logger.info(`Booking ${bookingId} deposit paid via Paystack`);
     } else if (paymentType === 'balance') {
       await prisma.booking.update({
@@ -867,6 +957,19 @@ async function handlePaystackChargeSuccess(data: PaystackChargeData): Promise<vo
           paymentStatus: 'FULLY_PAID',
         },
       });
+
+      // ✅ Emit socket event to client for real-time update
+      try {
+        const io = getSocketIO();
+        io.to(`user:${booking.clientId}`).emit('booking:updated', {
+          bookingId: booking.id,
+          paymentStatus: 'FULLY_PAID',
+        });
+        logger.info(`Socket event emitted to client ${booking.clientId} for Paystack balance`);
+      } catch (socketError) {
+        logger.error('Error emitting socket event:', socketError);
+      }
+
       logger.info(`Booking ${bookingId} balance paid via Paystack`);
     }
     return;
@@ -1013,4 +1116,206 @@ async function handlePaystackExpiringCards(data: any): Promise<void> {
     expiryDate: data.exp_month && data.exp_year ? `${data.exp_month}/${data.exp_year}` : 'Soon',
     updatePaymentUrl: `${env.FRONTEND_URL}/dashboard/subscription/payment-method`,
   });
+}
+
+/**
+ * Handle Stripe refund updated
+ */
+async function handleRefundUpdated(refund: Stripe.Refund): Promise<void> {
+  logger.info(`Stripe refund updated: ${refund.id}, status: ${refund.status}`);
+
+  try {
+    // Find refund record by Stripe refund ID
+    const refundRecord = await prisma.refund.findUnique({
+      where: { stripeRefundId: refund.id },
+      include: {
+        booking: {
+          include: {
+            client: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+            service: {
+              select: {
+                title: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!refundRecord) {
+      logger.warn(`Refund record not found for Stripe refund: ${refund.id}`);
+      return;
+    }
+
+    // Map Stripe status to our RefundStatus
+    let status: 'PENDING' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED' = 'PROCESSING';
+    let processedAt: Date | null = null;
+    let failedAt: Date | null = null;
+    let failureReason: string | null = null;
+
+    if (refund.status === 'succeeded') {
+      status = 'SUCCEEDED';
+      processedAt = new Date();
+    } else if (refund.status === 'failed') {
+      status = 'FAILED';
+      failedAt = new Date();
+      failureReason = refund.failure_reason || 'Refund failed';
+    } else if (refund.status === 'canceled') {
+      status = 'FAILED';
+      failedAt = new Date();
+      failureReason = 'Refund canceled';
+    }
+
+    // Update refund status in database
+    await prisma.refund.update({
+      where: { id: refundRecord.id },
+      data: {
+        status,
+        processedAt,
+        failedAt,
+        failureReason,
+      },
+    });
+
+    logger.info(`Refund ${refundRecord.id} updated to status: ${status}`);
+
+    // Emit socket event for real-time update
+    const io = getSocketIO();
+    if (io) {
+      io.to(`user:${refundRecord.booking.clientId}`).emit('refund:updated', {
+        type: 'refund_updated',
+        refundId: refund.id,
+        bookingId: refundRecord.bookingId,
+        status,
+        amount: Number(refundRecord.amount),
+        currency: refundRecord.currency,
+      });
+    }
+
+    // Send email notification based on status
+    if (status === 'SUCCEEDED') {
+      await emailService.sendRefundConfirmation(
+        refundRecord.booking.client.email,
+        refundRecord.booking.client.firstName,
+        Number(refundRecord.amount),
+        refundRecord.currency,
+        refundRecord.booking.service.title,
+        refund.id
+      );
+      logger.info(`Refund confirmation email sent to ${refundRecord.booking.client.email}`);
+    } else if (status === 'FAILED') {
+      await emailService.sendRefundFailure(
+        refundRecord.booking.client.email,
+        refundRecord.booking.client.firstName,
+        Number(refundRecord.amount),
+        refundRecord.currency,
+        refundRecord.booking.service.title,
+        failureReason || 'Unknown error'
+      );
+      logger.info(`Refund failure email sent to ${refundRecord.booking.client.email}`);
+    }
+  } catch (error) {
+    logger.error('Error handling refund updated webhook:', error);
+    throw error;
+  }
+}
+
+/**
+ * Handle Paystack refund status updates
+ */
+async function handlePaystackRefundUpdate(
+  data: any,
+  status: 'PROCESSING' | 'SUCCEEDED' | 'FAILED'
+): Promise<void> {
+  logger.info(`Paystack refund ${status}: ${data.id}`);
+
+  try {
+    // Find refund record by Paystack refund ID
+    const refundRecord = await prisma.refund.findUnique({
+      where: { paystackRefundId: data.id?.toString() },
+      include: {
+        booking: {
+          include: {
+            client: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+            service: {
+              select: {
+                title: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!refundRecord) {
+      logger.warn(`Refund record not found for Paystack refund: ${data.id}`);
+      return;
+    }
+
+    // Update refund status in database
+    await prisma.refund.update({
+      where: { id: refundRecord.id },
+      data: {
+        status,
+        processedAt: status === 'SUCCEEDED' ? new Date() : null,
+        failedAt: status === 'FAILED' ? new Date() : null,
+        failureReason: status === 'FAILED' ? (data.gateway_response || 'Refund failed') : null,
+      },
+    });
+
+    logger.info(`Paystack refund ${refundRecord.id} updated to status: ${status}`);
+
+    // Emit socket event for real-time update
+    const io = getSocketIO();
+    if (io) {
+      io.to(`user:${refundRecord.booking.clientId}`).emit('refund:updated', {
+        type: 'refund_updated',
+        refundId: data.id,
+        bookingId: refundRecord.bookingId,
+        status,
+        amount: Number(refundRecord.amount),
+        currency: refundRecord.currency,
+      });
+    }
+
+    // Send email notification based on status
+    if (status === 'SUCCEEDED') {
+      await emailService.sendRefundConfirmation(
+        refundRecord.booking.client.email,
+        refundRecord.booking.client.firstName,
+        Number(refundRecord.amount),
+        refundRecord.currency,
+        refundRecord.booking.service.title,
+        data.id?.toString()
+      );
+      logger.info(`Paystack refund confirmation email sent to ${refundRecord.booking.client.email}`);
+    } else if (status === 'FAILED') {
+      await emailService.sendRefundFailure(
+        refundRecord.booking.client.email,
+        refundRecord.booking.client.firstName,
+        Number(refundRecord.amount),
+        refundRecord.currency,
+        refundRecord.booking.service.title,
+        data.gateway_response || 'Refund processing failed'
+      );
+      logger.info(`Paystack refund failure email sent to ${refundRecord.booking.client.email}`);
+    }
+  } catch (error) {
+    logger.error('Error handling Paystack refund update webhook:', error);
+    throw error;
+  }
 }

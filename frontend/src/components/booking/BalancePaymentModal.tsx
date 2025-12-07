@@ -78,10 +78,10 @@ export function BalancePaymentModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-md">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
-          <DialogTitle>Pay Remaining Balance</DialogTitle>
+          <DialogTitle>Pay Balance</DialogTitle>
         </DialogHeader>
 
         {error && (

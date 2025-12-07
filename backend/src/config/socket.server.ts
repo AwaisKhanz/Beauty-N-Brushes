@@ -273,6 +273,27 @@ export function emitBookingUpdate(userIds: string | string[], data: any) {
 }
 
 /**
+ * Emit refund update to specific user(s)
+ */
+export function emitRefundUpdate(userIds: string | string[], data: any) {
+  if (!io) {
+    logger.warn('Socket.IO not initialized');
+    return;
+  }
+
+  const users = Array.isArray(userIds) ? userIds : [userIds];
+  
+  users.forEach(userId => {
+    io!.to(`user:${userId}`).emit('refund:update', {
+      ...data,
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  logger.info(`Emitted refund update to ${users.length} user(s)`);
+}
+
+/**
  * Emit payment update to user(s)
  */
 export function emitPaymentUpdate(userIds: string | string[], data: any) {

@@ -1,5 +1,6 @@
 import { prisma } from '../config/database';
 import logger from '../utils/logger';
+import { getSocketIO } from '../config/socket.server';
 
 /**
  * Handle Paystack bank transfer success
@@ -19,6 +20,7 @@ export async function handlePaystackBankTransferSuccess(data: any): Promise<void
 
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
+      select: { id: true, clientId: true },
     });
 
     if (!booking) {
@@ -33,6 +35,18 @@ export async function handlePaystackBankTransferSuccess(data: any): Promise<void
         paystackReference: data.reference,
       },
     });
+
+    // ✅ Emit socket event to client for real-time update
+    try {
+      const io = getSocketIO();
+      io.to(`user:${booking.clientId}`).emit('booking:updated', {
+        bookingId: booking.id,
+        paystackReference: data.reference,
+      });
+      logger.info(`Socket event emitted to client ${booking.clientId} for bank transfer`);
+    } catch (socketError) {
+      logger.error('Error emitting socket event:', socketError);
+    }
 
     logger.info(`Booking ${booking.id} confirmed via bank transfer - reference: ${data.reference}`);
   } catch (error) {

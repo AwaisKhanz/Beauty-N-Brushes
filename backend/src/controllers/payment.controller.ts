@@ -5,6 +5,7 @@ import { AppError } from '../middleware/errorHandler';
 import { env } from '../config/env';
 import { prisma } from '../config/database';
 import { stripe } from '../lib/stripe';
+import Stripe from 'stripe';
 import { getRegionalCurrency, generateIdempotencyKey } from '../lib/payment';
 import { paymentConfig } from '../config/payment.config';
 import type { RegionCode } from '../types/payment.types';
@@ -178,7 +179,7 @@ export async function verifyPaystackTransaction(
 }
 
 /**
- * Initialize payment for booking deposit
+ * Initialize booking payment (deposit or balance)
  */
 export async function initializeBookingPayment(
   req: AuthRequest,
@@ -190,25 +191,25 @@ export async function initializeBookingPayment(
     if (!userId) throw new AppError(401, 'Unauthorized');
 
     const schema = z.object({
-      bookingId: z.string().uuid('Valid booking ID is required'),
-      paymentType: z.enum(['deposit', 'balance']).optional().default('deposit'),
+      bookingId: z.string().uuid(),
+      paymentType: z.enum(['deposit', 'balance']),
+      paymentMethodId: z.string().optional(),
     });
 
     const data = schema.parse(req.body) as InitializeBookingPaymentRequest;
-    const { bookingId, paymentType = 'deposit' } = data;
 
-    // Get booking details - use CLIENT region for payment provider
+    // Get booking to validate payment status
     const booking = await prisma.booking.findUnique({
-      where: { id: bookingId },
-    });
-
-    // Get client info separately
-    const client = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        email: true,
-        firstName: true,
-        lastName: true,
+      where: { id: data.bookingId },
+      include: {
+        client: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
       },
     });
 
@@ -216,86 +217,132 @@ export async function initializeBookingPayment(
       throw new AppError(404, 'Booking not found');
     }
 
-    if (!client) {
-      throw new AppError(404, 'Client not found');
-    }
-
     if (booking.clientId !== userId) {
       throw new AppError(403, 'Unauthorized to pay for this booking');
     }
 
-    // ✅ Check payment status based on payment type
+    const { paymentType = 'deposit' } = data;
+
+    // ✅ VALIDATION: Prevent double payments
     if (paymentType === 'deposit') {
+      // Check if deposit is already paid
       if (booking.paymentStatus === 'DEPOSIT_PAID' || booking.paymentStatus === 'FULLY_PAID') {
-        throw new AppError(400, 'Booking deposit already paid');
+        throw new AppError(
+          400,
+          'Deposit has already been paid. Please refresh the page to see the latest booking status.'
+        );
       }
     } else if (paymentType === 'balance') {
+      // Check if balance is already paid
       if (booking.paymentStatus === 'FULLY_PAID') {
-        throw new AppError(400, 'Booking balance already paid');
+        throw new AppError(
+          400,
+          'Balance has already been paid. Please refresh the page to see the latest booking status.'
+        );
       }
+      // Check if deposit hasn't been paid yet
       if (booking.paymentStatus !== 'DEPOSIT_PAID') {
-        throw new AppError(400, 'Deposit must be paid before paying balance');
+        throw new AppError(
+          400,
+          'Deposit must be paid before paying the balance. Please pay the deposit first.'
+        );
       }
     }
+
+    // Verify the booking belongs to the authenticated user
+    if (booking.clientId !== userId) {
+      throw new AppError(403, 'You do not have permission to pay for this booking');
+    }
+
+    const client = booking.client;
 
     // ✅ CRITICAL FIX: Use CLIENT's region to determine payment provider
     // Client's location determines which payment gateway they can use
     const paymentProvider = booking.paymentProvider; // This was set during booking creation based on client region
     
     // ✅ Calculate amount based on payment type
-    const amount = paymentType === 'deposit' 
+    const amount = paymentType === 'deposit'
       ? Number(booking.depositAmount) + Number(booking.serviceFee) // Deposit + platform fee
       : Number(booking.totalAmount) - Number(booking.depositAmount) - Number(booking.serviceFee); // Balance (total - deposit - fee already paid)
-    
+
     const currency = booking.currency;
 
     if (paymentProvider === 'STRIPE') {
       let paymentIntent;
 
-      // Check if PaymentIntent already exists and can be reused
-      if (booking.stripePaymentIntentId) {
+      console.log('🔍 Payment initialization:', {
+        paymentType,
+        bookingId: booking.id,
+        existingPaymentIntentId: booking.stripePaymentIntentId,
+        amount,
+      });
+
+      // For deposit payments, always create a new PaymentIntent to avoid terminal state issues
+      // For balance payments, we can try to reuse if it exists and is not in terminal state
+      if (paymentType === 'balance' && booking.stripePaymentIntentId) {
         try {
+          console.log('🔍 Attempting to retrieve existing PaymentIntent for balance...');
           paymentIntent = await stripe.paymentIntents.retrieve(booking.stripePaymentIntentId);
+
+          console.log('🔍 Retrieved PaymentIntent status:', paymentIntent.status);
 
           // If payment intent is in a terminal state, create a new one
           if (['succeeded', 'canceled'].includes(paymentIntent.status)) {
+            console.log('⚠️ PaymentIntent in terminal state, will create new one');
             paymentIntent = null;
           } else if (paymentIntent.amount !== Math.round(amount * 100)) {
             // Update amount if changed
+            console.log('🔄 Updating PaymentIntent amount');
             paymentIntent = await stripe.paymentIntents.update(booking.stripePaymentIntentId, {
               amount: Math.round(amount * 100),
             });
+          } else {
+            console.log('✅ Reusing existing PaymentIntent');
           }
           // Otherwise, reuse existing PaymentIntent
         } catch (error) {
           // PaymentIntent not found or error, create new one
+          console.log('❌ Error retrieving PaymentIntent:', error);
           paymentIntent = null;
         }
+      } else if (paymentType === 'deposit') {
+        console.log('💰 Deposit payment - will create new PaymentIntent');
       }
 
-      // Create new PaymentIntent if needed
+      // Create new PaymentIntent if needed (or for deposit payments)
       if (!paymentIntent) {
-        paymentIntent = await stripe.paymentIntents.create(
-          {
-            amount: Math.round(amount * 100), // Convert to cents
-            currency: currency.toLowerCase(),
-            receipt_email: client.email,
-            metadata: {
-              bookingId: booking.id,
-              depositAmount: booking.depositAmount.toString(),
-              serviceFee: booking.serviceFee.toString(),
-              paymentType: paymentType, // deposit or balance
-              type: paymentType === 'deposit' ? 'booking_deposit' : 'booking_balance',
-            },
-            automatic_payment_methods: {
-              enabled: true,
-            },
-            setup_future_usage: 'off_session', // Save payment method for future use
+        console.log('🆕 Creating new PaymentIntent...');
+        
+        // For deposit payments, don't use idempotency key to allow fresh PaymentIntent creation
+        // For balance payments, use idempotency key to prevent duplicate charges
+        const createParams: Stripe.PaymentIntentCreateParams = {
+          amount: Math.round(amount * 100), // Convert to cents
+          currency: currency.toLowerCase(),
+          receipt_email: client.email,
+          metadata: {
+            bookingId: booking.id,
+            depositAmount: booking.depositAmount.toString(),
+            serviceFee: booking.serviceFee.toString(),
+            paymentType: paymentType, // deposit or balance
+            type: paymentType === 'deposit' ? 'booking_deposit' : 'booking_balance',
           },
-          {
-            idempotencyKey: generateIdempotencyKey(booking.id, 'deposit'),
-          }
-        );
+          automatic_payment_methods: {
+            enabled: true,
+          },
+          setup_future_usage: 'off_session', // Save payment method for future use
+        };
+
+        // Only pass options object if we have an idempotency key (balance payments)
+        if (paymentType === 'balance') {
+          paymentIntent = await stripe.paymentIntents.create(createParams, {
+            idempotencyKey: generateIdempotencyKey(booking.id, paymentType),
+          });
+        } else {
+          // For deposit payments, don't pass options object at all
+          paymentIntent = await stripe.paymentIntents.create(createParams);
+        }
+
+        console.log('✅ Created new PaymentIntent:', paymentIntent.id);
 
         // Update booking with new PaymentIntent ID
         await prisma.booking.update({

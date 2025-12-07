@@ -11,6 +11,7 @@ import { env } from '../config/env';
 import { calendarSyncService } from './calendar-sync.service';
 import { notificationService } from './notification.service';
 import { emitBookingUpdate } from '../config/socket.server';
+import { refundService } from './refund.service';
 import { format } from 'date-fns';
 import type {
   CreateBookingRequest,
@@ -411,6 +412,35 @@ class BookingService {
     }
 
     return booking;
+  }
+
+  async getBookingRefunds(bookingId: string, userId: string): Promise<any[]> {
+    // Verify user has access to this booking
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      select: {
+        id: true,
+        clientId: true,
+        providerId: true,
+      },
+    });
+
+    if (!booking) {
+      throw new Error('Booking not found');
+    }
+
+    // Check if user is client or provider
+    if (booking.clientId !== userId && booking.providerId !== userId) {
+      throw new Error('Access denied');
+    }
+
+    // Fetch refunds for this booking
+    const refunds = await prisma.refund.findMany({
+      where: { bookingId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return refunds;
   }
 
   /**
@@ -1201,13 +1231,21 @@ class BookingService {
   }
 
   /**
-   * Cancel booking
+   * Cancel booking with proper refund logic
    */
   async cancelBooking(userId: string, bookingId: string, data: CancelBookingRequest) {
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
       include: {
-        provider: { select: { userId: true } },
+        provider: { 
+          select: { 
+            userId: true, 
+            businessName: true,
+            user: { select: { email: true } }
+          } 
+        },
+        client: { select: { id: true, firstName: true, lastName: true, email: true } },
+        service: { select: { title: true } },
       },
     });
 
@@ -1224,6 +1262,44 @@ class BookingService {
       throw new AppError(403, 'Access denied');
     }
 
+    // Cannot cancel if already cancelled or completed
+    if (
+      booking.bookingStatus === 'CANCELLED_BY_CLIENT' ||
+      booking.bookingStatus === 'CANCELLED_BY_PROVIDER' ||
+      booking.bookingStatus === 'COMPLETED'
+    ) {
+      throw new AppError(400, 'Cannot cancel this booking');
+    }
+
+    // ✅ Calculate refund amount based on cancellation policy
+    const cancelledBy = data.cancelledBy || 'client'; // Default to client if not specified
+    const refundAmount = refundService.calculateRefundAmount(
+      {
+        bookingStatus: booking.bookingStatus,
+        depositAmount: Number(booking.depositAmount),
+        serviceFee: Number(booking.serviceFee),
+        paymentStatus: booking.paymentStatus,
+      },
+      cancelledBy
+    );
+
+    const shouldRefund = refundAmount > 0 && booking.paymentStatus !== 'AWAITING_DEPOSIT';
+
+    // ✅ Process refund if applicable
+    if (shouldRefund) {
+      const refundResult = await refundService.processRefund(
+        bookingId,
+        refundAmount,
+        data.reason || `Cancelled by ${cancelledBy}`,
+        userId
+      );
+
+      if (!refundResult.success) {
+        throw new AppError(500, `Refund processing failed: ${refundResult.error}`);
+      }
+    }
+
+    // Update booking status
     const updated = await prisma.booking.update({
       where: { id: bookingId },
       data: {
@@ -1231,11 +1307,12 @@ class BookingService {
           data.cancelledBy === 'client' ? 'CANCELLED_BY_CLIENT' : 'CANCELLED_BY_PROVIDER',
         cancelledAt: new Date(),
         cancellationReason: data.reason || null,
+        paymentStatus: shouldRefund ? 'REFUNDED' : booking.paymentStatus,
         updatedAt: new Date(),
       },
       include: {
         service: true,
-        provider: true,
+        provider: { include: { user: { select: { email: true } } } },
         assignedTeamMember: true,
         client: true,
       },
@@ -1273,11 +1350,60 @@ class BookingService {
           appointmentTime: updated.appointmentTime,
           status: updated.bookingStatus,
           reason: data.reason,
+          refundAmount: shouldRefund ? refundAmount : 0,
+          refunded: shouldRefund,
         },
       });
+
+      // Phase 6: Send provider no-show email to client with refund info
+      await emailService.sendProviderNoShowNotification(
+        updated.client.email,
+        updated.client.firstName,
+        {
+          serviceName: updated.service.title,
+          clientName: `${updated.client.firstName} ${updated.client.lastName}`,
+          appointmentDate: format(updated.appointmentDate, 'MMM dd, yyyy'),
+          refundAmount: refundAmount, // Use refundAmount calculated earlier
+          currency: updated.currency,
+        }
+      );
+
+      // Phase 6: Send email notifications
+      // Send email to client
+      await emailService.sendBookingCancellation(
+        updated.client.email,
+        updated.client.firstName,
+        {
+          serviceName: updated.service.title,
+          providerName: updated.provider.businessName,
+          appointmentDate: format(updated.appointmentDate, 'MMM dd, yyyy'),
+          appointmentTime: updated.appointmentTime,
+          refundAmount: shouldRefund ? refundAmount : undefined,
+          currency: updated.currency,
+          cancelledBy: (data.cancelledBy || 'client') as 'client' | 'provider',
+          reason: data.reason,
+        }
+      );
+
+      // Send email to provider
+      await emailService.sendProviderCancellationNotification(
+        updated.provider.user.email,
+        updated.provider.businessName,
+        {
+          clientName: `${updated.client.firstName} ${updated.client.lastName}`,
+          serviceName: updated.service.title,
+          appointmentDate: format(updated.appointmentDate, 'MMM dd, yyyy'),
+          appointmentTime: updated.appointmentTime,
+          cancelledBy: (data.cancelledBy || 'client') as 'client' | 'provider',
+          reason: data.reason,
+        }
+      );
     } catch (notificationError) {
       console.error('Failed to send cancellation notification:', notificationError);
     }
+
+    // TODO: Add cancellation email template to email service
+    // For now, notifications are sent via the notification service above
 
     return updated;
   }
@@ -1492,14 +1618,34 @@ class BookingService {
             id: true,
             userId: true,
             businessName: true,
+            user: {
+          select: {
+            email: true,
+            firstName: true,
           },
+        },
+          },
+          
         },
         service: {
           select: {
+
+            title: true,
             durationMinutes: true,
             bufferTimeMinutes: true,
           },
         },
+        client: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+          },
+        },
+        
+
       },
     });
 
@@ -1602,6 +1748,25 @@ class BookingService {
       console.error('Failed to send reschedule request notification:', err);
     }
 
+    // Phase 6: Send reschedule request email
+    const isClientRequest = booking.clientId === userId;
+    const recipientEmail = isClientRequest ? booking.provider.user.email : booking.client.email;
+    const recipientName = isClientRequest ? booking.provider.businessName : booking.client.firstName;
+    const requestedBy = isClientRequest ? 'Client' : 'Provider';
+
+    await emailService.sendRescheduleRequest(
+      recipientEmail,
+      recipientName,
+      {
+        serviceName: booking.service.title,
+        currentDate: format(booking.appointmentDate, 'MMM dd, yyyy'),
+        currentTime: booking.appointmentTime,
+        newDate: format(newRequestedDate, 'MMM dd, yyyy'),
+        newTime: data.newTime,
+        requestedBy,
+      }
+    );
+
     return rescheduleRequest;
   }
 
@@ -1620,8 +1785,28 @@ class BookingService {
           include: {
             service: {
               select: {
+                id: true,
+                title: true,
                 durationMinutes: true,
                 bufferTimeMinutes: true,
+              },
+            },
+            provider: {
+              select: {
+                id: true,
+                businessName: true,
+                user: {
+                  select: {
+                    email: true,
+                  },
+                },
+              },
+            },
+            client: {
+              select: {
+                id: true,
+                firstName: true,
+                email: true,
               },
             },
           },
@@ -1672,6 +1857,12 @@ class BookingService {
           provider: {
             select: {
               id: true,
+              user: {
+                select: {
+                  email: true,
+                  firstName: true,
+                },
+              },
               businessName: true,
               slug: true,
               businessPhone: true,
@@ -1731,6 +1922,17 @@ class BookingService {
         console.error('Failed to send reschedule approval notification:', err);
       }
 
+      // Phase 6: Send reschedule approved email to provider
+      await emailService.sendRescheduleApproved(
+        updatedBooking.provider.user.email,
+        updatedBooking.provider.businessName,
+        {
+          serviceName: updatedBooking.service.title,
+          newDate: format(updatedBooking.appointmentDate, 'MMM dd, yyyy'),
+          newTime: updatedBooking.appointmentTime,
+        }
+      );
+
       return updatedBooking;
     } else {
       // Update reschedule request status to denied
@@ -1767,6 +1969,18 @@ class BookingService {
       } catch (err) {
         console.error('Failed to send reschedule rejection notification:', err);
       }
+
+      // Phase 6: Send reschedule denied email to provider
+      await emailService.sendRescheduleDenied(
+        rescheduleRequest.booking.provider.user.email,
+        rescheduleRequest.booking.provider.businessName,
+        {
+          serviceName: rescheduleRequest.booking.service.title,
+          currentDate: format(rescheduleRequest.booking.appointmentDate, 'MMM dd, yyyy'),
+          currentTime: rescheduleRequest.booking.appointmentTime,
+          reason: data.reason,
+        }
+      );
 
       return rescheduleRequest.booking;
     }
@@ -1899,10 +2113,195 @@ class BookingService {
       },
     });
 
-    // TODO: Send no-show notification email to client
+    // Phase 6: Send no-show email to client
+    await emailService.sendClientNoShowNotification(
+      updated.client.email,
+      updated.client.firstName,
+      {
+        serviceName: updated.service.title,
+        providerName: updated.provider.businessName,
+        appointmentDate: format(updated.appointmentDate, 'MMM dd, yyyy'),
+        depositAmount: Number(updated.depositAmount),
+        currency: updated.currency,
+      }
+    );
+
     // TODO: Handle deposit forfeiture according to policy
 
     return updated;
+  }
+
+  /**
+   * Report Provider No-Show
+   * Client reports that provider didn't show up for appointment
+   * - Processes full refund to client
+   * - Updates provider no-show count
+   * - Sends notifications
+   */
+  async reportProviderNoShow(
+    bookingId: string,
+    clientId: string,
+    data: { reason: string; evidence?: string }
+  ): Promise<{ booking: BookingDetails; refundAmount: number }> {
+    // Get booking and verify client owns it
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        client: true,
+        provider: { include: { user: true } },
+        service: true,
+      },
+    });
+
+    if (!booking) {
+      throw new AppError(404, 'Booking not found');
+    }
+
+    if (booking.clientId !== clientId) {
+      throw new AppError(403, 'You can only report no-shows for your own bookings');
+    }
+
+    // Verify appointment has passed
+    const appointmentDateTime = new Date(
+      `${booking.appointmentDate.toISOString().split('T')[0]}T${booking.appointmentTime}`
+    );
+    const now = new Date();
+
+    if (now < appointmentDateTime) {
+      throw new AppError(400, 'Cannot report no-show before appointment time');
+    }
+
+    // Can only report for CONFIRMED bookings
+    if (booking.bookingStatus !== 'CONFIRMED') {
+      throw new AppError(400, 'Can only report no-show for confirmed bookings');
+    }
+
+    // Calculate refund amount (deposit + balance if paid)
+    let refundAmount = Number(booking.depositAmount);
+    if (booking.paymentStatus === 'FULLY_PAID') {
+      refundAmount = Number(booking.servicePrice);
+    }
+
+    // Process refund
+    const refundResult = await refundService.processRefund(
+      bookingId,
+      refundAmount,
+      `Provider no-show - ${data.reason}`,
+      clientId
+    );
+
+    if (!refundResult.success) {
+      throw new AppError(500, `Failed to process refund: ${refundResult.error}`);
+    }
+
+    // Update booking status
+    const updated = await prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        bookingStatus: 'PROVIDER_NO_SHOW',
+        paymentStatus: 'REFUNDED',
+        internalNotes: `Provider no-show reported. Reason: ${data.reason}${
+          data.evidence ? ` | Evidence: ${data.evidence}` : ''
+        }`,
+        updatedAt: new Date(),
+      },
+      include: {
+        service: {
+          select: {
+            id: true,
+            title: true,
+            durationMinutes: true,
+            category: {
+              select: { name: true },
+            },
+          },
+        },
+        provider: {
+          select: {
+            id: true,
+            businessName: true,
+            slug: true,
+            businessPhone: true,
+            addressLine1: true,
+            city: true,
+            state: true,
+            isSalon: true,
+            locations: {
+              where: { isPrimary: true, isActive: true },
+              take: 1,
+            },
+            user: {
+              select: {
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        assignedTeamMember: {
+          select: {
+            id: true,
+            displayName: true,
+            avatarUrl: true,
+            specializations: true,
+          },
+        },
+        client: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+          },
+        },
+      },
+    });
+
+    // Send notification to provider
+    await notificationService.createBookingCancelledNotification(
+      booking.provider.userId,
+      `${booking.client.firstName} ${booking.client.lastName}`,
+      booking.appointmentDate.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }),
+      booking.id,
+      true // isProvider
+    );
+
+    // Emit socket event to provider
+    try {
+      emitBookingUpdate(booking.provider.userId, {
+        type: 'provider_no_show_reported',
+        booking: {
+          id: booking.id,
+          clientName: `${booking.client.firstName} ${booking.client.lastName}`,
+          serviceName: booking.service.title,
+          appointmentDate: booking.appointmentDate.toISOString(),
+          appointmentTime: booking.appointmentTime,
+          status: 'PROVIDER_NO_SHOW',
+          reason: data.reason,
+        },
+      });
+    } catch (socketError) {
+      console.error(
+        `Failed to emit socket event for provider no-show ${booking.id}:`,
+        socketError
+      );
+    }
+
+    console.info(
+      `Provider no-show reported for booking ${booking.id} - Refund of ${booking.currency} ${refundAmount.toFixed(
+        2
+      )} processed`
+    );
+
+    return {
+      booking: updated as unknown as BookingDetails,
+      refundAmount,
+    };
   }
 
   /**
@@ -2071,3 +2470,4 @@ class BookingService {
 }
 
 export const bookingService = new BookingService();
+

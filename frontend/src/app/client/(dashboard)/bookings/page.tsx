@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
+import { PaymentStatusBadge } from '@/components/booking/PaymentStatusBadge';
 import type { BookingDetails } from '@/shared-types/booking.types';
 import { RescheduleModal } from '@/components/booking/RescheduleModal';
 import { BalancePaymentModal } from '@/components/booking/BalancePaymentModal';
@@ -247,9 +248,12 @@ export default function ClientBookingsPage() {
                     </div>
 
                     <div className="flex flex-col items-start md:items-end gap-3">
-                      <Badge variant={getStatusBadgeVariant(booking.bookingStatus)}>
-                        {booking.bookingStatus.replace(/_/g, ' ')}
+                      <div className="flex flex-col gap-2">
+                        <Badge variant={getStatusBadgeVariant(booking.bookingStatus)}>
+                          {booking.bookingStatus.replace('_', ' ')}
                       </Badge>
+                      <PaymentStatusBadge status={booking.paymentStatus} variant="compact" />
+                    </div>
 
                       <div className="flex flex-wrap gap-2">
                         <Button variant="outline" size="sm" asChild>

@@ -34,6 +34,12 @@ import { CancelBookingModal } from '@/components/booking/CancelBookingModal';
 import { RebookServiceModal } from '@/components/booking/RebookServiceModal';
 import { TipPaymentModal } from '@/components/booking/TipPaymentModal';
 import { BookingPhotos } from '@/components/booking/BookingPhotos';
+import { BookingCountdownTimer } from '@/components/booking/BookingCountdownTimer';
+import { ReportNoShowModal } from '@/components/booking/ReportNoShowModal';
+import { RefundCard } from '@/components/booking/RefundCard';
+// import { PaymentStatusBadge } from '@/components/booking/PaymentStatusBadge';
+import { useBookingSocket } from '@/hooks/use-booking-socket';
+import { useRefundSocket } from '@/hooks/use-refund-socket';
 // import { exportBookingToCalendar } from '@/lib/calendar-export'; // TODO: Add export to calendar feature
 import { toast } from 'sonner';
 
@@ -51,6 +57,14 @@ export default function ClientBookingDetailPage() {
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [rebookModalOpen, setRebookModalOpen] = useState(false);
   const [tipPaymentModalOpen, setTipPaymentModalOpen] = useState(false);
+  const [reportNoShowModalOpen, setReportNoShowModalOpen] = useState(false);
+  const [refunds, setRefunds] = useState<any[]>([]);
+
+  // ✅ Enable real-time booking updates via Socket.IO
+  useBookingSocket();
+
+  // ✅ Enable real-time refund updates via Socket.IO
+  useRefundSocket(bookingId, fetchRefunds);
 
   useEffect(() => {
     if (bookingId) {
@@ -64,6 +78,10 @@ export default function ClientBookingDetailPage() {
       setError('');
       const response = await api.bookings.getById(bookingId);
       setBooking(response.data.booking);
+      // Fetch refunds if booking exists
+      if (response.data.booking) {
+        fetchRefunds();
+      }
     } catch (err: unknown) {
       const message = extractErrorMessage(err) || 'Failed to load booking details';
       setError(message);
@@ -72,6 +90,15 @@ export default function ClientBookingDetailPage() {
       });
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchRefunds() {
+    try {
+      const response = await api.bookings.getRefunds(bookingId);
+      setRefunds(response.refunds || []);
+    } catch (err: unknown) {
+      console.error('Failed to fetch refunds:', err);
     }
   }
 
@@ -199,19 +226,29 @@ export default function ClientBookingDetailPage() {
     );
   }
 
-  const canReschedule = ['PENDING', 'CONFIRMED'].includes(booking.bookingStatus);
-  const canCancel = ['PENDING', 'CONFIRMED'].includes(booking.bookingStatus);
+  // Payment status checks
   const canPayDeposit = booking.paymentStatus === 'AWAITING_DEPOSIT';
   const canPayBalance =
-    booking.bookingStatus === 'CONFIRMED' && booking.totalAmount - booking.depositAmount > 0;
-  const canRebook = [
-    'COMPLETED',
-    'CANCELLED_BY_CLIENT',
-    'CANCELLED_BY_PROVIDER',
-    'NO_SHOW',
-  ].includes(booking.bookingStatus);
+    booking.paymentStatus === 'DEPOSIT_PAID' &&
+    booking.bookingStatus === 'CONFIRMED' &&
+    new Date(`${booking.appointmentDate}T${booking.appointmentTime}`) < new Date();
+
+  const canReschedule =
+    (booking.bookingStatus === 'PENDING' || booking.bookingStatus === 'CONFIRMED') &&
+    new Date(`${booking.appointmentDate}T${booking.appointmentTime}`) > new Date();
+
+  const canCancel =
+    booking.bookingStatus === 'PENDING' ||
+    (booking.bookingStatus === 'CONFIRMED' &&
+      new Date(`${booking.appointmentDate}T${booking.appointmentTime}`) > new Date());
+
+  const canRebook =
+    booking.bookingStatus === 'CANCELLED_BY_CLIENT' ||
+    booking.bookingStatus === 'CANCELLED_BY_PROVIDER' ||
+    booking.bookingStatus === 'NO_SHOW';
+
   const canReview = booking.bookingStatus === 'COMPLETED';
-  const canTip = booking.bookingStatus === 'COMPLETED' && booking.tipAmount === 0;
+  const canTip = booking.bookingStatus === 'COMPLETED' && booking.paymentStatus === 'FULLY_PAID';
 
   return (
     <div className="space-y-6">
@@ -325,6 +362,15 @@ export default function ClientBookingDetailPage() {
             />
           )}
 
+          {/* Refund Status */}
+          {refunds.length > 0 && (
+            <div className="space-y-4">
+              {refunds.map((refund: any) => (
+                <RefundCard key={refund.id} refund={refund} />
+              ))}
+            </div>
+          )}
+
           {/* Provider Details */}
           <Card>
             <CardHeader>
@@ -372,6 +418,31 @@ export default function ClientBookingDetailPage() {
 
         {/* Sidebar */}
         <div className="space-y-6">
+          {/* Countdown Timers */}
+          {booking.paymentStatus === 'AWAITING_DEPOSIT' && (
+            <BookingCountdownTimer
+              deadline={new Date(new Date(booking.createdAt).getTime() + 24 * 60 * 60 * 1000)}
+              type="deposit"
+              onExpired={fetchBooking}
+            />
+          )}
+
+          {booking.bookingStatus === 'PENDING' && booking.paymentStatus === 'DEPOSIT_PAID' && (
+            <BookingCountdownTimer
+              deadline={new Date(new Date(booking.createdAt).getTime() + 48 * 60 * 60 * 1000)}
+              type="confirmation"
+              onExpired={fetchBooking}
+            />
+          )}
+
+          {booking.bookingStatus === 'CONFIRMED' && booking.paymentStatus === 'DEPOSIT_PAID' && new Date(`${booking.appointmentDate}T${booking.appointmentTime}`) < new Date() && (
+            <BookingCountdownTimer
+              deadline={new Date(new Date(`${booking.appointmentDate}T${booking.appointmentTime}`).getTime() + 24 * 60 * 60 * 1000)}
+              type="balance"
+              onExpired={fetchBooking}
+            />
+          )}
+
           {/* Payment Status */}
           <Card>
             <CardHeader>
@@ -391,10 +462,8 @@ export default function ClientBookingDetailPage() {
                         : booking.paymentStatus === 'DEPOSIT_PAID'
                           ? 'bg-blue-100 text-blue-800 border-blue-200'
                           : booking.paymentStatus === 'AWAITING_DEPOSIT'
-                            ? 'bg-red-100 text-red-800 border-red-200'
-                            : booking.paymentStatus === 'PENDING'
-                              ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
-                              : 'bg-gray-100 text-gray-800 border-gray-200'
+                            ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
+                            : 'bg-gray-100 text-gray-800 border-gray-200'
                     }
                   >
                     {booking.paymentStatus.replace('_', ' ')}
@@ -456,10 +525,15 @@ export default function ClientBookingDetailPage() {
             <CardContent>
               <div className="space-y-3">
                 {/* Service Breakdown */}
-                <div className="flex justify-between text-sm">
-                  <span>Service Price</span>
-                  <span>{formatCurrency(booking.servicePrice, booking.currency)}</span>
-                </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Deposit (25%)</span>
+                    <span>
+                      {formatCurrency(
+                        Number(booking.depositAmount) + Number(booking.serviceFee),
+                        booking.currency
+                      )}
+                    </span>
+                  </div>
 
                 {/* Display add-ons */}
                 {booking.addons && booking.addons.length > 0 && (
@@ -605,9 +679,22 @@ export default function ClientBookingDetailPage() {
                   className="w-full gap-2"
                 >
                   <Star className="h-4 w-4" />
-                  Write Review
+                  Leave a Review
                 </Button>
               )}
+
+              {/* Report Provider No-Show - After appointment time for CONFIRMED bookings */}
+              {booking.bookingStatus === 'CONFIRMED' &&
+                new Date(`${booking.appointmentDate}T${booking.appointmentTime}`) < new Date() && (
+                  <Button
+                    variant="destructive"
+                    onClick={() => setReportNoShowModalOpen(true)}
+                    className="w-full gap-2"
+                  >
+                    <AlertCircle className="h-4 w-4" />
+                    Report Provider No-Show
+                  </Button>
+                )}
             </CardContent>
           </Card>
         </div>
@@ -660,9 +747,15 @@ export default function ClientBookingDetailPage() {
             currency={booking.currency}
             onSuccess={fetchBooking}
           />
+
+          <ReportNoShowModal
+            open={reportNoShowModalOpen}
+            onOpenChange={setReportNoShowModalOpen}
+            booking={booking}
+            onSuccess={fetchBooking}
+          />
         </>
       )}
     </div>
   );
 }
-

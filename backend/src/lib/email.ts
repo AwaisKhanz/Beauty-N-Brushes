@@ -591,6 +591,517 @@ class EmailTemplateService {
 
     await this.sendEmail(email, '❌ Booking Cancelled - Payment Not Received', html);
   }
+
+  /**
+   * Phase 6: Send booking cancellation notification to client
+   */
+  async sendBookingCancellation(
+    email: string,
+    firstName: string,
+    bookingDetails: {
+      serviceName: string;
+      providerName: string;
+      appointmentDate: string;
+      appointmentTime: string;
+      refundAmount?: number;
+      currency?: string;
+      cancelledBy: 'client' | 'provider';
+      reason?: string;
+    }
+  ): Promise<void> {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #dc3545; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+          .details { background: white; padding: 15px; border-radius: 5px; margin: 20px 0; }
+          .refund-box { background: #e8f5e9; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #4caf50; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>❌ Booking Cancelled</h1>
+          </div>
+          <div class="content">
+            <h2>Hi ${firstName},</h2>
+            <p>Your booking has been cancelled.</p>
+            
+            <div class="details">
+              <h3>Booking Details:</h3>
+              <p><strong>Service:</strong> ${bookingDetails.serviceName}</p>
+              <p><strong>Provider:</strong> ${bookingDetails.providerName}</p>
+              <p><strong>Date:</strong> ${bookingDetails.appointmentDate}</p>
+              <p><strong>Time:</strong> ${bookingDetails.appointmentTime}</p>
+              <p><strong>Cancelled by:</strong> ${bookingDetails.cancelledBy === 'client' ? 'You' : 'Provider'}</p>
+              ${bookingDetails.reason ? `<p><strong>Reason:</strong> ${bookingDetails.reason}</p>` : ''}
+            </div>
+            
+            ${bookingDetails.refundAmount && bookingDetails.refundAmount > 0 ? `
+              <div class="refund-box">
+                <h3>💰 Refund Information:</h3>
+                <p>A refund of <strong>${bookingDetails.currency} ${bookingDetails.refundAmount.toFixed(2)}</strong> has been initiated.</p>
+                <p>You should receive it within 5-10 business days.</p>
+              </div>
+            ` : ''}
+            
+            <p>If you have any questions, please contact support.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.sendEmail(email, `Booking Cancelled - ${bookingDetails.serviceName}`, html);
+  }
+
+  /**
+   * Phase 6: Send cancellation notification to provider
+   */
+  async sendProviderCancellationNotification(
+    email: string,
+    providerName: string,
+    bookingDetails: {
+      clientName: string;
+      serviceName: string;
+      appointmentDate: string;
+      appointmentTime: string;
+      cancelledBy: 'client' | 'provider';
+      reason?: string;
+    }
+  ): Promise<void> {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #dc3545; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+          .details { background: white; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>❌ Booking Cancelled</h1>
+          </div>
+          <div class="content">
+            <h2>Hi ${providerName},</h2>
+            <p>A booking has been cancelled.</p>
+            
+            <div class="details">
+              <h3>Booking Details:</h3>
+              <p><strong>Client:</strong> ${bookingDetails.clientName}</p>
+              <p><strong>Service:</strong> ${bookingDetails.serviceName}</p>
+              <p><strong>Date:</strong> ${bookingDetails.appointmentDate}</p>
+              <p><strong>Time:</strong> ${bookingDetails.appointmentTime}</p>
+              <p><strong>Cancelled by:</strong> ${bookingDetails.cancelledBy === 'provider' ? 'You' : 'Client'}</p>
+              ${bookingDetails.reason ? `<p><strong>Reason:</strong> ${bookingDetails.reason}</p>` : ''}
+            </div>
+            
+            <p>This time slot is now available for other bookings.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.sendEmail(email, `Booking Cancelled - ${bookingDetails.clientName}`, html);
+  }
+
+  /**
+   * Phase 6: Send refund confirmation email
+   */
+  async sendRefundConfirmation(
+    email: string,
+    firstName: string,
+    amount: number,
+    currency: string,
+    serviceName?: string,
+    refundId?: string
+  ): Promise<void> {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #4caf50; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+          .refund-box { background: #e8f5e9; padding: 20px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #4caf50; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>✅ Refund Processed</h1>
+          </div>
+          <div class="content">
+            <h2>Hi ${firstName},</h2>
+            <p>Your refund has been successfully processed!</p>
+            
+            <div class="refund-box">
+              <h3>💰 Refund Details:</h3>
+              <p><strong>Amount:</strong> ${currency} ${amount.toFixed(2)}</p>
+              ${serviceName ? `<p><strong>Service:</strong> ${serviceName}</p>` : ''}
+              <p><strong>Status:</strong> Completed</p>
+              <p><strong>Expected in account:</strong> 5-10 business days</p>
+              ${refundId ? `<p><strong>Refund ID:</strong> ${refundId}</p>` : ''}
+            </div>
+            
+            <p>The refund will be credited to your original payment method.</p>
+            <p>If you have any questions, please don't hesitate to contact us.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.sendEmail(email, 'Refund Completed - Beauty N Brushes', html);
+  }
+
+  /**
+   * Phase 6: Send refund failure notification
+   */
+  async sendRefundFailure(
+    email: string,
+    firstName: string,
+    amount: number,
+    currency?: string,
+    serviceName?: string,
+    failureReason?: string
+  ): Promise<void> {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #ff9800; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+          .warning-box { background: #fff3e0; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ff9800; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>⚠️ Refund Processing Issue</h1>
+          </div>
+          <div class="content">
+            <h2>Hi ${firstName},</h2>
+            <p>We encountered an issue processing your refund of ${currency || '$'}${amount.toFixed(2)}${serviceName ? ` for ${serviceName}` : ''}.</p>
+            
+            <div class="warning-box">
+              ${failureReason ? `<p><strong>Reason:</strong> ${failureReason}</p>` : ''}
+              <p><strong>What happens next:</strong></p>
+              <p>Our team has been notified and will resolve this within 24 hours.</p>
+              <p>You will receive another email once the refund is successfully processed.</p>
+            </div>
+            
+            <p>If you have any concerns, please contact support immediately.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.sendEmail(email, 'Refund Issue - Action Required', html);
+  }
+
+  /**
+   * Phase 6: Send client no-show notification
+   */
+  async sendClientNoShowNotification(
+    email: string,
+    firstName: string,
+    bookingDetails: {
+      serviceName: string;
+      providerName: string;
+      appointmentDate: string;
+      depositAmount: number;
+      currency: string;
+    }
+  ): Promise<void> {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #ff5722; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+          .details { background: #fff3e0; padding: 15px; border-radius: 5px; margin: 20px 0; }
+          .warning-box { background: #ffebee; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #f44336; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>❌ Missed Appointment</h1>
+          </div>
+          <div class="content">
+            <h2>Hi ${firstName},</h2>
+            <p>You were marked as a no-show for your appointment.</p>
+            
+            <div class="details">
+              <h3>Appointment Details:</h3>
+              <p><strong>Service:</strong> ${bookingDetails.serviceName}</p>
+              <p><strong>Provider:</strong> ${bookingDetails.providerName}</p>
+              <p><strong>Date:</strong> ${bookingDetails.appointmentDate}</p>
+            </div>
+            
+            <div class="warning-box">
+              <h3>⚠️ Deposit Forfeited:</h3>
+              <p>Your deposit of <strong>${bookingDetails.currency} ${bookingDetails.depositAmount.toFixed(2)}</strong> has been forfeited due to the no-show.</p>
+            </div>
+            
+            <p>If you believe this was an error, please contact us immediately.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.sendEmail(email, 'Missed Appointment - No Show', html);
+  }
+
+  /**
+   * Phase 6: Send provider no-show notification with refund
+   */
+  async sendProviderNoShowNotification(
+    email: string,
+    firstName: string,
+    bookingDetails: {
+      serviceName: string;
+      clientName: string;
+      appointmentDate: string;
+      refundAmount: number;
+      currency: string;
+    }
+  ): Promise<void> {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #4caf50; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+          .refund-box { background: #e8f5e9; padding: 20px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #4caf50; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>✅ Provider No-Show Reported</h1>
+          </div>
+          <div class="content">
+            <h2>Hi ${firstName},</h2>
+            <p>We're sorry the provider didn't show up for your appointment.</p>
+            
+            <div class="refund-box">
+              <h3>💰 Full Refund Issued:</h3>
+              <p>Amount: <strong>${bookingDetails.currency} ${bookingDetails.refundAmount.toFixed(2)}</strong></p>
+              <p>Expected in account: 5-10 business days</p>
+            </div>
+            
+            <p>We apologize for the inconvenience and appreciate your patience.</p>
+            <p>We've taken appropriate action regarding the provider.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.sendEmail(email, 'Provider No-Show - Full Refund Issued', html);
+  }
+
+  /**
+   * Phase 6: Send reschedule request notification
+   */
+  async sendRescheduleRequest(
+    email: string,
+    firstName: string,
+    bookingDetails: {
+      serviceName: string;
+      currentDate: string;
+      currentTime: string;
+      newDate: string;
+      newTime: string;
+      requestedBy: string;
+    }
+  ): Promise<void> {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #2196f3; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+          .details { background: white; padding: 15px; border-radius: 5px; margin: 10px 0; }
+          .new-time { background: #e3f2fd; padding: 15px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #2196f3; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>📅 Reschedule Request</h1>
+          </div>
+          <div class="content">
+            <h2>Hi ${firstName},</h2>
+            <p>${bookingDetails.requestedBy} has requested to reschedule the appointment.</p>
+            
+            <div class="details">
+              <h3>Current Appointment:</h3>
+              <p><strong>Service:</strong> ${bookingDetails.serviceName}</p>
+              <p><strong>Date:</strong> ${bookingDetails.currentDate}</p>
+              <p><strong>Time:</strong> ${bookingDetails.currentTime}</p>
+            </div>
+            
+            <div class="new-time">
+              <h3>Proposed New Time:</h3>
+              <p><strong>Date:</strong> ${bookingDetails.newDate}</p>
+              <p><strong>Time:</strong> ${bookingDetails.newTime}</p>
+            </div>
+            
+            <p>Please review and respond to this request in your dashboard.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.sendEmail(email, 'Reschedule Request - Action Required', html);
+  }
+
+  /**
+   * Phase 6: Send reschedule approved notification
+   */
+  async sendRescheduleApproved(
+    email: string,
+    firstName: string,
+    bookingDetails: {
+      serviceName: string;
+      newDate: string;
+      newTime: string;
+    }
+  ): Promise<void> {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #4caf50; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+          .new-time { background: #e8f5e9; padding: 20px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #4caf50; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>✅ Reschedule Approved</h1>
+          </div>
+          <div class="content">
+            <h2>Hi ${firstName},</h2>
+            <p>Your reschedule request has been approved!</p>
+            
+            <div class="new-time">
+              <h3>New Appointment Time:</h3>
+              <p><strong>Service:</strong> ${bookingDetails.serviceName}</p>
+              <p><strong>Date:</strong> ${bookingDetails.newDate}</p>
+              <p><strong>Time:</strong> ${bookingDetails.newTime}</p>
+            </div>
+            
+            <p>We look forward to seeing you at the new time!</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.sendEmail(email, 'Reschedule Approved - Beauty N Brushes', html);
+  }
+
+  /**
+   * Phase 6: Send reschedule denied notification
+   */
+  async sendRescheduleDenied(
+    email: string,
+    firstName: string,
+    bookingDetails: {
+      serviceName: string;
+      currentDate: string;
+      currentTime: string;
+      reason?: string;
+    }
+  ): Promise<void> {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #ff9800; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+          .details { background: white; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>❌ Reschedule Request Denied</h1>
+          </div>
+          <div class="content">
+            <h2>Hi ${firstName},</h2>
+            <p>Unfortunately, your reschedule request could not be approved.</p>
+            
+            ${bookingDetails.reason ? `
+              <div class="details">
+                <p><strong>Reason:</strong> ${bookingDetails.reason}</p>
+              </div>
+            ` : ''}
+            
+            <div class="details">
+              <h3>Your Current Appointment:</h3>
+              <p><strong>Service:</strong> ${bookingDetails.serviceName}</p>
+              <p><strong>Date:</strong> ${bookingDetails.currentDate}</p>
+              <p><strong>Time:</strong> ${bookingDetails.currentTime}</p>
+            </div>
+            
+            <p>Your original appointment time remains confirmed.</p>
+            <p>If you need to make changes, please contact the provider directly.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.sendEmail(email, 'Reschedule Request Denied', html);
+  }
 }
 
 

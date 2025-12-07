@@ -30,6 +30,7 @@ export type BookingStatus =
   | 'CANCELLED_BY_PROVIDER'
   | 'COMPLETED'
   | 'NO_SHOW'
+  | 'PROVIDER_NO_SHOW'
   | 'RESCHEDULED';
 
 /**
@@ -37,8 +38,7 @@ export type BookingStatus =
  * @enum {string}
  */
 export type PaymentStatus =
-|'AWAITING_DEPOSIT'
-  | 'PENDING'
+  | 'AWAITING_DEPOSIT'
   | 'DEPOSIT_PAID'
   | 'FULLY_PAID'
   | 'REFUNDED'
@@ -285,6 +285,25 @@ export interface CreateBookingResponse {
 export interface GetBookingResponse {
   message: string;
   booking: BookingDetails;
+}
+
+/**
+ * Request to report provider no-show
+ * @interface
+ */
+export interface ReportNoShowRequest {
+  reason: string;
+  evidence?: string;
+}
+
+/**
+ * Response after reporting provider no-show
+ * @interface
+ */
+export interface ReportNoShowResponse {
+  message: string;
+  booking: BookingDetails;
+  refundAmount: number;
 }
 
 export interface GetBookingsResponse {
