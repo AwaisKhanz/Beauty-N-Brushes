@@ -92,8 +92,8 @@ export default function LoginPage() {
     <div className="space-y-8">
       {/* Invitation Alert */}
       {invitationId && salonName && invitedEmail && (
-        <Alert className="border-blue-200 bg-blue-50">
-          <Info className="h-4 w-4 text-blue-600" />
+        <Alert className="border-info/30 bg-info/10">
+          <Info className="h-4 w-4 text-info" />
           <div>
             <AlertDescription>
               Log in with <strong>{invitedEmail}</strong> to accept your team invitation to{' '}

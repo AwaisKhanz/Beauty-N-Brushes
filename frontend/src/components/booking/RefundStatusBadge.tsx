@@ -10,22 +10,22 @@ interface RefundStatusBadgeProps {
 export function RefundStatusBadge({ status }: RefundStatusBadgeProps) {
   const config = {
     PENDING: {
-      color: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      color: 'bg-warning/10 text-warning border-warning/30',
       icon: Clock,
       label: 'Pending',
     },
     PROCESSING: {
-      color: 'bg-blue-100 text-blue-800 border-blue-200',
+      color: 'bg-info/10 text-info border-info/30',
       icon: Clock,
       label: 'Processing',
     },
     SUCCEEDED: {
-      color: 'bg-green-100 text-green-800 border-green-200',
+      color: 'bg-success/10 text-success border-success/30',
       icon: CheckCircle,
-      label: 'Completed',
+      label: 'Refunded',
     },
     FAILED: {
-      color: 'bg-red-100 text-red-800 border-red-200',
+      color: 'bg-destructive/10 text-destructive border-destructive/30',
       icon: XCircle,
       label: 'Failed',
     },

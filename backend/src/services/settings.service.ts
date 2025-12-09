@@ -16,6 +16,7 @@ import type {
   CancelSubscriptionRequest,
 } from '../../../shared-types';
 import { SUBSCRIPTION_TIERS } from '../../../shared-constants';
+import { paymentConfig } from '../config/payment.config';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
   apiVersion: '2023-10-16',
@@ -433,7 +434,10 @@ class SettingsService {
   /**
    * Get subscription info
    */
-  async getSubscriptionInfo(userId: string) {
+  async getSubscriptionInfo(
+    userId: string,
+    regionInfo: { regionCode: string; currency: string; paymentProvider: string }
+  ) {
     const profile = await prisma.providerProfile.findUnique({
       where: { userId },
       select: {
@@ -449,6 +453,11 @@ class SettingsService {
         stripeCustomerId: true,
         paystackCustomerCode: true,
         stripeSubscriptionId: true,
+        user: {
+          select: {
+            email: true,
+          },
+        },
       },
     });
 
@@ -462,8 +471,11 @@ class SettingsService {
     let cancelAtPeriodEnd = false;
     let stripeNextBillingDate: Date | null = null;
 
+    // Determine current payment provider from region info
+    const currentProvider = (regionInfo.paymentProvider || profile.paymentProvider?.toLowerCase() || 'stripe').toUpperCase();
+
     // For Stripe regions, fetch invoices and subscription status
-    if (profile.paymentProvider === 'STRIPE' && profile.stripeCustomerId) {
+    if (currentProvider === 'STRIPE' && profile.stripeCustomerId) {
       // Check subscription status for cancel_at_period_end
       if (profile.stripeSubscriptionId) {
         try {
@@ -502,8 +514,79 @@ class SettingsService {
       }
     }
 
-    // For Paystack regions, would fetch transaction history from Paystack API
-    // TODO: Implement Paystack transaction history when available
+    console.log('profile:', profile);
+
+    // For Paystack regions, fetch transaction history from Paystack API
+    if (currentProvider === 'PAYSTACK' && profile.paystackCustomerCode) {
+      console.log('Fetching Paystack transactions for customer:', profile.paystackCustomerCode);
+      try {
+        // Fetch transactions for this specific customer
+        const response = await fetch(
+          `https://api.paystack.co/transaction?customer=${profile.paystackCustomerCode}&perPage=50`,
+          {
+            headers: {
+              Authorization: `Bearer ${paymentConfig.paystack.secretKey}`,
+            },
+          }
+        );
+
+        console.log('Paystack transaction response status:', response.status);
+
+        if (response.ok) {
+          const data = (await response.json()) as {
+            status: boolean;
+            message: string;
+            data: Array<{
+              id: number;
+              reference: string;
+              amount: number;
+              currency: string;
+              status: string;
+              paid_at: string;
+              created_at: string;
+              customer: {
+                id: number;
+                customer_code: string;
+                email: string;
+              };
+            }>;
+          };
+
+          console.log('Paystack transactions found:', data.data?.length || 0);
+
+          if (data.data && data.data.length > 0) {
+            for (const transaction of data.data) {
+              // Only include successful transactions
+              if (transaction.status === 'success' && transaction.paid_at) {
+                billingHistory.push({
+                  id: transaction.reference,
+                  date: new Date(transaction.paid_at).toISOString(),
+                  amount: transaction.amount / 100, // Convert from kobo/pesewas
+                  currency: transaction.currency,
+                  status: transaction.status,
+                  invoiceUrl: undefined, // Paystack doesn't provide invoice URLs in transaction list
+                });
+              }
+            }
+          }
+          console.log('Billing history items added:', billingHistory.length);
+        } else {
+          const errorText = await response.text();
+          console.error('Paystack API error:', response.status, errorText);
+        }
+      } catch (error) {
+        console.error('Error fetching Paystack transactions:', error);
+      }
+    } else {
+      console.log('Skipping Paystack transactions:', {
+        currentProvider,
+        hasCustomerCode: !!profile.paystackCustomerCode,
+      });
+    }
+
+    // Use current region info from middleware instead of potentially outdated database values
+    const currentCurrency = regionInfo.currency || profile.currency || 'USD';
+    // currentProvider already defined above at line 469
 
     return {
       subscriptionTier: profile.subscriptionTier?.toLowerCase() as 'solo' | 'salon',
@@ -518,8 +601,8 @@ class SettingsService {
       trialEndDate: profile.trialEndDate?.toISOString() || null,
       nextBillingDate: stripeNextBillingDate?.toISOString() || profile.nextBillingDate?.toISOString() || null,
       monthlyFee: Number(profile.monthlyFee || 0),
-      currency: profile.currency || 'USD',
-      paymentProvider: profile.paymentProvider?.toLowerCase() as 'stripe' | 'paystack',
+      currency: currentCurrency, // Use current region currency
+      paymentProvider: currentProvider as 'stripe' | 'paystack', // Use current region provider
       last4Digits: profile.last4Digits || null,
       cardBrand: profile.cardBrand || null,
       billingHistory,
@@ -644,16 +727,95 @@ class SettingsService {
         throw new AppError(500, 'Failed to update payment method');
       }
     } else if (profile.paymentProvider === 'PAYSTACK') {
-      // Paystack payment method update
-      // The paymentMethodId here would be the authorization code from Paystack
+    // Paystack payment method update
+    // The paymentMethodId here is the authorization code from Paystack
+    
+    if (!profile.paystackCustomerCode) {
+      throw new AppError(400, 'Paystack customer not found');
+    }
+
+    try {
+      // Get authorization details from Paystack
+      const authResponse = await fetch(
+        `https://api.paystack.co/customer/${profile.paystackCustomerCode}/authorization`,
+        {
+          headers: {
+            Authorization: `Bearer ${paymentConfig.paystack.secretKey}`,
+          },
+        }
+      );
+
+      if (!authResponse.ok) {
+        throw new AppError(500, 'Failed to fetch Paystack authorizations');
+      }
+
+      const authData = (await authResponse.json()) as {
+        status: boolean;
+        data: Array<{
+          authorization_code: string;
+          bin: string;
+          last4: string;
+          exp_month: string;
+          exp_year: string;
+          channel: string;
+          card_type: string;
+          bank: string;
+          country_code: string;
+          brand: string;
+          reusable: boolean;
+          signature: string;
+        }>;
+      };
+
+      // Find the authorization that matches the provided code
+      const authorization = authData.data.find((auth) => auth.authorization_code === paymentMethodId);
+
+      if (!authorization) {
+        throw new AppError(404, 'Authorization code not found');
+      }
+
+      // Update database with new payment method details
       await prisma.providerProfile.update({
         where: { userId },
         data: {
           paymentMethodId: paymentMethodId,
+          last4Digits: authorization.last4,
+          cardBrand: authorization.brand,
           updatedAt: new Date(),
         },
       });
+
+      // If user has an active subscription, update it with the new authorization
+      const subscriptionCode = await prisma.providerProfile.findUnique({
+        where: { userId },
+        select: { paystackSubscriptionCode: true },
+      });
+
+      if (subscriptionCode?.paystackSubscriptionCode) {
+        // Update subscription authorization on Paystack
+        const updateResponse = await fetch(
+          `https://api.paystack.co/subscription/${subscriptionCode.paystackSubscriptionCode}`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${paymentConfig.paystack.secretKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              authorization: paymentMethodId,
+            }),
+          }
+        );
+
+        if (!updateResponse.ok) {
+          console.error('Failed to update Paystack subscription authorization');
+        }
+      }
+    } catch (error) {
+      console.error('Error updating Paystack payment method:', error);
+      throw new AppError(500, 'Failed to update payment method');
     }
+  }
 
     return { success: true };
   }
@@ -1032,7 +1194,11 @@ class SettingsService {
   /**
    * Change subscription tier
    */
-  async changeSubscriptionTier(userId: string, data: ChangeTierRequest) {
+  async changeSubscriptionTier(
+    userId: string,
+    data: ChangeTierRequest,
+    regionInfo: { regionCode: string; currency: string; paymentProvider: string }
+  ) {
     const profile = await prisma.providerProfile.findUnique({
       where: { userId },
       select: {
@@ -1056,8 +1222,20 @@ class SettingsService {
     // Calculate new monthly fee
     const newMonthlyFee = data.newTier === 'solo' ? SUBSCRIPTION_TIERS.SOLO.monthlyPriceUSD : SUBSCRIPTION_TIERS.SALON.monthlyPriceUSD;
 
+    // Use current payment provider from region detection, not stored value
+    const currentProvider = (regionInfo.paymentProvider || 'stripe').toUpperCase();
+
+    console.log('Changing subscription tier:', {
+      userId,
+      oldTier: profile.subscriptionTier,
+      newTier: data.newTier,
+      storedProvider: profile.paymentProvider,
+      currentProvider,
+      regionCode: regionInfo.regionCode,
+    });
+
     // Update subscription in payment provider
-    if (profile.paymentProvider === 'STRIPE' && profile.stripeSubscriptionId) {
+    if (currentProvider === 'STRIPE' && profile.stripeSubscriptionId) {
       const newPriceId =
         data.newTier === 'solo'
           ? process.env.STRIPE_SOLO_PRICE_ID
@@ -1154,7 +1332,7 @@ class SettingsService {
         console.error('Error updating Stripe subscription:', error);
         throw new AppError(500, 'Failed to update subscription');
       }
-    } else if (profile.paymentProvider === 'PAYSTACK' && profile.paystackSubscriptionCode) {
+    } else if (currentProvider === 'PAYSTACK' && profile.paystackSubscriptionCode) {
       // Paystack tier change - requires cancel and recreate
       const providerProfile = await prisma.providerProfile.findUnique({
         where: { userId },
@@ -1184,6 +1362,14 @@ class SettingsService {
       try {
         const { paystackService } = await import('../lib/payment');
         
+        console.log('Changing Paystack subscription tier:', {
+          oldTier: profile.subscriptionTier,
+          newTier: data.newTier,
+          subscriptionCode: profile.paystackSubscriptionCode,
+          hasEmailToken: !!providerProfile.paystackEmailToken,
+          hasAuthCode: !!providerProfile.paymentMethodId,
+        });
+        
         // Use the changeSubscriptionTier method which handles cancel + recreate
         const result = await paystackService.changeSubscriptionTier(
           profile.paystackSubscriptionCode,
@@ -1196,6 +1382,13 @@ class SettingsService {
           providerProfile.id,
           providerProfile.paymentMethodId // Authorization code
         );
+
+        console.log('Paystack tier change result:', {
+          newSubscriptionId: result.subscriptionId,
+          newEmailToken: result.emailToken,
+          nextBillingDate: result.nextBillingDate,
+          monthlyFee: result.monthlyFee,
+        });
 
         // Update profile with new subscription details
         await prisma.providerProfile.update({
@@ -1234,7 +1427,11 @@ class SettingsService {
   /**
    * Cancel subscription
    */
-  async cancelSubscription(userId: string, data: CancelSubscriptionRequest) {
+  async cancelSubscription(
+    userId: string,
+    data: CancelSubscriptionRequest,
+    regionInfo: { regionCode: string; currency: string; paymentProvider: string }
+  ) {
     const profile = await prisma.providerProfile.findUnique({
       where: { userId },
       select: {
@@ -1250,8 +1447,18 @@ class SettingsService {
       throw new AppError(404, 'Provider profile not found');
     }
 
+    // Use current payment provider from region detection, not stored value
+    const currentProvider = (regionInfo.paymentProvider || 'stripe').toUpperCase();
+
+    console.log('Cancelling subscription:', {
+      userId,
+      storedProvider: profile.paymentProvider,
+      currentProvider,
+      regionCode: regionInfo.regionCode,
+    });
+
     // Cancel subscription in payment provider
-    if (profile.paymentProvider === 'STRIPE' && profile.stripeSubscriptionId) {
+    if (currentProvider === 'STRIPE' && profile.stripeSubscriptionId) {
       try {
         await stripe.subscriptions.update(profile.stripeSubscriptionId, {
           cancel_at_period_end: true,
@@ -1264,7 +1471,7 @@ class SettingsService {
         throw new AppError(500, 'Failed to cancel subscription');
       }
     } else if (
-      profile.paymentProvider === 'PAYSTACK' &&
+      currentProvider === 'PAYSTACK' &&
       profile.paystackSubscriptionCode
     ) {
       // Cancel Paystack subscription

@@ -17,25 +17,25 @@ export function PaymentStatusBadge({
     AWAITING_DEPOSIT: {
       label: 'Payment Pending',
       compactLabel: 'Pending',
-      className: 'bg-red-100 text-red-800 border-red-200',
+      className: 'bg-warning/10 text-warning border-warning/30',
       icon: AlertCircle,
     },
     DEPOSIT_PAID: {
       label: 'Deposit Paid',
       compactLabel: 'Deposit Paid',
-      className: 'bg-orange-100 text-orange-800 border-orange-200',
+      className: 'bg-warning/10 text-warning border-warning/30',
       icon: DollarSign,
     },
     FULLY_PAID: {
       label: 'Fully Paid',
       compactLabel: 'Paid',
-      className: 'bg-green-100 text-green-800 border-green-200',
+      className: 'bg-success/10 text-success border-success/30',
       icon: CheckCircle,
     },
     REFUNDED: {
       label: 'Refunded',
       compactLabel: 'Refunded',
-      className: 'bg-gray-100 text-gray-800 border-gray-200',
+      className: 'bg-destructive/10 text-destructive border-destructive/30',
       icon: RefreshCw,
     },
     PARTIALLY_REFUNDED: {

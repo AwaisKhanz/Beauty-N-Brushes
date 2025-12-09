@@ -160,8 +160,8 @@ export default function AcceptInvitationPage() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 to-secondary/5 p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
-              <CheckCircle2 className="h-6 w-6 text-green-600" />
+            <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-success/10 flex items-center justify-center">
+              <CheckCircle2 className="h-6 w-6 text-success" />
             </div>
             <CardTitle>Welcome to the Team!</CardTitle>
             <CardDescription>
@@ -200,8 +200,8 @@ export default function AcceptInvitationPage() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 to-secondary/5 p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-amber-100 flex items-center justify-center">
-              <AlertCircle className="h-6 w-6 text-amber-600" />
+            <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-warning/10 flex items-center justify-center">
+              <AlertCircle className="h-6 w-6 text-warning" />
             </div>
             <CardTitle>Email Mismatch</CardTitle>
             <CardDescription>This invitation cannot be accepted with your current account</CardDescription>

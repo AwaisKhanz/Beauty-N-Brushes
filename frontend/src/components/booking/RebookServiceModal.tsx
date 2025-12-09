@@ -24,8 +24,8 @@ export function RebookServiceModal({ open, onOpenChange, booking }: RebookServic
 
   function handleRebook() {
     // Navigate to the service page to book again
-    const providerSlug = booking.provider?.slug || booking.provider?.id;
-    router.push(`/providers/${providerSlug}`);
+    const bookingId = booking.service?.id;
+    router.push(`/services/${bookingId}`);
     onOpenChange(false);
   }
 

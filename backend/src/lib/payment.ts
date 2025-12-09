@@ -258,8 +258,6 @@ export class PaystackService {
       ? SUBSCRIPTION_TIERS.SOLO.monthlyPriceUSD 
       : SUBSCRIPTION_TIERS.SALON.monthlyPriceUSD;
     
-    // ✅ All fees in USD - no conversion needed
-    const currency = 'USD'; // Paystack will handle currency conversion based on customer's card
 
     // Create or get customer
     let customerCode: string;
@@ -326,50 +324,12 @@ export class PaystackService {
     }
 
     // Use pre-created plan codes from payment config
-    const planCode = regionCode === 'GH'
+    // These plans should already exist in Paystack dashboard
+    const planCode = regionCode === 'NA'
       ? (tier === 'solo' ? paymentConfig.paystack.plans.soloGHS : paymentConfig.paystack.plans.salonGHS)
       : (tier === 'solo' ? paymentConfig.paystack.plans.soloNGN : paymentConfig.paystack.plans.salonNGN);
 
-    // Check if plan exists
-    const planCheckResponse = await fetch(`${this.baseUrl}/plan/${planCode}`, {
-      headers: {
-        Authorization: `Bearer ${this.secretKey}`,
-      },
-    });
-
-    if (!planCheckResponse.ok) {
-      // Plan doesn't exist, create it
-      const planResponse = await fetch(`${this.baseUrl}/plan`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${this.secretKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: `Beauty N Brushes ${tier === 'solo' ? 'Solo' : 'Salon'} - ${currency}`,
-          amount: monthlyFee * 100, // Convert to kobo/pesewas
-          interval: 'monthly',
-          currency,
-          plan_code: planCode,
-        }),
-      });
-
-      if (!planResponse.ok) {
-        const errorData = (await planResponse.json()) as { message?: string };
-        throw new Error(errorData.message || 'Failed to create Paystack plan');
-      }
-
-      // Verify plan was created successfully
-      const planData = (await planResponse.json()) as {
-        status: boolean;
-        data?: { plan_code: string };
-        message?: string;
-      };
-
-      if (!planData.status || !planData.data) {
-        throw new Error(planData.message || 'Failed to create Paystack plan');
-      }
-    }
+    console.log('Using Paystack plan:', { planCode, tier, regionCode });
 
     // Calculate trial end date based on provided duration
     let trialEndDate: Date | null = null;
@@ -453,7 +413,17 @@ export class PaystackService {
 
     if (!response.ok) {
       const errorData = (await response.json()) as { message?: string };
-      throw new Error(errorData.message || 'Failed to cancel Paystack subscription');
+      const errorMessage = errorData.message || 'Failed to cancel Paystack subscription';
+      
+      // If subscription is already cancelled/inactive, don't throw error
+      if (errorMessage.toLowerCase().includes('not found') || 
+          errorMessage.toLowerCase().includes('inactive') ||
+          errorMessage.toLowerCase().includes('already')) {
+        console.log('Paystack subscription already cancelled or inactive:', subscriptionCode);
+        return; // Gracefully handle already-cancelled subscriptions
+      }
+      
+      throw new Error(errorMessage);
     }
   }
 

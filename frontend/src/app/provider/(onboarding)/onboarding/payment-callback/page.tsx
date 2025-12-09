@@ -18,36 +18,47 @@ export default function PaymentCallbackPage() {
       try {
         const reference = searchParams.get('reference');
         const provider = searchParams.get('provider');
-        const region = searchParams.get('region');
-        const tier = searchParams.get('tier');
+        const trxref = searchParams.get('trxref'); // Paystack also sends trxref
 
-        if (!reference || !provider || !region || !tier) {
+        // Use either reference or trxref
+        const transactionRef = reference || trxref;
+
+        if (!transactionRef || !provider) {
           throw new Error('Missing payment information');
         }
 
         if (provider === 'paystack') {
-          // Verify the transaction with Paystack via backend
-          const verifyResponse = await api.payment.verifyPaystack(reference);
+          // ✅ NEW SUBSCRIPTION FLOW:
+          // Subscription was already created during initialization
+          // We just need to verify the payment was successful
+          
+          setMessage('Verifying payment with Paystack...');
+          
+          const verifyResponse = await api.payment.verifyPaystack(transactionRef);
 
           if (verifyResponse.data.status !== 'success') {
-            throw new Error('Payment was not successful');
+            throw new Error('Payment verification failed');
           }
 
-          // Payment successful, create subscription with authorization code
-          // Pass authorization code to setupPayment - it will create subscription
-          await api.onboarding.setupPayment({
-            regionCode: region as 'NA' | 'EU' | 'GH' | 'NG',
-            subscriptionTier: tier as 'solo' | 'salon',
-            paymentMethodId: verifyResponse.data.authorization.authorization_code, // Authorization code from Paystack
-          });
-
+          // Payment successful! Subscription is already active in database
+          // (saved during initialization in initializePaystackSubscription)
           setStatus('success');
-          setMessage('Payment successful! Setting up your subscription...');
+          setMessage('Payment successful! Your subscription is now active.');
 
-          // Redirect to next onboarding step after 2 seconds
+          // Redirect to complete onboarding
           setTimeout(() => {
             router.push(ROUTES.PROVIDER.ONBOARDING);
           }, 2000);
+        } else if (provider === 'stripe') {
+          // Stripe flow (if needed)
+          setStatus('success');
+          setMessage('Payment successful! Setting up your subscription...');
+          
+          setTimeout(() => {
+            router.push(ROUTES.PROVIDER.ONBOARDING);
+          }, 2000);
+        } else {
+          throw new Error('Invalid payment provider');
         }
       } catch (error: unknown) {
         setStatus('error');

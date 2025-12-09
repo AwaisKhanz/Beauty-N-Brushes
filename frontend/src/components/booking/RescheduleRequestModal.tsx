@@ -144,9 +144,9 @@ export function RescheduleRequestModal({
           {request.status !== 'pending' && (
             <div className="flex items-center gap-2 p-3 rounded-lg bg-muted">
               {request.status === 'approved' ? (
-                <CheckCircle className="h-5 w-5 text-green-600" />
+                <CheckCircle className="h-5 w-5 text-success" />
               ) : (
-                <XCircle className="h-5 w-5 text-red-600" />
+                <XCircle className="h-5 w-5 text-destructive" />
               )}
               <span className="font-medium">
                 {request.status === 'approved' ? 'Approved' : 'Denied'}

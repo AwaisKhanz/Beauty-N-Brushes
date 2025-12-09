@@ -461,6 +461,8 @@ model Booking {
   tipPaidAt             DateTime?
   tipPaymentIntentId    String?
   tipPaymentMethod      String? // 'online', 'cash'
+  paystackTipReference  String? // Paystack tip payment reference
+  stripeTipReference    String? // Stripe tip payment reference
   currency              String              @default("USD")
   paymentProvider       PaymentProvider
   clientRegionCode      String? // Track which region client selected for this booking

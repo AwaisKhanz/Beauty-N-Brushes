@@ -5,7 +5,7 @@
 
 import { useEffect, useCallback } from 'react';
 import { useSocket } from '@/contexts/SocketContext';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 
 interface TeamSocketData {
@@ -23,45 +23,38 @@ interface TeamSocketData {
 
 export function useTeamSocket() {
   const { socket } = useSocket();
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Handle team member joined event
   const handleTeamMemberJoined = useCallback((data: TeamSocketData) => {
-    toast({
-      title: 'New Team Member! 👥',
+    toast.success('New Team Member! 👥', {
       description: `${data.member?.name} joined as ${data.member?.role}`,
-      variant: 'default',
     });
 
     // Invalidate team queries
     queryClient.invalidateQueries({ queryKey: ['team-members'] });
     queryClient.invalidateQueries({ queryKey: ['provider-stats'] });
-  }, [toast, queryClient]);
+  }, [queryClient]);
 
   // Handle team member removed event
   const handleTeamMemberRemoved = useCallback((data: TeamSocketData) => {
-    toast({
-      title: 'Removed from Team',
+    toast.error('Removed from Team', {
       description: `You were removed from ${data.providerName}'s team${data.reason ? `: ${data.reason}` : ''}`,
-      variant: 'destructive',
     });
 
     // Invalidate team queries
     queryClient.invalidateQueries({ queryKey: ['team-members'] });
-  }, [toast, queryClient]);
+  }, [queryClient]);
 
   // Handle team role changed event
   const handleTeamRoleChanged = useCallback((data: TeamSocketData) => {
-    toast({
-      title: 'Role Updated',
+    toast.success('Role Updated', {
       description: `Your role changed from ${data.oldRole} to ${data.newRole}`,
-      variant: 'default',
     });
 
     // Invalidate team queries
     queryClient.invalidateQueries({ queryKey: ['team-members'] });
-  }, [toast, queryClient]);
+  }, [queryClient]);
 
   // Set up Socket.IO listeners
   useEffect(() => {

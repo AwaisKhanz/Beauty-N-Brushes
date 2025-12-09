@@ -14,20 +14,11 @@ import {
   MapPin,
   AlertCircle,
   Search,
-  DollarSign,
-  CalendarPlus,
-  RefreshCw,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
 import { PaymentStatusBadge } from '@/components/booking/PaymentStatusBadge';
 import type { BookingDetails } from '@/shared-types/booking.types';
-import { RescheduleModal } from '@/components/booking/RescheduleModal';
-import { BalancePaymentModal } from '@/components/booking/BalancePaymentModal';
-import { DepositPaymentModal } from '@/components/booking/DepositPaymentModal';
-import { CancelBookingModal } from '@/components/booking/CancelBookingModal';
-import { RebookServiceModal } from '@/components/booking/RebookServiceModal';
-import { exportBookingToCalendar } from '@/lib/calendar-export';
 import { useBookingSocket } from '@/hooks/use-booking-socket';
 
 export default function ClientBookingsPage() {
@@ -36,12 +27,6 @@ export default function ClientBookingsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'past'>('all');
-  const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false);
-  const [balancePaymentModalOpen, setBalancePaymentModalOpen] = useState(false);
-  const [depositPaymentModalOpen, setDepositPaymentModalOpen] = useState(false);
-  const [cancelModalOpen, setCancelModalOpen] = useState(false);
-  const [rebookModalOpen, setRebookModalOpen] = useState(false);
-  const [selectedBooking, setSelectedBooking] = useState<BookingDetails | null>(null);
 
   useEffect(() => {
     fetchBookings();
@@ -60,45 +45,7 @@ export default function ClientBookingsPage() {
     }
   }
 
-  function handleRescheduleClick(booking: BookingDetails) {
-    setSelectedBooking(booking);
-    setRescheduleModalOpen(true);
-  }
 
-  function handleRescheduleSuccess() {
-    fetchBookings(); // Refresh bookings list
-  }
-
-  function handlePayBalanceClick(booking: BookingDetails) {
-    setSelectedBooking(booking);
-    setBalancePaymentModalOpen(true);
-  }
-
-  function handlePayDepositClick(booking: BookingDetails) {
-    setSelectedBooking(booking);
-    setDepositPaymentModalOpen(true);
-  }
-
-  function handleBalancePaymentSuccess() {
-    fetchBookings(); // Refresh bookings list
-  }
-
-  function handleDepositPaymentSuccess() {
-    fetchBookings(); // Refresh bookings list
-  }
-
-  function handleCancelClick(booking: BookingDetails) {
-    setSelectedBooking(booking);
-    setCancelModalOpen(true);
-  }
-
-  function handleCancelSuccess() {
-    fetchBookings(); // Refresh bookings list
-  }
-
-  function calculateBalanceOwed(booking: BookingDetails): number {
-    return booking.servicePrice - booking.depositAmount;
-  }
 
   const filteredBookings = bookings.filter((b) => {
     if (filter === 'upcoming') {
@@ -252,97 +199,16 @@ export default function ClientBookingsPage() {
                         <Badge variant={getStatusBadgeVariant(booking.bookingStatus)}>
                           {booking.bookingStatus.replace('_', ' ')}
                       </Badge>
-                      <PaymentStatusBadge status={booking.paymentStatus} variant="compact" />
+                      {/* Only show payment status for active bookings */}
+                      {!['CANCELLED_BY_CLIENT', 'CANCELLED_BY_PROVIDER', 'NO_SHOW', 'COMPLETED'].includes(booking.bookingStatus) && (
+                        <PaymentStatusBadge status={booking.paymentStatus} variant="compact" />
+                      )}
                     </div>
 
                       <div className="flex flex-wrap gap-2">
                         <Button variant="outline" size="sm" asChild>
                           <Link href={`/client/bookings/${booking.id}`}>View Details</Link>
                         </Button>
-
-                        {/* Add to Calendar Button */}
-                        {['pending', 'confirmed'].includes(booking.bookingStatus) && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => exportBookingToCalendar(booking)}
-                          >
-                            <CalendarPlus className="h-4 w-4 mr-1" />
-                            Add to Calendar
-                          </Button>
-                        )}
-
-                        {/* Pay Deposit Button - Show when deposit not paid yet */}
-                        {booking.paymentStatus === 'AWAITING_DEPOSIT' && (
-                          <Button
-                            variant="default"
-                            size="sm"
-                            onClick={() => handlePayDepositClick(booking)}
-                            className="bg-primary hover:bg-primary/90"
-                          >
-                            <DollarSign className="h-4 w-4 mr-1" />
-                            Pay Deposit ($
-                            {(
-                              Number(booking.depositAmount) + Number(booking.serviceFee)
-                            ).toFixed(2)}
-                            )
-                          </Button>
-                        )}
-
-                        {/* Pay Balance Button - Show when deposit paid but balance remains */}
-                        {booking.paymentStatus === 'DEPOSIT_PAID' &&
-                          calculateBalanceOwed(booking) > 0 &&
-                          ['confirmed'].includes(booking.bookingStatus) && (
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={() => handlePayBalanceClick(booking)}
-                              className="bg-button-dark hover:bg-button-dark/90"
-                            >
-                              <DollarSign className="h-4 w-4 mr-1" />
-                              Pay Balance
-                            </Button>
-                          )}
-
-                        {['pending', 'confirmed'].includes(booking.bookingStatus) && (
-                          <>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleRescheduleClick(booking)}
-                            >
-                              Reschedule
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleCancelClick(booking)}
-                            >
-                              Cancel
-                            </Button>
-                          </>
-                        )}
-
-                        {booking.bookingStatus === 'COMPLETED' && (
-                          <>
-                            <Button variant="default" size="sm" asChild>
-                              <Link href={`/client/bookings/${booking.id}/review`}>
-                                Leave Review
-                              </Link>
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedBooking(booking);
-                                setRebookModalOpen(true);
-                              }}
-                            >
-                              <RefreshCw className="h-4 w-4 mr-1" />
-                              Rebook
-                            </Button>
-                          </>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -370,58 +236,6 @@ export default function ClientBookingsPage() {
           )}
         </TabsContent>
       </Tabs>
-
-      {/* Reschedule Modal */}
-      {selectedBooking && (
-        <RescheduleModal
-          open={rescheduleModalOpen}
-          onOpenChange={setRescheduleModalOpen}
-          bookingId={selectedBooking.id}
-          providerId={selectedBooking.provider?.id || ''}
-          serviceId={selectedBooking.service?.id || ''}
-          serviceDuration={selectedBooking.service?.durationMinutes || 60}
-          onSuccess={handleRescheduleSuccess}
-        />
-      )}
-
-      {/* Balance Payment Modal */}
-      {selectedBooking && (
-        <BalancePaymentModal
-          open={balancePaymentModalOpen}
-          onOpenChange={setBalancePaymentModalOpen}
-          booking={selectedBooking}
-          onSuccess={handleBalancePaymentSuccess}
-        />
-      )}
-
-      {/* Deposit Payment Modal */}
-      {selectedBooking && (
-        <DepositPaymentModal
-          open={depositPaymentModalOpen}
-          onOpenChange={setDepositPaymentModalOpen}
-          booking={selectedBooking}
-          onSuccess={handleDepositPaymentSuccess}
-        />
-      )}
-
-      {/* Cancel Booking Modal */}
-      {selectedBooking && (
-        <CancelBookingModal
-          open={cancelModalOpen}
-          onOpenChange={setCancelModalOpen}
-          booking={selectedBooking}
-          onSuccess={handleCancelSuccess}
-        />
-      )}
-
-      {/* Rebook Service Modal */}
-      {selectedBooking && (
-        <RebookServiceModal
-          open={rebookModalOpen}
-          onOpenChange={setRebookModalOpen}
-          booking={selectedBooking}
-        />
-      )}
     </div>
   );
 }

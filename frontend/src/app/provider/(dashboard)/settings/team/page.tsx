@@ -35,11 +35,11 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { api } from '@/lib/api';
 import { extractErrorMessage } from '@/lib/error-utils';
-import { useToast } from '@/hooks/use-toast';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { InviteTeamMemberModal } from '@/components/settings/InviteTeamMemberModal';
 import { EditTeamMemberModal } from '@/components/settings/EditTeamMemberModal';
 import type { TeamMember } from '@/shared-types/team.types';
+import { toast } from 'sonner';
 
 export default function TeamManagementPage() {
   const [loading, setLoading] = useState(true);
@@ -52,7 +52,6 @@ export default function TeamManagementPage() {
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [memberToDelete, setMemberToDelete] = useState<{ id: string; name: string } | null>(null);
-  const { toast } = useToast();
 
   useEffect(() => {
     fetchTeamMembers();
@@ -93,16 +92,13 @@ export default function TeamManagementPage() {
 
     try {
       await api.team.delete(memberToDelete.id);
-      toast({
-        title: 'Team Member Removed',
+      toast('Team Member Removed', { 
         description: `${memberToDelete.name} has been removed from your team.`,
       });
       await fetchTeamMembers();
     } catch (err: unknown) {
-      toast({
-        title: 'Error',
+      toast('Error', {
         description: extractErrorMessage(err) || 'Failed to remove team member',
-        variant: 'destructive',
       });
     } finally {
       setDeleteConfirmOpen(false);

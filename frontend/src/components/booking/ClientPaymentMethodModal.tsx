@@ -132,7 +132,7 @@ export function ClientPaymentMethodModal({
                   Only one payment method is allowed per account.
                 </span>
                 <br />
-                <span className="text-xs text-amber-600 dark:text-amber-400 mt-1 block font-medium">
+                <span className="text-xs text-warning mt-1 block font-medium">
                   Note: A minimal authorization charge of {regionCode === REGIONS.GH.code ? '₵1.00' : '₦1.00'}{' '}
                   is required to securely save your payment method. This is a one-time verification
                   charge.

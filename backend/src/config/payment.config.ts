@@ -51,10 +51,10 @@ function getPaymentConfig(): PaymentConfig {
         secretKey: env.PAYSTACK_LIVE_SECRET_KEY,
         publicKey: env.PAYSTACK_LIVE_PUBLIC_KEY || '',
         plans: {
-          soloGHS: env.PAYSTACK_SOLO_GHS_PLAN || 'bnb_solo_ghs',
-          salonGHS: env.PAYSTACK_SALON_GHS_PLAN || 'bnb_salon_ghs',
-          soloNGN: env.PAYSTACK_SOLO_NGN_PLAN || 'bnb_solo_ngn',
-          salonNGN: env.PAYSTACK_SALON_NGN_PLAN || 'bnb_salon_ngn',
+          soloGHS: env.PAYSTACK_SOLO_GHS_PLAN || 'PLN_solo_gh_monthly',
+          salonGHS: env.PAYSTACK_SALON_GHS_PLAN || 'PLN_salon_gh_monthly',
+          soloNGN: env.PAYSTACK_SOLO_NGN_PLAN || 'PLN_solo_ng_monthly',
+          salonNGN: env.PAYSTACK_SALON_NGN_PLAN || 'PLN_salon_ng_monthly',
         },
       },
     };
@@ -74,10 +74,10 @@ function getPaymentConfig(): PaymentConfig {
       secretKey: env.PAYSTACK_TEST_SECRET_KEY || env.PAYSTACK_SECRET_KEY || '',
       publicKey: env.PAYSTACK_TEST_PUBLIC_KEY || '',
       plans: {
-        soloGHS: env.PAYSTACK_SOLO_GHS_PLAN || 'bnb_solo_ghs',
-        salonGHS: env.PAYSTACK_SALON_GHS_PLAN || 'bnb_salon_ghs',
-        soloNGN: env.PAYSTACK_SOLO_NGN_PLAN || 'bnb_solo_ngn',
-        salonNGN: env.PAYSTACK_SALON_NGN_PLAN || 'bnb_salon_ngn',
+        soloGHS: env.PAYSTACK_SOLO_GHS_PLAN || 'PLN_solo_gh_monthly',
+        salonGHS: env.PAYSTACK_SALON_GHS_PLAN || 'PLN_salon_gh_monthly',
+        soloNGN: env.PAYSTACK_SOLO_NGN_PLAN || 'PLN_solo_ng_monthly',
+        salonNGN: env.PAYSTACK_SALON_NGN_PLAN || 'PLN_salon_ng_monthly',
       },
     },
   };

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,8 +12,6 @@ import {
   Clock,
   MapPin,
   User,
-  Phone,
-  Mail,
   DollarSign,
   CreditCard,
   AlertCircle,
@@ -33,7 +31,9 @@ import { DepositPaymentModal } from '@/components/booking/DepositPaymentModal';
 import { CancelBookingModal } from '@/components/booking/CancelBookingModal';
 import { RebookServiceModal } from '@/components/booking/RebookServiceModal';
 import { TipPaymentModal } from '@/components/booking/TipPaymentModal';
+import { ReviewModal } from '@/components/booking/ReviewModal';
 import { BookingPhotos } from '@/components/booking/BookingPhotos';
+import { BookingReview } from '@/components/booking/BookingReview';
 import { BookingCountdownTimer } from '@/components/booking/BookingCountdownTimer';
 import { ReportNoShowModal } from '@/components/booking/ReportNoShowModal';
 import { RefundCard } from '@/components/booking/RefundCard';
@@ -57,22 +57,22 @@ export default function ClientBookingDetailPage() {
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [rebookModalOpen, setRebookModalOpen] = useState(false);
   const [tipPaymentModalOpen, setTipPaymentModalOpen] = useState(false);
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [reportNoShowModalOpen, setReportNoShowModalOpen] = useState(false);
   const [refunds, setRefunds] = useState<any[]>([]);
 
-  // ✅ Enable real-time booking updates via Socket.IO
-  useBookingSocket();
-
-  // ✅ Enable real-time refund updates via Socket.IO
-  useRefundSocket(bookingId, fetchRefunds);
-
-  useEffect(() => {
-    if (bookingId) {
-      fetchBooking();
+  // ✅ Define fetchRefunds before using it in useRefundSocket
+  const fetchRefunds = useCallback(async () => {
+    try {
+      const response = await api.bookings.getRefunds(bookingId);
+      setRefunds(response.refunds || []);
+    } catch (err: unknown) {
+      console.error('Failed to fetch refunds:', err);
     }
   }, [bookingId]);
 
-  async function fetchBooking() {
+  // ✅ Define fetchBooking before useEffect
+  const fetchBooking = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
@@ -91,16 +91,20 @@ export default function ClientBookingDetailPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [bookingId]); // ✅ Removed fetchRefunds from dependencies to prevent infinite loop
 
-  async function fetchRefunds() {
-    try {
-      const response = await api.bookings.getRefunds(bookingId);
-      setRefunds(response.refunds || []);
-    } catch (err: unknown) {
-      console.error('Failed to fetch refunds:', err);
+  // ✅ Enable real-time booking updates via Socket.IO
+  useBookingSocket();
+
+  // ✅ Enable real-time refund updates via Socket.IO
+  useRefundSocket(bookingId, fetchRefunds);
+
+  useEffect(() => {
+    if (bookingId) {
+      fetchBooking();
     }
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookingId]); // Only run when bookingId changes
 
   function handleReschedule() {
     setRescheduleModalOpen(true);
@@ -137,14 +141,14 @@ export default function ClientBookingDetailPage() {
   function getStatusColor(status: string) {
     switch (status) {
       case 'PENDING':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+        return 'bg-warning/10 text-warning border-warning/30';
       case 'CONFIRMED':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
+        return 'bg-info/10 text-info border-info/30';
       case 'COMPLETED':
-        return 'bg-green-100 text-green-800 border-green-200';
-      case 'CANCELLED_BY_CLIENT':
-      case 'CANCELLED_BY_PROVIDER':
-        return 'bg-red-100 text-red-800 border-red-200';
+        return 'bg-success/10 text-success border-success/30';
+      case 'CANCELLED':
+      case 'NO_SHOW':
+        return 'bg-destructive/10 text-destructive border-destructive/30';
       case 'NO_SHOW':
         return 'bg-gray-100 text-gray-800 border-gray-200';
       default:
@@ -226,29 +230,35 @@ export default function ClientBookingDetailPage() {
     );
   }
 
-  // Payment status checks
-  const canPayDeposit = booking.paymentStatus === 'AWAITING_DEPOSIT';
+  // Define which actions are available based on booking status and payment status
+  const isActiveBooking = !['COMPLETED', 'CANCELLED_BY_CLIENT', 'CANCELLED_BY_PROVIDER', 'NO_SHOW'].includes(booking.bookingStatus);
+  const appointmentDate = new Date(`${booking.appointmentDate}T${booking.appointmentTime}`);
+  const now = new Date();
+  const isBeforeAppointment = appointmentDate > now;
+  const isAfterAppointment = appointmentDate < now;
+
+  // Payment actions
+  const canPayDeposit = booking.paymentStatus === 'AWAITING_DEPOSIT' && isActiveBooking;
   const canPayBalance =
     booking.paymentStatus === 'DEPOSIT_PAID' &&
     booking.bookingStatus === 'CONFIRMED' &&
-    new Date(`${booking.appointmentDate}T${booking.appointmentTime}`) < new Date();
+    isAfterAppointment;
 
-  const canReschedule =
-    (booking.bookingStatus === 'PENDING' || booking.bookingStatus === 'CONFIRMED') &&
-    new Date(`${booking.appointmentDate}T${booking.appointmentTime}`) > new Date();
+  // Booking management actions
+  const canReschedule = isActiveBooking && isBeforeAppointment;
+  const canCancel = isActiveBooking && isBeforeAppointment;
 
-  const canCancel =
-    booking.bookingStatus === 'PENDING' ||
-    (booking.bookingStatus === 'CONFIRMED' &&
-      new Date(`${booking.appointmentDate}T${booking.appointmentTime}`) > new Date());
-
+  // Post-booking actions
   const canRebook =
     booking.bookingStatus === 'CANCELLED_BY_CLIENT' ||
     booking.bookingStatus === 'CANCELLED_BY_PROVIDER' ||
     booking.bookingStatus === 'NO_SHOW';
 
-  const canReview = booking.bookingStatus === 'COMPLETED';
-  const canTip = booking.bookingStatus === 'COMPLETED' && booking.paymentStatus === 'FULLY_PAID';
+  const canReview = booking.bookingStatus === 'COMPLETED' && !booking.review;
+  const canTip = booking.bookingStatus === 'COMPLETED' && booking.paymentStatus === 'FULLY_PAID' && !booking.tipPaidAt;
+
+  // Report no-show - only after appointment time for confirmed bookings
+  const canReportNoShow = booking.bookingStatus === 'CONFIRMED' && isAfterAppointment;
 
   return (
     <div className="space-y-6">
@@ -362,6 +372,11 @@ export default function ClientBookingDetailPage() {
             />
           )}
 
+          {/* Review Display */}
+          {booking.review && (
+            <BookingReview review={booking.review} />
+          )}
+
           {/* Refund Status */}
           {refunds.length > 0 && (
             <div className="space-y-4">
@@ -389,28 +404,17 @@ export default function ClientBookingDetailPage() {
                     <p className="text-sm text-muted-foreground">Professional service</p>
                     <div className="flex items-center gap-4 mt-2 text-sm">
                       <div className="flex items-center gap-1">
-                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                        <span>4.5</span>
-                        <span className="text-muted-foreground">(0 reviews)</span>
+                        <Star className="h-4 w-4 fill-rating-filled text-rating-filled" />
+                        <span>{booking.provider?.averageRating ? Number(booking.provider.averageRating).toFixed(1) : '0.0'}</span>
+                        <span className="text-muted-foreground">
+                          ({booking.provider?.totalReviews || 0} {booking.provider?.totalReviews === 1 ? 'review' : 'reviews'})
+                        </span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    <span>
-                      {booking.bookingStatus === 'CONFIRMED'
-                        ? booking.provider?.businessPhone || 'Not provided'
-                        : 'Available after booking confirmation'}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <span>Contact via platform</span>
-                  </div>
-                </div>
+                
               </div>
             </CardContent>
           </Card>
@@ -419,7 +423,7 @@ export default function ClientBookingDetailPage() {
         {/* Sidebar */}
         <div className="space-y-6">
           {/* Countdown Timers */}
-          {booking.paymentStatus === 'AWAITING_DEPOSIT' && (
+          {booking.paymentStatus === 'AWAITING_DEPOSIT' && booking.bookingStatus !== 'CANCELLED_BY_CLIENT' && (
             <BookingCountdownTimer
               deadline={new Date(new Date(booking.createdAt).getTime() + 24 * 60 * 60 * 1000)}
               type="deposit"
@@ -456,22 +460,23 @@ export default function ClientBookingDetailPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Status</span>
                   <Badge
-                    className={
-                      booking.paymentStatus === 'FULLY_PAID'
-                        ? 'bg-green-100 text-green-800 border-green-200'
-                        : booking.paymentStatus === 'DEPOSIT_PAID'
-                          ? 'bg-blue-100 text-blue-800 border-blue-200'
-                          : booking.paymentStatus === 'AWAITING_DEPOSIT'
-                            ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
-                            : 'bg-gray-100 text-gray-800 border-gray-200'
-                    }
-                  >
+                    className={`
+                      ${
+                        booking.paymentStatus === 'FULLY_PAID'
+                          ? 'bg-success/10 text-success border-success/30'
+                          : booking.paymentStatus === 'DEPOSIT_PAID'
+                            ? 'bg-info/10 text-info border-info/30'
+                            : booking.paymentStatus === 'AWAITING_DEPOSIT'
+                              ? 'bg-warning/10 text-warning border-warning/30'
+                              : 'bg-muted text-muted-foreground border-border'
+                      }
+                    `}>
                     {booking.paymentStatus.replace('_', ' ')}
                   </Badge>
                 </div>
 
-                {/* Warning for unpaid deposit */}
-                {booking.paymentStatus === 'AWAITING_DEPOSIT' && (
+                {/* Warning for unpaid deposit - only show for active bookings */}
+                {booking.paymentStatus === 'AWAITING_DEPOSIT' && isActiveBooking && (
                   <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
@@ -480,35 +485,40 @@ export default function ClientBookingDetailPage() {
                   </Alert>
                 )}
 
-                {booking.paidAt && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Paid On</span>
-                    <span className="text-sm font-medium">
-                      {new Date(booking.paidAt).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
-                    </span>
-                  </div>
-                )}
+                {/* Only show payment details if payment has been made */}
+                {booking.paymentStatus !== 'AWAITING_DEPOSIT' && (
+                  <>
+                    {booking.paidAt && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Paid On</span>
+                        <span className="text-sm font-medium">
+                          {new Date(booking.paidAt).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })}
+                        </span>
+                      </div>
+                    )}
 
-                {booking.paymentMethod && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Method</span>
-                    <span className="text-sm font-medium capitalize">
-                      {booking.paymentChannel || booking.paymentMethod}
-                    </span>
-                  </div>
-                )}
+                    {booking.paymentMethod && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Method</span>
+                        <span className="text-sm font-medium capitalize">
+                          {booking.paymentChannel || booking.paymentMethod}
+                        </span>
+                      </div>
+                    )}
 
-                {(booking.paystackReference || booking.stripePaymentIntentId) && (
-                  <div className="flex flex-col gap-1">
-                    <span className="text-sm text-muted-foreground">Transaction ID</span>
-                    <span className="text-xs font-mono bg-muted px-2 py-1 rounded">
-                      {booking.paystackReference || booking.stripePaymentIntentId}
-                    </span>
-                  </div>
+                    {(booking.paystackReference || booking.stripePaymentIntentId) && (
+                      <div className="flex flex-col gap-1">
+                        <span className="text-sm text-muted-foreground">Transaction ID</span>
+                        <span className="text-xs font-mono bg-muted px-2 py-1 rounded">
+                          {booking.paystackReference || booking.stripePaymentIntentId}
+                        </span>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </CardContent>
@@ -570,19 +580,19 @@ export default function ClientBookingDetailPage() {
                   </div>
                   <div className="flex justify-between text-sm pl-4">
                     <span>Deposit (25%)</span>
-                    <span className="text-green-600">
+                    <span className="text-success">
                       {formatCurrency(booking.depositAmount, booking.currency)}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm pl-4">
                     <span>Platform Fee</span>
-                    <span className="text-green-600">
+                    <span className="text-success">
                       {formatCurrency(booking.serviceFee, booking.currency)}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm font-medium pl-4 border-t pt-2">
                     <span>Total Paid</span>
-                    <span className="text-green-600">
+                    <span className="text-success">
                       {formatCurrency(Number(booking.depositAmount) + Number(booking.serviceFee), booking.currency)}
                     </span>
                   </div>
@@ -593,7 +603,7 @@ export default function ClientBookingDetailPage() {
                   <div className="border-t pt-3">
                     <div className="flex justify-between text-sm font-medium">
                       <span>Balance Due (at appointment)</span>
-                      <span className="text-amber-600">
+                      <span className="text-warning">
                         {formatCurrency(
                           Number(booking.servicePrice) - Number(booking.depositAmount),
                           booking.currency
@@ -608,7 +618,7 @@ export default function ClientBookingDetailPage() {
                   <div className="border-t pt-3">
                     <div className="flex justify-between text-sm">
                       <span>Tip Paid</span>
-                      <span className="text-green-600">
+                      <span className="text-success">
                         {formatCurrency(booking.tipAmount, booking.currency)}
                       </span>
                     </div>
@@ -665,7 +675,7 @@ export default function ClientBookingDetailPage() {
               {canTip && (
                 <Button
                   onClick={handleTipPayment}
-                  className="w-full gap-2 bg-pink-500 hover:bg-pink-600"
+                  className="w-full gap-2 bg-accent hover:bg-accent/90"
                 >
                   <Star className="h-4 w-4" />
                   Send Tip
@@ -674,7 +684,7 @@ export default function ClientBookingDetailPage() {
 
               {canReview && (
                 <Button
-                  onClick={() => router.push(`/client/bookings/${bookingId}/review`)}
+                  onClick={() => setReviewModalOpen(true)}
                   variant="outline"
                   className="w-full gap-2"
                 >
@@ -684,17 +694,16 @@ export default function ClientBookingDetailPage() {
               )}
 
               {/* Report Provider No-Show - After appointment time for CONFIRMED bookings */}
-              {booking.bookingStatus === 'CONFIRMED' &&
-                new Date(`${booking.appointmentDate}T${booking.appointmentTime}`) < new Date() && (
-                  <Button
-                    variant="destructive"
-                    onClick={() => setReportNoShowModalOpen(true)}
-                    className="w-full gap-2"
-                  >
-                    <AlertCircle className="h-4 w-4" />
-                    Report Provider No-Show
-                  </Button>
-                )}
+              {canReportNoShow && (
+                <Button
+                  variant="destructive"
+                  onClick={() => setReportNoShowModalOpen(true)}
+                  className="w-full gap-2"
+                >
+                  <AlertCircle className="h-4 w-4" />
+                  Report Provider No-Show
+                </Button>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -745,6 +754,15 @@ export default function ClientBookingDetailPage() {
             onOpenChange={setTipPaymentModalOpen}
             bookingId={bookingId}
             currency={booking.currency}
+            onSuccess={fetchBooking}
+          />
+
+          <ReviewModal
+            open={reviewModalOpen}
+            onOpenChange={setReviewModalOpen}
+            bookingId={bookingId}
+            providerName={booking.provider?.businessName || 'Provider'}
+            serviceName={booking.service?.title || 'Service'}
             onSuccess={fetchBooking}
           />
 

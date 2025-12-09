@@ -78,9 +78,9 @@ export function ReportNoShowModal({ open, onOpenChange, booking, onSuccess }: Re
 
         <div className="space-y-4 py-4">
           {/* Refund Information */}
-          <Alert className="border-green-200 bg-green-50">
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-            <AlertDescription className="text-green-900">
+          <Alert className="border-success/30 bg-success/10">
+            <CheckCircle2 className="h-4 w-4 text-success" />
+            <AlertDescription className="text-success">
               <strong>Full Refund:</strong> You will receive a complete refund of{' '}
               <span className="font-semibold">
                 {booking.currency} {Number(refundAmount).toFixed(2)}

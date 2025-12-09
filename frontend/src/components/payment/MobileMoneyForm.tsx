@@ -178,8 +178,8 @@ export function MobileMoneyForm({
 
       {/* Test Mode Notice */}
       {process.env.NODE_ENV === 'development' && (
-        <Alert variant="default" className="bg-yellow-50 dark:bg-yellow-950 border-yellow-200 dark:border-yellow-800">
-          <AlertDescription className="text-yellow-800 dark:text-yellow-200">
+        <Alert variant="default" className="bg-warning/10 border-warning/30">
+          <AlertDescription className="text-warning">
             <strong>Test Mode:</strong> Use test number 055 123 4987 for MTN Ghana
           </AlertDescription>
         </Alert>

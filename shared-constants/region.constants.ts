@@ -7,14 +7,14 @@ export const REGIONS = {
   NA: {
     code: 'NA' as const,
     name: 'North America',
-    currency: 'USD',
-    paymentProvider: 'stripe' as const, // ✅ NA uses Stripe for USD
+    currency: 'GHS',
+    paymentProvider: 'paystack' as const, // ✅ NA uses Stripe for USD
   },
   EU: {
     code: 'EU' as const,
     name: 'Europe',
-    currency: 'USD',
-    paymentProvider: 'stripe' as const, // ✅ EU uses Stripe for USD
+    currency: 'GHS',
+    paymentProvider: 'paystack' as const, // ✅ EU uses Stripe for USD
   },
   GH: {
     code: 'GH' as const,

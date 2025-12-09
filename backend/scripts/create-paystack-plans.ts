@@ -57,11 +57,11 @@ async function createPlan(planData: PlanData): Promise<string> {
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(`Failed to create plan ${planData.name}: ${error.message}`);
+    const error = await response.json() as { message?: string };
+    throw new Error(`Failed to create plan ${planData.name}: ${error.message || 'Unknown error'}`);
   }
 
-  const data = await response.json();
+  const data = await response.json() as { data: { plan_code: string } };
   return data.data.plan_code;
 }
 

@@ -263,7 +263,14 @@ export async function getSubscriptionInfo(
     const userId = req.user?.id;
     if (!userId) throw new AppError(401, 'Unauthorized');
 
-    const subscription = await settingsService.getSubscriptionInfo(userId);
+    // Get current region from middleware
+    const regionInfo = req.clientRegion || {
+      regionCode: 'NA',
+      currency: 'USD',
+      paymentProvider: 'stripe',
+    };
+
+    const subscription = await settingsService.getSubscriptionInfo(userId, regionInfo);
 
     sendSuccess<SubscriptionInfoResponse>(res, subscription);
   } catch (error) {
@@ -375,7 +382,13 @@ export async function updatePaymentMethod(
 
     const data = schema.parse(req.body) as UpdatePaymentMethodRequest;
 
-    await settingsService.updatePaymentMethod(userId, data.paymentMethodId, data.region);
+      const regionInfo = req.clientRegion || {
+      regionCode: 'NA',
+      currency: 'USD',
+      paymentProvider: 'stripe',
+    };
+
+    await settingsService.updatePaymentMethod(userId, data.paymentMethodId, regionInfo.regionCode);
 
     sendSuccess(res, {
       message: 'Payment method updated successfully',
@@ -753,7 +766,14 @@ export async function changeSubscriptionTier(
 
     const data = schema.parse(req.body) as ChangeTierRequest;
 
-    const result = await settingsService.changeSubscriptionTier(userId, data);
+    // Get current region from middleware
+    const regionInfo = req.clientRegion || {
+      regionCode: 'NA',
+      currency: 'USD',
+      paymentProvider: 'stripe',
+    };
+
+    const result = await settingsService.changeSubscriptionTier(userId, data, regionInfo);
 
     sendSuccess<ChangeTierResponse>(res, result);
   } catch (error) {
@@ -785,7 +805,14 @@ export async function cancelSubscription(
 
     const data = schema.parse(req.body) as CancelSubscriptionRequest;
 
-    const result = await settingsService.cancelSubscription(userId, data);
+    // Get current region from middleware
+    const regionInfo = req.clientRegion || {
+      regionCode: 'NA',
+      currency: 'USD',
+      paymentProvider: 'stripe',
+    };
+
+    const result = await settingsService.cancelSubscription(userId, data, regionInfo);
 
     sendSuccess<CancelSubscriptionResponse>(res, result);
   } catch (error) {

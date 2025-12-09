@@ -48,11 +48,12 @@ const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY 
 interface Step6PaymentSetupProps {
   subscriptionTier: SubscriptionTier;
   country?: string; // Country from Business Details step
+  paymentSetup?: boolean; // Whether payment is already complete
   onNext: () => Promise<void>;
   onBack: () => void;
 }
 
-export function Step6PaymentSetup({ subscriptionTier, country = 'US', onNext, onBack }: Step6PaymentSetupProps) {
+export function Step6PaymentSetup({ subscriptionTier, country = 'US', paymentSetup = false, onNext, onBack }: Step6PaymentSetupProps) {
   const [paymentInfo, setPaymentInfo] = useState(getPaymentInfoFromCountry(country));
   const [showCardForm, setShowCardForm] = useState(false);
   
@@ -82,6 +83,62 @@ export function Step6PaymentSetup({ subscriptionTier, country = 'US', onNext, on
   const trialDisplay = trialMonths > 0 
     ? `${trialMonths}-month${trialMonths > 1 ? 's' : ''}${trialDays > 0 ? ` ${trialDays} days` : ''}`
     : `${trialDays} days`;
+
+  // If payment is already complete, show success state
+  if (paymentSetup) {
+    return (
+      <div className="max-w-7xl w-full flex flex-col items-center justify-center">
+        <div className="text-center mb-8">
+          <div className="mx-auto w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mb-4">
+            <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
+          </div>
+          <h1 className="text-4xl font-bold mb-4">Payment Setup Complete</h1>
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+            Your subscription is active and ready to use
+          </p>
+        </div>
+
+        <Card className="mb-6 w-full max-w-2xl">
+          <CardHeader>
+            <CardTitle>Active Subscription</CardTitle>
+            <CardDescription>Your {tierInfo.name} plan is active</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="p-6 border rounded-lg bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h3 className="text-2xl font-bold">{tierInfo.name}</h3>
+                  <p className="text-muted-foreground mt-1">
+                    {subscriptionTier === 'solo' ? 'Perfect for individual professionals' : 'Ideal for salons and teams'}
+                  </p>
+                </div>
+                <Badge variant="secondary" className="text-lg px-4 py-2 bg-green-600 text-white">
+                  Active
+                </Badge>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-4">
+                {tierInfo.features.map((feature, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                    <span className="text-sm">{feature}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="flex justify-between pt-6 w-full max-w-2xl">
+          <Button variant="outline" onClick={onBack} className="gap-2">
+            Back
+          </Button>
+          <Button onClick={onNext} className="gap-2">
+            Continue to Availability
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl  w-full flex flex-col items-center justify-center">

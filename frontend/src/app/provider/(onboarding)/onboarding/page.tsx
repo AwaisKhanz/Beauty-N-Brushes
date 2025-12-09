@@ -334,6 +334,7 @@ export default function OnboardingPage() {
             <Step6PaymentSetup
               subscriptionTier={defaultValues.accountType === 'salon' ? 'salon' : 'solo'}
               country={defaultValues.country || 'US'}
+              paymentSetup={steps.find(s => s.id === 5)?.completed || false}
               onNext={() => handleNext(5, {})}
               onBack={handleBack}
             />

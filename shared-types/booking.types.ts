@@ -183,6 +183,10 @@ export interface BookingDetails {
   totalAmount: number; // ✅ Total paid at booking (deposit + serviceFee)
   balanceDue: number; // ✅ ADD THIS - Remaining amount (servicePrice - depositAmount)
   tipAmount: number;
+  tipPaidAt: string | null;
+  tipPaymentMethod: string | null; // 'online', 'cash'
+  paystackTipReference: string | null;
+  stripeTipReference: string | null;
   currency: string;
 
   // Add-ons - ADD THIS
@@ -256,6 +260,8 @@ export interface BookingDetails {
     city: string;
     state: string;
     isSalon: boolean;
+    averageRating: number;
+    totalReviews: number;
     cancellationWindowHours: number | null;
     cancellationFeePercentage: number | null;
     cancellationPolicy: string | null;
@@ -275,6 +281,14 @@ export interface BookingDetails {
     email: string;
     phone: string | null;
   };
+
+  // Review
+  review?: {
+    id: string;
+    overallRating: number;
+    reviewText: string | null;
+    createdAt: string;
+  } | null;
 }
 
 export interface CreateBookingResponse {

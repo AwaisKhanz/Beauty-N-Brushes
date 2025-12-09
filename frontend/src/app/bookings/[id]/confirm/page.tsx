@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 interface PageProps {
   params: {
@@ -17,7 +17,6 @@ interface PageProps {
 export default function BookingConfirmationPage({ params }: PageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { toast } = useToast();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('Verifying your payment...');
 
@@ -37,17 +36,14 @@ export default function BookingConfirmationPage({ params }: PageProps) {
         await api.payment.verifyPaystack(reference || trxref || '');
         setStatus('success');
         setMessage('Payment successful! Your booking has been confirmed.');
-        toast({
-          title: 'Payment Successful',
+        toast('Payment Successful', {
           description: 'Your booking has been confirmed.',
         });
       } catch (error) {
         console.error('Payment verification failed:', error);
         setStatus('error');
         setMessage('Failed to verify payment. Please contact support if you were charged.');
-        toast({
-          variant: 'destructive',
-          title: 'Verification Failed',
+        toast('Verification Failed', {
           description: 'Could not verify payment status.',
         });
       }
@@ -65,7 +61,7 @@ export default function BookingConfirmationPage({ params }: PageProps) {
               <Loader2 className="h-12 w-12 animate-spin text-primary" />
             )}
             {status === 'success' && (
-              <CheckCircle2 className="h-12 w-12 text-green-500" />
+              <CheckCircle2 className="h-12 w-12 text-success" />
             )}
             {status === 'error' && (
               <XCircle className="h-12 w-12 text-destructive" />
@@ -82,7 +78,7 @@ export default function BookingConfirmationPage({ params }: PageProps) {
           {status === 'success' && (
             <Button 
               className="w-full" 
-              onClick={() => router.push('/client')}
+              onClick={() => router.push(`/client/bookings/${params.id}`)}
             >
               Go to My Bookings
             </Button>

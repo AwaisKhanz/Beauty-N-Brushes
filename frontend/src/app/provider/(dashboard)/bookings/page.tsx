@@ -312,7 +312,9 @@ export default function BookingsPage() {
                       <Badge variant={getPaymentStatusColor(booking.paymentStatus)}>
                         {booking.paymentStatus.replace(/_/g, ' ')}
                       </Badge>
-                      {calculateBalanceOwed(booking) > 0 && (
+                      {/* Only show balance owed for active bookings */}
+                      {calculateBalanceOwed(booking) > 0 &&
+                        !['CANCELLED_BY_CLIENT', 'CANCELLED_BY_PROVIDER', 'NO_SHOW', 'COMPLETED'].includes(booking.bookingStatus) && (
                         <div className="text-xs text-muted-foreground mt-1">
                           {booking.currency} {calculateBalanceOwed(booking).toFixed(2)} owed
                         </div>

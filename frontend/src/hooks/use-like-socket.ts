@@ -5,7 +5,7 @@
 
 import { useEffect, useCallback } from 'react';
 import { useSocket } from '@/contexts/SocketContext';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 
 interface LikeSocketData {
@@ -19,35 +19,30 @@ interface LikeSocketData {
 
 export function useLikeSocket() {
   const { socket } = useSocket();
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Handle provider liked event
   const handleProviderLiked = useCallback((data: LikeSocketData) => {
-    toast({
-      title: `${data.likeCount} New ${data.likeCount === 1 ? 'Like' : 'Likes'}! ❤️`,
+    toast.success(`${data.likeCount} New ${data.likeCount === 1 ? 'Like' : 'Likes'}! ❤️`, {
       description: `Total likes: ${data.totalLikes}`,
-      variant: 'default',
     });
 
     // Invalidate analytics and stats queries
     queryClient.invalidateQueries({ queryKey: ['provider-stats'] });
     queryClient.invalidateQueries({ queryKey: ['analytics'] });
-  }, [toast, queryClient]);
+  }, [queryClient]);
 
   // Handle service liked event
   const handleServiceLiked = useCallback((data: LikeSocketData) => {
-    toast({
-      title: 'Service Liked! ❤️',
+    toast.success('Service Liked! ❤️', {
       description: `${data.serviceName} received ${data.likeCount} new ${data.likeCount === 1 ? 'like' : 'likes'}`,
-      variant: 'default',
     });
 
     // Invalidate service and stats queries
     queryClient.invalidateQueries({ queryKey: ['services'] });
     queryClient.invalidateQueries({ queryKey: ['service', data.serviceId] });
     queryClient.invalidateQueries({ queryKey: ['provider-stats'] });
-  }, [toast, queryClient]);
+  }, [queryClient]);
 
   // Set up Socket.IO listeners
   useEffect(() => {

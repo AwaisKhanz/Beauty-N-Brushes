@@ -17,7 +17,6 @@ interface RefundUpdateData {
  */
 export function useRefundSocket(bookingId: string, onRefundUpdate: () => void) {
   const { socket } = useSocket();
-
   const handleRefundUpdate = useCallback((data: RefundUpdateData) => {
     if (data.bookingId === bookingId) {
       console.log('🔄 Refund updated:', data);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Clock, AlertTriangle } from 'lucide-react';
@@ -49,20 +49,26 @@ function formatTimeRemaining(time: TimeRemaining): string {
 
 export function BookingCountdownTimer({ deadline, type, onExpired }: CountdownTimerProps) {
   const [timeRemaining, setTimeRemaining] = useState<TimeRemaining>(calculateTimeRemaining(deadline));
+  const onExpiredRef = useRef(onExpired);
+
+  // Update ref when onExpired changes
+  useEffect(() => {
+    onExpiredRef.current = onExpired;
+  }, [onExpired]);
 
   useEffect(() => {
     const interval = setInterval(() => {
       const remaining = calculateTimeRemaining(deadline);
       setTimeRemaining(remaining);
 
-      if (remaining.total <= 0 && onExpired) {
-        onExpired();
+      if (remaining.total <= 0 && onExpiredRef.current) {
+        onExpiredRef.current();
         clearInterval(interval);
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [deadline, onExpired]);
+  }, [deadline]);
 
   // Determine urgency level
   const totalHours = timeRemaining.total / (1000 * 60 * 60);
@@ -86,14 +92,14 @@ export function BookingCountdownTimer({ deadline, type, onExpired }: CountdownTi
   };
 
   return (
-    <Alert variant={isUrgent ? 'destructive' : 'default'} className={isWarning ? 'border-yellow-500 bg-yellow-50' : ''}>
+    <Alert variant={isUrgent ? 'destructive' : 'default'} className={isWarning ? 'border-warning/30 bg-warning/10' : ''}>
       <div className="flex items-center gap-2">
         {isUrgent ? (
           <AlertTriangle className="h-4 w-4" />
         ) : (
-          <Clock className="h-4 w-4" />
+          <Clock className={`h-4 w-4 ${isWarning ? 'text-warning' : ''}`} />
         )}
-        <AlertDescription className="flex items-center gap-2">
+        <AlertDescription className={`flex items-center gap-2 ${isWarning ? 'text-warning' : ''}`}>
           <span>{getMessage()}</span>
           <Badge variant={isUrgent ? 'destructive' : isWarning ? 'secondary' : 'outline'} className="font-mono">
             {formatTimeRemaining(timeRemaining)}

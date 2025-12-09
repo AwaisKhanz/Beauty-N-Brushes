@@ -530,6 +530,51 @@ async function handleSubscriptionResumed(subscription: Stripe.Subscription): Pro
 }
 
 /**
+ * Handle tip payment succeeded (Stripe)
+ */
+async function handleTipPaymentSucceeded(paymentIntent: Stripe.PaymentIntent): Promise<void> {
+  logger.info(`Tip payment succeeded: ${paymentIntent.id}`);
+
+  const metadata = paymentIntent.metadata;
+  const bookingId = metadata?.bookingId;
+  const tipAmount = metadata?.tipAmount ? parseFloat(metadata.tipAmount) : paymentIntent.amount / 100;
+
+  if (!bookingId) return;
+
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    select: { id: true, clientId: true },
+  });
+
+  if (!booking) return;
+
+  await prisma.booking.update({
+    where: { id: bookingId },
+    data: {
+      tipAmount,
+      tipPaidAt: new Date(),
+      tipPaymentMethod: 'online',
+      stripeTipReference: paymentIntent.id,
+    },
+  });
+
+  // ✅ Emit socket event to client for real-time update
+  try {
+    const io = getSocketIO();
+    io.to(`user:${booking.clientId}`).emit('booking:updated', {
+      bookingId: booking.id,
+      tipAmount,
+      tipPaidAt: new Date(),
+    });
+    logger.info(`Socket event emitted to client ${booking.clientId} for Stripe tip`);
+  } catch (socketError) {
+    logger.error('Error emitting socket event:', socketError);
+  }
+
+  logger.info(`Booking ${bookingId} tip paid via Stripe: ${tipAmount}`);
+}
+
+/**
  * Handle booking deposit payment succeeded (Stripe)
  */
 async function handleBookingPaymentSucceeded(paymentIntent: Stripe.PaymentIntent): Promise<void> {
@@ -537,6 +582,12 @@ async function handleBookingPaymentSucceeded(paymentIntent: Stripe.PaymentIntent
 
   const metadata = paymentIntent.metadata;
   const type = metadata?.type;
+
+  // Handle tip payment
+  if (type === 'tip_payment') {
+    await handleTipPaymentSucceeded(paymentIntent);
+    return;
+  }
 
   if (type === 'booking_deposit') {
     const bookingId = metadata?.bookingId;
@@ -971,6 +1022,122 @@ async function handlePaystackChargeSuccess(data: PaystackChargeData): Promise<vo
       }
 
       logger.info(`Booking ${bookingId} balance paid via Paystack`);
+    }
+    return;
+  }
+
+  // Handle tip payment
+  if (type === 'tip_payment') {
+    const bookingId = metadata?.bookingId;
+    const tipAmount = metadata?.tipAmount ? parseFloat(String(metadata.tipAmount)) : data.amount / 100;
+    
+    if (!bookingId) return;
+
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      select: { id: true, clientId: true },
+    });
+
+    if (!booking) return;
+
+    await prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        tipAmount,
+        tipPaidAt: new Date(),
+        tipPaymentMethod: 'online',
+        paystackTipReference: data.reference,
+      },
+    });
+
+    // ✅ Emit socket event to client for real-time update
+    try {
+      const io = getSocketIO();
+      io.to(`user:${booking.clientId}`).emit('booking:updated', {
+        bookingId: booking.id,
+        tipAmount,
+        tipPaidAt: new Date(),
+      });
+      logger.info(`Socket event emitted to client ${booking.clientId} for Paystack tip`);
+    } catch (socketError) {
+      logger.error('Error emitting socket event:', socketError);
+    }
+
+    logger.info(`Booking ${bookingId} tip paid via Paystack: ${tipAmount}`);
+    return;
+  }
+
+  // Handle subscription initialization payment
+  // This is the FIRST payment - creates the subscription with authorization code
+  if (type === 'subscription_initialization') {
+    const planCode = metadata?.planCode;
+    const userId = metadata?.userId;
+    const customerCode = metadata?.customerCode;
+
+    if (!planCode || !userId || !customerCode) {
+      logger.warn('Missing metadata for subscription initialization');
+      return;
+    }
+
+    logger.info(`Creating Paystack subscription for user ${userId} with plan ${planCode}`);
+
+    try {
+      // Create subscription with authorization code from payment
+      const subscriptionResponse = await fetch('https://api.paystack.co/subscription', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${paymentConfig.paystack.secretKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customer: customerCode,
+          plan: planCode,
+          authorization: data.authorization.authorization_code,
+          start_date: new Date().toISOString(),
+        }),
+      });
+
+      if (!subscriptionResponse.ok) {
+        const error = await subscriptionResponse.json();
+        logger.error('Failed to create Paystack subscription:', error);
+        return;
+      }
+
+      const subscriptionData = (await subscriptionResponse.json()) as {
+        status: boolean;
+        data: {
+          subscription_code: string;
+          email_token: string;
+          next_payment_date: string;
+          amount: number;
+          status: string;
+        };
+      };
+
+      if (!subscriptionData.status) {
+        logger.error('Paystack subscription creation failed');
+        return;
+      }
+
+      // Save subscription to database
+      await prisma.providerProfile.update({
+        where: { userId: userId as string },
+        data: {
+          paystackCustomerCode: customerCode, // Save customer code
+          paystackSubscriptionCode: subscriptionData.data.subscription_code,
+          paystackEmailToken: subscriptionData.data.email_token,
+          subscriptionStatus: 'ACTIVE',
+          nextBillingDate: new Date(subscriptionData.data.next_payment_date),
+          monthlyFee: subscriptionData.data.amount / 100,
+          paymentMethodId: data.authorization.authorization_code,
+          last4Digits: data.authorization.last4,
+          cardBrand: data.authorization.brand,
+        },
+      });
+
+      logger.info(`✅ Paystack subscription created: ${subscriptionData.data.subscription_code}`);
+    } catch (error) {
+      logger.error('Error creating Paystack subscription:', error);
     }
     return;
   }

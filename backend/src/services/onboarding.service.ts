@@ -473,10 +473,6 @@ export class OnboardingService {
         user: true,
         policies: true,
         availability: true,
-        locations: {
-          where: { isPrimary: true },
-          take: 1,
-        },
       },
     });
 
@@ -497,17 +493,18 @@ export class OnboardingService {
     }
 
     // Check if payment setup is complete (either Stripe or Paystack)
-    // For Paystack during trial, customer code is enough (subscription created later with payment)
+    // For Stripe: Need both customer and subscription
+    // For Paystack: Need subscription code (customer code alone is not enough)
     const hasPaymentSetup =
       !!(profile.stripeCustomerId && profile.stripeSubscriptionId) ||
-      !!profile.paystackCustomerCode;
+      !!profile.paystackSubscriptionCode; // Check for actual subscription, not just customer
 
     return {
       hasProfile: true,
       completed: profile.profileCompleted,
       steps: {
         accountType: true,
-        businessDetails: !!profile.businessName && !!profile.locations[0]?.addressLine1,
+        businessDetails: !!profile.businessName && !!profile.addressLine1,
         profileMedia: !!profile.user.avatarUrl, // Profile photo is REQUIRED
         brandCustomization: true, // TEMPORARY: Skipped as per requirement
         policies: !!profile.policies,
@@ -521,15 +518,15 @@ export class OnboardingService {
         businessType: profile.businessType,
         description: profile.description,
         tagline: profile.tagline,
-        // Get location data from ProviderLocation table
-        addressLine1: profile.locations[0]?.addressLine1 || null,
-        addressLine2: profile.locations[0]?.addressLine2 || null,
+        // Get location data from ProviderProfile table (address is stored there)
+        addressLine1: profile.addressLine1 || null,
+        addressLine2: profile.addressLine2 || null,
         city: profile.city,
         state: profile.state,
         zipCode: profile.zipCode,
         country: profile.country,
-        latitude: profile.locations[0]?.latitude ? Number(profile.locations[0].latitude) : null,
-        longitude: profile.locations[0]?.longitude ? Number(profile.locations[0].longitude) : null,
+        latitude: profile.latitude ? Number(profile.latitude) : null,
+        longitude: profile.longitude ? Number(profile.longitude) : null,
         businessEmail: profile.businessEmail,
         businessPhone: profile.businessPhone,
         instagramHandle: profile.instagramHandle,

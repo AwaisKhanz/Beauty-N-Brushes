@@ -108,7 +108,6 @@ export interface UpdateAccountRequest {
 
 export interface UpdatePaymentMethodRequest {
   paymentMethodId: string; // Stripe PaymentMethod ID or Paystack authorization code
-  region: 'NA' | 'EU' | 'GH' | 'NG';
 }
 
 // ================================

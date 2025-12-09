@@ -5,7 +5,7 @@
 
 import { useEffect, useCallback } from 'react';
 import { useSocket } from '@/contexts/SocketContext';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 
 interface ReviewSocketData {
@@ -23,60 +23,51 @@ interface ReviewSocketData {
 
 export function useReviewSocket() {
   const { socket } = useSocket();
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Handle review received event
   const handleReviewReceived = useCallback((data: ReviewSocketData) => {
-    toast({
-      title: 'New Review Received! ⭐',
+    toast.success('New Review Received! ⭐', {
       description: `${data.review?.clientName} left a ${data.review?.rating}-star review`,
-      variant: 'default',
     });
 
     // Invalidate reviews query to refresh list
     queryClient.invalidateQueries({ queryKey: ['reviews'] });
     queryClient.invalidateQueries({ queryKey: ['provider-stats'] });
-  }, [toast, queryClient]);
+  }, [queryClient]);
 
   // Handle provider response event
   const handleReviewResponse = useCallback((data: ReviewSocketData) => {
-    toast({
-      title: 'Provider Responded',
+    toast.success('Provider Responded', {
       description: `${data.review?.providerName} responded to your review`,
-      variant: 'default',
     });
 
     // Invalidate reviews query
     queryClient.invalidateQueries({ queryKey: ['reviews'] });
     queryClient.invalidateQueries({ queryKey: ['review', data.review?.id] });
-  }, [toast, queryClient]);
+  }, [queryClient]);
 
   // Handle review marked helpful event
   const handleReviewHelpful = useCallback((data: ReviewSocketData) => {
-    toast({
-      title: 'Review Helpful! 👍',
+    toast.success('Review Helpful! 👍', {
       description: 'Someone found your review helpful',
-      variant: 'default',
     });
 
     // Invalidate reviews query
     queryClient.invalidateQueries({ queryKey: ['reviews'] });
     queryClient.invalidateQueries({ queryKey: ['review', data.review?.id] });
-  }, [toast, queryClient]);
+  }, [queryClient]);
 
   // Handle review milestone event
   const handleReviewMilestone = useCallback((data: ReviewSocketData) => {
-    toast({
-      title: `🎉 ${data.milestone?.count} Reviews Milestone!`,
+    toast.success(`🎉 ${data.milestone?.count} Reviews Milestone!`, {
       description: `Congratulations! Average rating: ${data.milestone?.avgRating?.toFixed(1)} stars`,
-      variant: 'default',
     });
 
     // Invalidate reviews and stats queries
     queryClient.invalidateQueries({ queryKey: ['reviews'] });
     queryClient.invalidateQueries({ queryKey: ['provider-stats'] });
-  }, [toast, queryClient]);
+  }, [queryClient]);
 
   // Set up Socket.IO listeners
   useEffect(() => {

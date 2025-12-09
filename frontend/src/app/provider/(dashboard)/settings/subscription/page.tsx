@@ -262,9 +262,12 @@ export default function SubscriptionPage() {
                 <CardTitle>Payment Method</CardTitle>
                 <CardDescription>Your default payment method for subscriptions</CardDescription>
               </div>
-              <Button variant="outline" size="sm" onClick={() => setPaymentModalOpen(true)}>
-                Update Payment Method
-              </Button>
+              {/* Only show update button for Stripe */}
+              {subscription.paymentProvider === 'stripe' && (
+                <Button variant="outline" size="sm" onClick={() => setPaymentModalOpen(true)}>
+                  Update Payment Method
+                </Button>
+              )}
             </div>
           </CardHeader>
           <CardContent>
@@ -302,27 +305,30 @@ export default function SubscriptionPage() {
             <CardDescription>Manage your subscription plan</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Change Tier */}
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div>
-                <p className="font-medium">Change Subscription Tier</p>
-                <p className="text-sm text-muted-foreground">
-                  {subscription.subscriptionTier === 'solo'
-                    ? 'Upgrade to Salon plan for team features'
-                    : 'Downgrade to Solo plan if you no longer need team features'}
-                </p>
+            {/* Change Tier - Only show if subscription is active */}
+            {subscription.subscriptionStatus !== 'cancelled' && !subscription.cancelAtPeriodEnd && (
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div>
+                  <p className="font-medium">Change Subscription Tier</p>
+                  <p className="text-sm text-muted-foreground">
+                    {subscription.subscriptionTier === 'solo'
+                      ? 'Upgrade to Salon plan for team features'
+                      : 'Downgrade to Solo plan if you no longer need team features'}
+                  </p>
+                </div>
+                <Button variant="outline" onClick={() => setChangeTierModalOpen(true)}>
+                  <ArrowUpDown className="mr-2 h-4 w-4" />
+                  Change Plan
+                </Button>
               </div>
-              <Button variant="outline" onClick={() => setChangeTierModalOpen(true)}>
-                <ArrowUpDown className="mr-2 h-4 w-4" />
-                Change Plan
-              </Button>
-            </div>
+            )}
 
             {/* Cancel */}
             {subscription.cancelAtPeriodEnd ? (
-              <div className="flex items-center justify-between p-4 border rounded-lg border-yellow-200 bg-yellow-50 dark:bg-yellow-900/10 dark:border-yellow-900/30">
+              // Stripe: Scheduled cancellation (can be resumed)
+              <div className="flex items-center justify-between p-4 border rounded-lg border-warning/30 bg-warning/10">
                 <div>
-                  <p className="font-medium text-yellow-800 dark:text-yellow-500">
+                  <p className="font-medium text-warning">
                     Subscription Cancelling
                   </p>
                   <p className="text-sm text-muted-foreground">
@@ -334,12 +340,25 @@ export default function SubscriptionPage() {
                   variant="outline"
                   onClick={() => setResumeConfirmOpen(true)}
                   disabled={resumeLoading}
-                  className="border-yellow-200 hover:bg-yellow-100 dark:border-yellow-800 dark:hover:bg-yellow-900/20"
+                  className="border-warning/30 hover:bg-warning/10"
                 >
                   {resumeLoading ? 'Resuming...' : 'Resume Plan'}
                 </Button>
               </div>
+            ) : subscription.subscriptionStatus === 'cancelled' ? (
+              // Paystack: Fully cancelled (cannot resume, need to resubscribe)
+              <div className="flex items-center justify-between p-4 border rounded-lg border-destructive/30 bg-destructive/10">
+                <div>
+                  <p className="font-medium text-destructive">
+                    Subscription Cancelled
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Your subscription has been cancelled. To reactivate, please change your subscription tier or contact support.
+                  </p>
+                </div>
+              </div>
             ) : (
+              // Active subscription
               <div className="flex items-center justify-between p-4 border rounded-lg border-destructive/20">
                 <div>
                   <p className="font-medium text-destructive">Cancel Subscription</p>

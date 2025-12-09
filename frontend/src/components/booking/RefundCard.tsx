@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { RefundStatusBadge } from './RefundStatusBadge';
-import { Clock, DollarSign, Calendar, AlertTriangle } from 'lucide-react';
+import { Clock, DollarSign, Calendar, AlertTriangle, CheckCircle } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface Refund {
@@ -73,12 +73,14 @@ export function RefundCard({ refund }: RefundCardProps) {
           </Alert>
         )}
 
-        {refund.status === 'SUCCEEDED' && refund.processedAt && (
-          <Alert className="border-green-200 bg-green-50">
-            <Clock className="h-4 w-4 text-green-600" />
-            <AlertDescription className="text-green-800">
-              Refund completed on {format(new Date(refund.processedAt), 'MMM dd, yyyy')}. 
-              Funds should appear in your account within 5-10 business days.
+        {refund.status === 'SUCCEEDED' && (
+          <Alert className="border-success/30 bg-success/10">
+            <CheckCircle className="h-4 w-4 text-success" />
+            <AlertDescription className="text-success">
+              <p className="font-medium">Refund Completed</p>
+              <p className="text-sm mt-1">
+                The refund has been successfully processed and should appear in your account within 5-10 business days.
+              </p>
             </AlertDescription>
           </Alert>
         )}

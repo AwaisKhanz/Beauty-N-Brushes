@@ -41,40 +41,46 @@ export function CancelBookingModal({
   // ✅ Calculate refund based on booking STATUS (not time)
   const calculateRefund = () => {
     const depositAmount = Number(booking.depositAmount) || 0;
-    const totalPaid = Number(booking.totalAmount) || 0;
+    const serviceFee = Number(booking.serviceFee) || 0;
+    const totalPaidAtBooking = depositAmount + serviceFee; // What client actually paid
+    const totalAmount = Number(booking.totalAmount) || 0;
 
     // Check if any payment was made
-    const hasDepositPaid = booking.paymentStatus === 'DEPOSIT_PAID' || booking.paymentStatus === 'PAID';
+    const hasDepositPaid = booking.paymentStatus === 'DEPOSIT_PAID' || booking.paymentStatus === 'FULLY_PAID';
     
     // If no payment made, no refund
     if (!hasDepositPaid) {
       return {
-        refundAmount: 0,
+        refundAmount: 0, 
         willRefund: false,
+        amountPaid: 0,
       };
     }
 
-    // PENDING booking: Full refund of whatever was paid
+    // PENDING booking: Full refund of whatever was paid (deposit + platform fee)
     if (booking.bookingStatus === 'PENDING') {
       return {
-        refundAmount: depositAmount,
+        refundAmount: totalPaidAtBooking,
         willRefund: true,
+        amountPaid: totalPaidAtBooking,
       };
     }
 
-    // CONFIRMED booking: No refund (deposit forfeited)
+    // CONFIRMED booking: No refund (deposit + platform fee forfeited)
     if (booking.bookingStatus === 'CONFIRMED') {
       return {
         refundAmount: 0,
         willRefund: false,
+        amountPaid: totalPaidAtBooking,
       };
     }
 
     // COMPLETED booking with full payment: Refund balance only
-    if (booking.bookingStatus === 'COMPLETED' && booking.paymentStatus === 'PAID') {
+    if (booking.bookingStatus === 'COMPLETED' && booking.paymentStatus === 'FULLY_PAID') {
       return {
-        refundAmount: totalPaid - depositAmount,
+        refundAmount: totalAmount - totalPaidAtBooking,
         willRefund: false,
+        amountPaid: totalAmount,
       };
     }
 
@@ -82,9 +88,10 @@ export function CancelBookingModal({
     return {
       refundAmount: 0,
       willRefund: false,
+      amountPaid: totalPaidAtBooking,
     };
   };
-  const { refundAmount, willRefund } = calculateRefund();
+  const { refundAmount, willRefund, amountPaid } = calculateRefund();
   const isPending = booking.bookingStatus === 'PENDING';
   const isConfirmed = booking.bookingStatus === 'CONFIRMED';
 
@@ -151,7 +158,7 @@ export function CancelBookingModal({
               </div>
               <div className="pt-2 border-t">
                 <span className="text-xs text-muted-foreground">Status: </span>
-                <span className={`text-xs font-medium ${isPending ? 'text-yellow-600' : 'text-green-600'}`}>
+                <span className={`text-xs font-medium ${isPending ? 'text-warning' : 'text-success'}`}>
                   {isPending ? 'Pending Confirmation' : 'Confirmed'}
                 </span>
               </div>
@@ -160,21 +167,21 @@ export function CancelBookingModal({
 
           {/* Refund Policy - PENDING Booking with Payment */}
           {isPending && willRefund && (
-            <Alert className="border-green-200 bg-green-50">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <Alert className="border-success/30 bg-success/10">
+              <CheckCircle2 className="h-4 w-4 text-success" />
               <AlertDescription>
                 <div className="space-y-2">
-                  <p className="font-medium text-green-900">Full Refund Available</p>
-                  <p className="text-sm text-green-800">
+                  <p className="font-medium text-success">Full Refund Available</p>
+                  <p className="text-sm text-success/90">
                     Since your booking hasn't been confirmed yet, you'll receive a full refund.
                   </p>
-                  <div className="flex items-center gap-2 bg-amber-50 p-3 rounded-lg border border-amber-200">
-                    <DollarSign className="h-4 w-4 text-amber-600" />
-                    <p className="text-sm font-semibold text-amber-900">
+                  <div className="flex items-center gap-2 bg-warning/10 p-3 rounded-lg border border-warning/30">
+                    <DollarSign className="h-4 w-4 text-warning" />
+                    <p className="text-sm font-semibold text-warning">
                       Refund amount: {booking.currency} {Number(refundAmount).toFixed(2)}
                     </p>
                   </div>
-                  <p className="text-xs text-green-700">
+                  <p className="text-xs text-success/80">
                     Refund will be processed within 5-10 business days
                   </p>
                 </div>
@@ -184,9 +191,9 @@ export function CancelBookingModal({
 
           {/* No Payment Made Yet */}
           {isPending && !willRefund && (
-            <Alert className="border-blue-200 bg-blue-50">
-              <CheckCircle2 className="h-4 w-4 text-blue-600" />
-              <AlertDescription className="text-blue-900">
+            <Alert className="border-info/30 bg-info/10">
+              <CheckCircle2 className="h-4 w-4 text-info" />
+              <AlertDescription className="text-info">
                 <p className="font-medium">No Payment Required</p>
                 <p className="text-sm mt-1">
                   You can cancel this booking at no cost since the deposit hasn't been paid yet.
@@ -210,9 +217,9 @@ export function CancelBookingModal({
                     <DollarSign className="h-4 w-4" />
                     <div className="text-sm">
                       <p>
-                        Deposit amount:{' '}
+                        Amount paid:{' '}
                         <span className="font-semibold">
-                          {booking.currency} {booking.depositAmount.toFixed(2)}
+                          {booking.currency} {Number(amountPaid).toFixed(2)}
                         </span>
                       </p>
                       <p className="text-muted-foreground">Refund amount: {booking.currency} 0.00</p>
@@ -252,7 +259,7 @@ export function CancelBookingModal({
                 htmlFor="confirm"
                 className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
               >
-                I understand that my deposit of {booking.currency} {booking.depositAmount.toFixed(2)} will be forfeited
+                I understand that my payment of {booking.currency} {Number(amountPaid).toFixed(2)} will be forfeited
                 and I will not receive a refund
               </label>
             </div>

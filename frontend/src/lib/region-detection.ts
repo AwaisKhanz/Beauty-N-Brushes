@@ -56,6 +56,8 @@ export class RegionDetection {
       }
 
       const data = await response.json();
+
+      console.log(data);
       
       if (data.success && data.data.regionCode) {
         this.cacheRegion(data.data.regionCode);

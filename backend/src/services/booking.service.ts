@@ -429,8 +429,23 @@ class BookingService {
       throw new Error('Booking not found');
     }
 
-    // Check if user is client or provider
-    if (booking.clientId !== userId && booking.providerId !== userId) {
+    // Verify access - user must be the client or provider of the booking
+    const isClient = booking.clientId === userId;
+    
+    // For provider access, we need to get the provider profile first
+    let isProvider = false;
+    if (!isClient) {
+      const providerProfile = await prisma.providerProfile.findUnique({
+        where: { userId },
+        select: { id: true },
+      });
+      
+      if (providerProfile) {
+        isProvider = booking.providerId === providerProfile.id;
+      }
+    }
+    
+    if (!isClient && !isProvider) {
       throw new Error('Access denied');
     }
 
@@ -655,6 +670,8 @@ class BookingService {
             city: true,
             state: true,
             isSalon: true,
+            averageRating: true,
+            totalReviews: true,
             locations: {
               where: { isPrimary: true, isActive: true },
               take: 1,
@@ -680,6 +697,14 @@ class BookingService {
         },
         addons: true, // ✅ ADD THIS - Include booking add-ons
         photos: true, // Include booking photos
+        review: {
+          select: {
+            id: true,
+            overallRating: true,
+            reviewText: true,
+            createdAt: true,
+          },
+        },
       },
     });
 

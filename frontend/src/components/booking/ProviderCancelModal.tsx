@@ -37,7 +37,7 @@ export function ProviderCancelModal({
   const [error, setError] = useState('');
 
   // Provider cancellation = ALWAYS full refund to client
-  const refundAmount = booking.depositAmount + booking.serviceFee;
+  const refundAmount = Number(booking.depositAmount) + Number(booking.serviceFee);
 
   async function handleCancel() {
     if (!reason.trim()) {
@@ -114,7 +114,7 @@ export function ProviderCancelModal({
                     <p>
                       Refund amount:{' '}
                       <span className="font-semibold">
-                        {booking.currency} {refundAmount.toFixed(2)}
+                        {booking.currency} {Number(refundAmount).toFixed(2)}
                       </span>
                     </p>
                     <p className="text-muted-foreground text-xs">Processed within 5-10 business days</p>

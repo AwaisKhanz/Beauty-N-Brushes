@@ -270,6 +270,7 @@ export function BookingModal({ open, onOpenChange, service }: BookingModalProps)
       // Phase 4: For Paystack regions, show payment method selection
       const paymentResponse = await api.payment.initializeBookingPayment({
         bookingId: newBookingId,
+        paymentType:"deposit"
       });
 
       if (paymentResponse.data.paymentProvider === 'stripe') {
@@ -776,6 +777,8 @@ export function BookingModal({ open, onOpenChange, service }: BookingModalProps)
                   try {
                     const paymentResponse = await api.payment.initializeBookingPayment({
                       bookingId: bookingId,
+                      paymentType:"deposit"
+
                     });
                     
                     if (paymentResponse.data.authorizationUrl) {

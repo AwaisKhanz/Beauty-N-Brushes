@@ -4,13 +4,12 @@ import { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, CreditCard, Loader2 } from 'lucide-react';
-import { SUBSCRIPTION_TIERS } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import { useSubscriptionConfig } from '@/hooks/useSubscriptionConfig';
 
 interface PaystackCardFormProps {
-  regionCode: string;
+  regionCode: string; // Still used for display purposes
   subscriptionTier: 'solo' | 'salon';
   onBack: () => void;
 }
@@ -45,21 +44,11 @@ export default function PaystackCardForm({
     setError(null);
 
     try {
-      // Calculate subscription amount in local currency
-      // Solo: $19 USD = ~₵237.50 GHS or ~₦29,450 NGN
-      // Salon: $49 USD = ~₵612.50 GHS or ~₦75,975 NGN
-      const baseAmount = subscriptionTier === 'solo' ? SUBSCRIPTION_TIERS.SOLO.monthlyPriceUSD : SUBSCRIPTION_TIERS.SALON.monthlyPriceUSD;
-      const exchangeRate = regionCode === 'GH' ? 12.5 : 1550; // GHS:NGN exchange rates
-      const amount = baseAmount * exchangeRate;
-
-      // Initialize Paystack transaction to collect payment and authorization
-      // Currency is determined by backend from regionCode
-      const initResponse = await api.payment.initializePaystack({
+      // ✅ NEW: Use subscription endpoint
+      // Backend handles customer creation, plan selection, and currency conversion
+      const initResponse = await api.payment.initializePaystackSubscription({
         email: user.email,
-        amount,
         subscriptionTier,
-        regionCode: regionCode as 'GH' | 'NG',
-        currency: regionCode === 'GH' ? 'GHS' : 'NGN', // Required by API type but backend uses regionCode
       });
 
       // Redirect to Paystack checkout
@@ -70,7 +59,7 @@ export default function PaystackCardForm({
       }
     } catch (err: unknown) {
       const errorMessage =
-        err instanceof Error ? err.message : 'Failed to initialize payment. Please try again.';
+        err instanceof Error ? err.message : 'Failed to initialize subscription. Please try again.';
       setError(errorMessage);
       setProcessing(false);
     }

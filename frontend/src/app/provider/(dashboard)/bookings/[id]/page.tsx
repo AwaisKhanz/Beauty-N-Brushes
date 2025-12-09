@@ -30,6 +30,8 @@ import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { AssignTeamMemberModal } from '@/components/booking/AssignTeamMemberModal';
 import { ProviderCancelModal } from '@/components/booking/ProviderCancelModal';
 import { PaymentStatusBadge } from '@/components/booking/PaymentStatusBadge';
+import { BookingPhotos } from '@/components/booking/BookingPhotos';
+import { BookingReview } from '@/components/booking/BookingReview';
 
 export default function ProviderBookingDetailPage() {
   const params = useParams();
@@ -122,15 +124,15 @@ export default function ProviderBookingDetailPage() {
 
   function getStatusColor(status: string) {
     switch (status) {
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'confirmed':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'completed':
-        return 'bg-green-100 text-green-800 border-green-200';
-      case 'cancelled_by_client':
-      case 'cancelled_by_provider':
-        return 'bg-red-100 text-red-800 border-red-200';
+      case 'PENDING':
+        return 'bg-warning/10 text-warning border-warning/30';
+      case 'CONFIRMED':
+        return 'bg-info/10 text-info border-info/30';
+      case 'COMPLETED':
+        return 'bg-success/10 text-success border-success/30';
+      case 'CANCELLED_BY_CLIENT':
+      case 'CANCELLED_BY_PROVIDER':
+        return 'bg-destructive/10 text-destructive border-destructive/30';
       case 'no_show':
         return 'bg-gray-100 text-gray-800 border-gray-200';
       default:
@@ -212,9 +214,13 @@ export default function ProviderBookingDetailPage() {
     );
   }
 
-  const canConfirm = booking.bookingStatus === 'PENDING';
-  const canMarkCompleted = booking.bookingStatus === 'CONFIRMED';
-  const canMarkNoShow = ['PENDING', 'CONFIRMED'].includes(booking.bookingStatus);
+  // Define which actions are available based on booking status
+  const isActiveBooking = !['COMPLETED', 'CANCELLED_BY_CLIENT', 'CANCELLED_BY_PROVIDER', 'NO_SHOW'].includes(booking.bookingStatus);
+  const canConfirm = booking.bookingStatus === 'PENDING' && booking.paymentStatus === 'DEPOSIT_PAID';
+  const canMarkCompleted = booking.bookingStatus === 'CONFIRMED' && new Date(`${booking.appointmentDate}T${booking.appointmentTime}`) < new Date();
+  const canMarkNoShow = ['PENDING', 'CONFIRMED'].includes(booking.bookingStatus) && new Date(`${booking.appointmentDate}T${booking.appointmentTime}`) < new Date();
+  const canAssignTeamMember = booking?.provider?.isSalon && !booking.assignedTeamMember && isActiveBooking;
+  const canCancel = isActiveBooking;
 
   return (
     <div className="space-y-6">
@@ -284,16 +290,6 @@ export default function ProviderBookingDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Refund Information */}
-          {refunds.length > 0 && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Refund Information</h3>
-              {refunds.map((refund: any) => (
-                <RefundCard key={refund.id} refund={refund} />
-              ))}
-            </div>
-          )}
-
           {/* Service Details */}
           <Card>
             <CardHeader>
@@ -316,7 +312,34 @@ export default function ProviderBookingDetailPage() {
             </CardContent>
           </Card>
 
-          
+          {/* Booking Photos */}
+          {booking.photos && (
+            <BookingPhotos
+              bookingId={booking.id}
+              photos={booking.photos}
+              canUpload={false}
+              canDelete={false}
+              onUpdate={fetchBooking}
+            />
+          )}
+
+          {/* Review Display */}
+          {booking.review && (
+            <BookingReview review={booking.review} />
+          )}
+
+          {/* Refund Information */}
+          {refunds.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Refund Information</h3>
+              {refunds.map((refund: any) => (
+                <RefundCard key={refund.id} refund={refund} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Sidebar */}
         <div className="space-y-6">
           {/* Payment Status */}
           <Card>
@@ -336,20 +359,20 @@ export default function ProviderBookingDetailPage() {
                   <Badge
                     className={
                       booking.paymentStatus === 'FULLY_PAID'
-                        ? 'bg-green-100 text-green-800 border-green-200'
+                        ? 'bg-success/10 text-success border-success/30'
                         : booking.paymentStatus === 'DEPOSIT_PAID'
-                          ? 'bg-blue-100 text-blue-800 border-blue-200'
+                          ? 'bg-info/10 text-info border-info/30'
                           : booking.paymentStatus === 'AWAITING_DEPOSIT'
-                            ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
-                            : 'bg-gray-100 text-gray-800 border-gray-200'
+                            ? 'bg-warning/10 text-warning border-warning/30'
+                            : 'bg-muted text-muted-foreground border-border'
                     }
                   >
                     {booking.paymentStatus.replace('_', ' ')}
                   </Badge>
                 </div>
 
-                {/* Warning for unpaid deposit */}
-                {booking.paymentStatus === 'AWAITING_DEPOSIT' && (
+                {/* Warning for unpaid deposit - only show for active bookings */}
+                {booking.paymentStatus === 'AWAITING_DEPOSIT' && isActiveBooking && (
                   <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
@@ -359,35 +382,40 @@ export default function ProviderBookingDetailPage() {
                   </Alert>
                 )}
 
-                {booking.paidAt && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Paid On</span>
-                    <span className="text-sm font-medium">
-                      {new Date(booking.paidAt).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
-                    </span>
-                  </div>
-                )}
+                {/* Only show payment details if payment has been made */}
+                {booking.paymentStatus !== 'AWAITING_DEPOSIT' && (
+                  <>
+                    {booking.paidAt && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Paid On</span>
+                        <span className="text-sm font-medium">
+                          {new Date(booking.paidAt).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })}
+                        </span>
+                      </div>
+                    )}
 
-                {booking.paymentMethod && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Method</span>
-                    <span className="text-sm font-medium capitalize">
-                      {booking.paymentChannel || booking.paymentMethod}
-                    </span>
-                  </div>
-                )}
+                    {booking.paymentMethod && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Method</span>
+                        <span className="text-sm font-medium capitalize">
+                          {booking.paymentChannel || booking.paymentMethod}
+                        </span>
+                      </div>
+                    )}
 
-                {(booking.paystackReference || booking.stripePaymentIntentId) && (
-                  <div className="flex flex-col gap-1">
-                    <span className="text-sm text-muted-foreground">Transaction ID</span>
-                    <span className="text-xs font-mono bg-muted px-2 py-1 rounded">
-                      {booking.paystackReference || booking.stripePaymentIntentId}
-                    </span>
-                  </div>
+                    {(booking.paystackReference || booking.stripePaymentIntentId) && (
+                      <div className="flex flex-col gap-1">
+                        <span className="text-sm text-muted-foreground">Transaction ID</span>
+                        <span className="text-xs font-mono bg-muted px-2 py-1 rounded">
+                          {booking.paystackReference || booking.stripePaymentIntentId}
+                        </span>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </CardContent>
@@ -429,19 +457,19 @@ export default function ProviderBookingDetailPage() {
                   </div>
                   <div className="flex justify-between text-sm pl-4">
                     <span>Deposit (25%)</span>
-                    <span className="text-green-600">
+                      <span className="text-success">
                       {formatCurrency(booking.depositAmount, booking.currency)}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm pl-4">
                     <span>Platform Fee</span>
-                    <span className="text-green-600">
+                      <span className="text-success">
                       {formatCurrency(booking.serviceFee, booking.currency)}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm font-medium pl-4 border-t pt-2">
                     <span>Total Paid</span>
-                    <span className="text-green-600">
+                      <span className="text-success">
                       {formatCurrency(Number(booking.depositAmount) + Number(booking.serviceFee), booking.currency)}
                     </span>
                   </div>
@@ -452,7 +480,7 @@ export default function ProviderBookingDetailPage() {
                   <div className="border-t pt-3">
                     <div className="flex justify-between text-sm font-medium">
                       <span>Balance Due (from client)</span>
-                      <span className="text-amber-600">
+                      <span className="text-warning">
                         {formatCurrency(
                           Number(booking.servicePrice) - Number(booking.depositAmount),
                           booking.currency
@@ -467,7 +495,7 @@ export default function ProviderBookingDetailPage() {
                   <div className="border-t pt-3">
                     <div className="flex justify-between text-sm">
                       <span>Tip Received</span>
-                      <span className="text-green-600">
+                        <span className="text-success">
                         {formatCurrency(booking.tipAmount, booking.currency)}
                       </span>
                     </div>
@@ -526,8 +554,8 @@ export default function ProviderBookingDetailPage() {
                 </Button>
               )}
 
-              {/* Team Member Assignment for Salon Bookings */}
-              {booking?.provider?.isSalon && !booking.assignedTeamMember && (
+              {/* Team Member Assignment for Salon Bookings - Only for active bookings */}
+              {canAssignTeamMember && (
                 <Button
                   onClick={() => setAssignTeamMemberModalOpen(true)}
                   variant="outline"
@@ -538,8 +566,8 @@ export default function ProviderBookingDetailPage() {
                 </Button>
               )}
 
-              {/* Cancel Booking */}
-              {!['COMPLETED', 'CANCELLED_BY_CLIENT', 'CANCELLED_BY_PROVIDER', 'NO_SHOW'].includes(booking.bookingStatus) && (
+              {/* Cancel Booking - Only for active bookings */}
+              {canCancel && (
                 <Button
                   onClick={() => setCancelModalOpen(true)}
                   variant="outline"
@@ -552,7 +580,7 @@ export default function ProviderBookingDetailPage() {
             </CardContent>
           </Card>
         </div>
-      </div >
+      </div>
       
 
       {/* Modals */}
@@ -579,7 +607,6 @@ export default function ProviderBookingDetailPage() {
         booking={booking}
         onSuccess={fetchBooking}
       />
-      </div>
-      </div>
+    </div>
   );
 }

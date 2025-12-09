@@ -35,8 +35,8 @@ export function StarRating({ rating, onRatingChange, readonly = false, size = 'm
             className={cn(
               sizeClasses[size],
               star <= rating
-                ? 'fill-yellow-400 text-yellow-400'
-                : 'fill-none text-gray-300'
+                ? 'fill-rating-filled text-rating-filled'
+                : 'fill-rating-empty text-rating-empty'
             )}
           />
         </button>

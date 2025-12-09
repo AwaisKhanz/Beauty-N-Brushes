@@ -5,7 +5,7 @@
 
 import { useEffect, useCallback } from 'react';
 import { useSocket } from '@/contexts/SocketContext';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 
 interface BookingSocketData {
@@ -19,7 +19,6 @@ interface BookingSocketData {
 
 export function useBookingSocket() {
   const { socket } = useSocket();
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Memoize invalidate function to prevent unnecessary re-renders
@@ -33,151 +32,127 @@ export function useBookingSocket() {
 
   // Handle booking created event
   const handleBookingCreated = useCallback((data: BookingSocketData) => {
-    toast({
-      title: 'New Booking Request',
+    toast.success('New Booking Request', {
       description: `${data.booking.clientName} booked ${data.booking.serviceName}`,
-      variant: 'default',
     });
     invalidateBookings();
-  }, [toast, invalidateBookings]);
+  }, [invalidateBookings]);
 
   // Handle booking confirmed event
   const handleBookingConfirmed = useCallback((data: BookingSocketData) => {
-    toast({
-      title: 'Booking Confirmed!',
+    toast.success('Booking Confirmed!', {
       description: `Your booking with ${data.booking.providerName} is confirmed`,
-      variant: 'default',
     });
     invalidateBookings();
     invalidateBooking(data.booking.id);
-  }, [toast, invalidateBookings, invalidateBooking]);
+  }, [invalidateBookings, invalidateBooking]);
 
   // Handle booking cancelled event
   const handleBookingCancelled = useCallback((data: BookingSocketData) => {
-    toast({
-      title: 'Booking Cancelled',
+    toast.error('Booking Cancelled', {
       description: `${data.booking.cancellerName} cancelled the booking`,
-      variant: 'destructive',
     });
     invalidateBookings();
     invalidateBooking(data.booking.id);
-  }, [toast, invalidateBookings, invalidateBooking]);
+  }, [invalidateBookings, invalidateBooking]);
 
   // Handle booking rescheduled event
   const handleBookingRescheduled = useCallback((data: BookingSocketData) => {
-    toast({
-      title: 'Booking Rescheduled',
+    toast.success('Booking Rescheduled', {
       description: `Booking moved to ${data.booking.newDate} at ${data.booking.newTime}`,
-      variant: 'default',
     });
 
     // Invalidate bookings query
     invalidateBookings();
     invalidateBooking(data.booking.id);
-  }, [toast, invalidateBookings, invalidateBooking]);
+  }, [invalidateBookings, invalidateBooking]);
 
   // Handle reschedule requested event
   const handleRescheduleRequested = useCallback((data: BookingSocketData) => {
-    toast({
-      title: 'Reschedule Request',
+    toast.info('Reschedule Request', {
       description: `${data.booking.providerName} requested to reschedule to ${data.booking.proposedDate}`,
-      variant: 'default',
     });
 
     // Invalidate bookings query
     invalidateBookings();
     invalidateBooking(data.booking.id);
-  }, [toast, invalidateBookings, invalidateBooking]);
+  }, [invalidateBookings, invalidateBooking]);
 
   // Handle reschedule approved event
   const handleRescheduleApproved = useCallback((data: BookingSocketData) => {
-    toast({
-      title: 'Reschedule Approved',
+    toast.success('Reschedule Approved', {
       description: 'Client approved your reschedule request',
-      variant: 'default',
     });
 
     // Invalidate bookings query
     invalidateBookings();
     invalidateBooking(data.booking.id);
-  }, [toast, invalidateBookings, invalidateBooking]);
+  }, [invalidateBookings, invalidateBooking]);
 
   // Handle reschedule rejected event
   const handleRescheduleRejected = useCallback((data: BookingSocketData) => {
-    toast({
-      title: 'Reschedule Rejected',
+    toast.error('Reschedule Rejected', {
       description: 'Client rejected your reschedule request',
-      variant: 'destructive',
     });
 
     // Invalidate bookings query
     invalidateBookings();
     invalidateBooking(data.booking.id);
-  }, [toast, invalidateBookings, invalidateBooking]);
+  }, [invalidateBookings, invalidateBooking]);
 
   // Handle booking completed event
   const handleBookingCompleted = useCallback((data: BookingSocketData) => {
-    toast({
-      title: 'Appointment Complete!',
+    toast.success('Appointment Complete!', {
       description: `How was your experience? Leave a review for ${data.booking.providerName}`,
-      variant: 'default',
     });
 
     // Invalidate bookings query
     invalidateBookings();
     invalidateBooking(data.booking.id);
-  }, [toast, invalidateBookings, invalidateBooking]);
+  }, [invalidateBookings, invalidateBooking]);
 
   // Handle no-show event
   const handleBookingNoShow = useCallback((data: BookingSocketData) => {
-    toast({
-      title: 'Missed Appointment',
+    toast.error('Missed Appointment', {
       description: `You were marked as no-show for your appointment on ${data.booking.appointmentDate}`,
-      variant: 'destructive',
     });
 
     // Invalidate bookings query
     invalidateBookings();
     invalidateBooking(data.booking.id);
-  }, [toast, invalidateBookings, invalidateBooking]);
+  }, [invalidateBookings, invalidateBooking]);
 
   // Handle team member assigned event
   const handleTeamMemberAssigned = useCallback((data: BookingSocketData) => {
-    toast({
-      title: 'Stylist Assigned',
+    toast.success('Stylist Assigned', {
       description: `${data.booking.stylistName} will be your stylist`,
-      variant: 'default',
     });
 
     // Invalidate bookings query
     invalidateBookings();
     invalidateBooking(data.booking.id);
-  }, [toast, invalidateBookings, invalidateBooking]);
+  }, [invalidateBookings, invalidateBooking]);
 
   // Handle booking assigned to you event (for team members)
   const handleBookingAssignedToYou = useCallback((data: BookingSocketData) => {
-    toast({
-      title: 'New Assignment',
+    toast.success('New Assignment', {
       description: `You've been assigned to ${data.booking.clientName}'s booking`,
-      variant: 'default',
     });
 
     // Invalidate bookings query
     invalidateBookings();
-  }, [toast, invalidateBookings, invalidateBooking]);
+  }, [invalidateBookings]);
 
   // Handle booking photo added event
   const handleBookingPhotoAdded = useCallback((data: BookingSocketData) => {
     const photoType = (data.booking.photoType as string) || 'booking';
-    toast({
-      title: 'New Photo Added',
+    toast.success('New Photo Added', {
       description: `${data.booking.uploaderName} added a ${photoType.toLowerCase()} photo`,
-      variant: 'default',
     });
 
     // Invalidate bookings query
     invalidateBooking(data.booking.id);
-  }, [toast, invalidateBooking]);
+  }, [invalidateBooking]);
 
   // Handle booking updated event (for payment status changes from webhooks)
   const handleBookingUpdated = useCallback((data: { bookingId: string; paymentStatus?: string; bookingStatus?: string; paidAt?: Date }) => {
@@ -185,23 +160,19 @@ export function useBookingSocket() {
     
     // Show toast for payment status changes
     if (data.paymentStatus === 'DEPOSIT_PAID') {
-      toast({
-        title: 'Payment Successful! ✅',
+      toast.success('Payment Successful! ✅', {
         description: 'Your deposit payment has been confirmed',
-        variant: 'default',
       });
     } else if (data.paymentStatus === 'FULLY_PAID') {
-      toast({
-        title: 'Payment Complete! ✅',
+      toast.success('Payment Complete! ✅', {
         description: 'Your booking is now fully paid',
-        variant: 'default',
       });
     }
 
     // Invalidate queries to refresh the UI
     invalidateBookings();
     invalidateBooking(data.bookingId);
-  }, [toast, invalidateBookings, invalidateBooking]);
+  }, [invalidateBookings, invalidateBooking]);
 
   // Set up Socket.IO listeners
   useEffect(() => {

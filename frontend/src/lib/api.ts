@@ -412,6 +412,19 @@ export const api = {
     initializePaystack: (data: InitializePaystackRequest) =>
       apiClient.post<{ data: InitializePaystackResponse }>('/payment/paystack/initialize', data),
 
+    // NEW: Initialize Paystack subscription (for provider onboarding)
+    initializePaystackSubscription: (data: { email: string; subscriptionTier: 'solo' | 'salon' }) =>
+      apiClient.post<{
+        data: {
+          subscriptionCode: string;
+          emailToken: string;
+          authorizationUrl: string;
+          nextPaymentDate: string;
+          amount: number;
+          status: string;
+        };
+      }>('/payment/paystack/subscription/initialize', data),
+
     verifyPaystack: (reference: string) =>
       apiClient.get<{ data: VerifyPaystackTransactionResponse['data'] }>(
         `/payment/paystack/verify/${reference}`
@@ -837,11 +850,17 @@ export const api = {
       apiClient.post<{ data: UpdateBookingResponse }>(`/bookings/${bookingId}/confirm`),
 
     cancel: (bookingId: string, data: CancelBookingRequest) =>
-      apiClient.post<{ data: CancelBookingResponse }>(`/bookings/${bookingId}/cancel`, data),
+      apiClient.post<{ data: CancelBookingResponse }>(`/bookings/${bookingId}/cancel`, {
+        ...data,
+        cancelledBy: 'client',
+      }),
 
     // Provider cancels booking (always full refund to client)
     cancelByProvider: (bookingId: string, data: { reason: string }) =>
-      apiClient.post<{ data: CancelBookingResponse }>(`/bookings/${bookingId}/cancel-by-provider`, data),
+      apiClient.post<{ data: CancelBookingResponse }>(`/bookings/${bookingId}/cancel`, {
+        ...data,
+        cancelledBy: 'provider',
+      }),
 
     reschedule: (bookingId: string, data: RescheduleBookingRequest) =>
       apiClient.put<{ data: RescheduleBookingResponse }>(

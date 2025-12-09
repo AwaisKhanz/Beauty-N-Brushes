@@ -91,7 +91,7 @@ export function TipPaymentModal({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Heart className="h-5 w-5 text-pink-500" />
+            <Heart className="h-5 w-5 text-accent" />
             Send a Tip
           </DialogTitle>
         </DialogHeader>

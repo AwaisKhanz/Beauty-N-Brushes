@@ -255,8 +255,8 @@ export function RequestRescheduleModal({
               </div>
             </div>
 
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <p className="text-sm text-yellow-800">
+            <div className="bg-warning/10 border border-warning/30 rounded-lg p-4">
+              <p className="text-sm text-warning">
                 <strong>Note:</strong> This is a request that needs client approval. The client will
                 be notified and can approve or deny your request.
               </p>

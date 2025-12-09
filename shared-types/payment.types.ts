@@ -30,7 +30,7 @@ export interface InitializePaystackRequest {
   amount: number;
   currency: string;
   subscriptionTier: 'solo' | 'salon';
-  regionCode: string;
+  regionCode?: string; // Optional - backend determines from provider's business country
 }
 
 export interface InitializePaystackResponse {
@@ -48,6 +48,29 @@ export interface VerifyPaystackResponse {
     email: string;
   };
 }
+
+/**
+ * Request to initialize a Paystack subscription (for provider onboarding)
+ * @interface
+ */
+export interface InitializePaystackSubscriptionRequest {
+  email: string;
+  subscriptionTier: 'solo' | 'salon';
+}
+
+/**
+ * Response from Paystack subscription initialization
+ * @interface
+ */
+export interface InitializePaystackSubscriptionResponse {
+  subscriptionCode: string;
+  emailToken: string;
+  authorizationUrl: string;
+  nextPaymentDate: string;
+  amount: number;
+  status: string;
+}
+
 
 export interface VerifyPaystackTransactionResponse {
   success: boolean;
